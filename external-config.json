@@ -1,0 +1,8 @@
+{
+    "from": {
+        "type": "github",
+        "owner": "cocos",
+        "name": "cocos-engine-external",
+        "checkout": "v4.0.0-4"
+    }
+}
