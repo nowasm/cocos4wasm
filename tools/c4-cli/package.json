@@ -1,0 +1,20 @@
+{
+  "name": "cocos-cli",
+  "version": "1.0.0",
+  "description": "Cocos Creator Native CLI - Create new native projects",
+  "main": "src/index.js",
+  "bin": {
+    "cocos": "./bin/cocos"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": ["cocos", "game-engine", "native"],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "commander": "^11.1.0",
+    "fs-extra": "^11.2.0",
+    "chalk": "^4.1.2"
+  }
+}
