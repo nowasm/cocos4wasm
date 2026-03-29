@@ -1,0 +1,4 @@
+[submodule "external"]
+	path = external
+	url = https://github.com/nowasm/cocos4wasm-external.git
+	branch = cocos4wasm
