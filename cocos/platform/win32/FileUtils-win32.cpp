@@ -88,7 +88,20 @@ FileUtilsWin32::FileUtilsWin32() {
 bool FileUtilsWin32::init() {
     _checkPath();
     _defaultResRootPath = s_resourcePath;
-    return FileUtils::init();
+    bool ret = FileUtils::init();
+
+    WCHAR cwdBuf[CC_MAX_PATH] = {0};
+    if (GetCurrentDirectoryW(CC_MAX_PATH - 1, cwdBuf)) {
+        char utf8Cwd[CC_MAX_PATH] = {0};
+        WideCharToMultiByte(CP_UTF8, 0, cwdBuf, -1, utf8Cwd, sizeof(utf8Cwd), nullptr, nullptr);
+        ccstd::string cwdPath = convertPathFormatToUnixStyle(utf8Cwd);
+        if (!cwdPath.empty() && cwdPath.back() != '/') cwdPath += '/';
+        if (cwdPath != _defaultResRootPath) {
+            addSearchPath(cwdPath, true);
+        }
+    }
+
+    return ret;
 }
 
 bool FileUtilsWin32::isDirectoryExistInternal(const ccstd::string &dirPath) const {
