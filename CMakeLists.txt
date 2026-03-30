@@ -10,6 +10,13 @@ set(ENGINE_NAME cocos_engine)
 # Should be enable someday in the future
 # set(CMAKE_CXX_FLAGS "${WERROR_FLAGS}")
 
+# Suppress warnings from third-party boost headers
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|AppleClang|GNU")
+    add_compile_options(-Wno-deprecated-declarations -Wno-deprecated-builtins)
+elseif(MSVC)
+    add_compile_options(/wd4996)
+endif()
+
 ################################# options ############################################
 # default fallback options
 cc_set_if_undefined(CC_DEBUG_FORCE           OFF)
@@ -3722,7 +3729,7 @@ if(APPLE)
         "-lsqlite3"
         "-framework Security"
         "-framework SystemConfiguration"
-        "$(inherited)"
+        $<$<STREQUAL:${CMAKE_GENERATOR},Xcode>:$(inherited)>
         ${CC_EXTERNAL_LIBS}
     )
     set_target_properties(${ENGINE_NAME} PROPERTIES
