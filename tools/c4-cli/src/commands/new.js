@@ -35,10 +35,12 @@ async function newCommand(projectName, options) {
 
     // Copy platform-specific template
     const platformTemplateDir = path.join(TEMPLATES_DIR, platform);
-    if (await fs.pathExists(platformTemplateDir)) {
-      await fs.copy(platformTemplateDir, path.join(projectPath, 'proj'), { preserveTimestamps: true });
-      console.log(chalk.green(`✓ Copied ${platform} template`));
+    if (!await fs.pathExists(platformTemplateDir)) {
+      console.error(chalk.red(`Error: wasm32 template directory not found: ${platformTemplateDir}`));
+      process.exit(1);
     }
+    await fs.copy(platformTemplateDir, path.join(projectPath, 'proj'), { preserveTimestamps: true });
+    console.log(chalk.green(`✓ Copied ${platform} template`));
 
     // Copy cmake templates
     const cmakeDir = path.join(TEMPLATES_DIR, 'cmake');
@@ -100,6 +102,14 @@ async function newCommand(projectName, options) {
     console.log(chalk.blue(`\nNext steps:`));
     console.log(`  cd ${projectPath}`);
     console.log(`  cocos compile -p ${platform}`);
+
+    if (platform === 'wasm32') {
+      console.log('\nTo build your wasm32 project:');
+      console.log('  1. Activate emsdk:  source /path/to/emsdk/emsdk_env.sh');
+      console.log('  2. Configure:       emcmake cmake .. -G Ninja');
+      console.log('  3. Build:           cmake --build .');
+      console.log('  4. Preview:         python -m http.server 8080');
+    }
 
   } catch (error) {
     console.error(chalk.red(`Error creating project: ${error.message}`));

@@ -81,6 +81,11 @@ elseif(ANDROID OR WINDOWS OR OHOS)
     cc_set_if_undefined(CC_USE_GLES3 ON)
     cc_set_if_undefined(CC_USE_VULKAN OFF)
     cc_set_if_undefined(CC_USE_GLES2 OFF)
+elseif(EMSCRIPTEN)
+    cc_set_if_undefined(CC_USE_GLES3 ON)
+    cc_set_if_undefined(CC_USE_VULKAN OFF)
+    cc_set_if_undefined(CC_USE_METAL OFF)
+    cc_set_if_undefined(CC_USE_GLES2 OFF)
 elseif(MACOSX OR IOS)
     cc_set_if_undefined(CC_USE_METAL ON)
     cc_set_if_undefined(CC_USE_VULKAN OFF)
@@ -135,6 +140,13 @@ endif()
 if(NOT ANDROID AND NOT IOS AND NOT OHOS AND NOT OPENHARMONY)
     set(USE_VIDEO OFF)
     set(USE_WEBVIEW OFF)
+endif()
+
+## disable unsupported features on EMSCRIPTEN
+if(EMSCRIPTEN)
+    cc_set_if_undefined(USE_VIDEO OFF)
+    cc_set_if_undefined(USE_WEBVIEW OFF)
+    cc_set_if_undefined(USE_AUDIO OFF)
 endif()
 
 ## disable middleware when dragonbones and spine are disabled
@@ -578,6 +590,11 @@ elseif(LINUX)
         cocos/platform/linux/LinuxPlatform.cpp
         cocos/platform/linux/LinuxPlatform.h
     )
+elseif(EMSCRIPTEN)
+    cocos_source_files(
+        cocos/platform/wasm/WasmPlatform.cpp
+        cocos/platform/wasm/WasmPlatform.h
+    )
 elseif(ANDROID)
     cocos_source_files(
         cocos/platform/android/AndroidPlatform.cpp
@@ -700,6 +717,11 @@ elseif(LINUX)
     cocos_source_files(
         cocos/platform/linux/modules/CanvasRenderingContext2DDelegate.cpp
         cocos/platform/linux/modules/CanvasRenderingContext2DDelegate.h
+    )
+elseif(EMSCRIPTEN)
+    cocos_source_files(
+        cocos/platform/wasm/modules/CanvasRenderingContext2DDelegate.cpp
+        cocos/platform/wasm/modules/CanvasRenderingContext2DDelegate.h
     )
 endif()
 
@@ -950,6 +972,25 @@ elseif(LINUX)
             cocos/platform/linux/modules/SystemWindowManager.h
         )
     endif()
+elseif(EMSCRIPTEN)
+    cocos_source_files(
+        cocos/platform/wasm/modules/Accelerometer.cpp
+        cocos/platform/wasm/modules/Accelerometer.h
+        cocos/platform/wasm/modules/Battery.cpp
+        cocos/platform/wasm/modules/Battery.h
+        cocos/platform/wasm/modules/Network.cpp
+        cocos/platform/wasm/modules/Network.h
+        cocos/platform/wasm/modules/Screen.cpp
+        cocos/platform/wasm/modules/Screen.h
+        cocos/platform/wasm/modules/System.cpp
+        cocos/platform/wasm/modules/System.h
+        cocos/platform/wasm/modules/SystemWindow.cpp
+        cocos/platform/wasm/modules/SystemWindow.h
+        cocos/platform/wasm/modules/SystemWindowManager.cpp
+        cocos/platform/wasm/modules/SystemWindowManager.h
+        cocos/platform/wasm/modules/Vibrator.cpp
+        cocos/platform/wasm/modules/Vibrator.h
+    )
 endif()
 
 ############ module log
