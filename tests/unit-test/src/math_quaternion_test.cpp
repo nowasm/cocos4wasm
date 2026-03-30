@@ -117,7 +117,7 @@ TEST(mathQuaternionTest, test6) {
     logLabel = "test the quaternion toEuler function";
     cc::Vec3 v;
     cc::Quaternion::toEuler(q1, false, &v);
-    ExpectEq(v == cc::Vec3(0, 0, 60), true);
+    ExpectEq(IsEqualF(v.x, 0) && IsEqualF(v.y, 0) && IsEqualF(v.z, 60), true);
     // fromMat3
     logLabel = "test the quaternion fromMat3 function";
     cc::Mat3 m;

@@ -119,5 +119,23 @@ SpineExtension *spine::getDefaultExtension() {
 
 void Cocos2dExtension::_free(void *mem, const char *file, int line) {
     spineObjectDisposeCallback(mem);
+#ifndef __EMSCRIPTEN__
     DefaultSpineExtension::_free(mem, file, line);
+#else
+    ::free(mem);
+#endif
 }
+
+#ifdef __EMSCRIPTEN__
+void *Cocos2dExtension::_alloc(size_t size, const char * /*file*/, int /*line*/) {
+    return ::malloc(size);
+}
+
+void *Cocos2dExtension::_calloc(size_t size, const char * /*file*/, int /*line*/) {
+    return ::calloc(1, size);
+}
+
+void *Cocos2dExtension::_realloc(void *ptr, size_t size, const char * /*file*/, int /*line*/) {
+    return ::realloc(ptr, size);
+}
+#endif

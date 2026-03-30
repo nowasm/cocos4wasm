@@ -86,11 +86,12 @@ elseif(EMSCRIPTEN)
     cc_set_if_undefined(CC_USE_VULKAN OFF)
     cc_set_if_undefined(CC_USE_METAL OFF)
     cc_set_if_undefined(CC_USE_GLES2 OFF)
-    # No V8 / NAPI prebuilts under external/emscripten; wasm template turns script VMs off.
-    cc_set_if_undefined(USE_SE_V8 OFF)
-    cc_set_if_undefined(USE_SE_SM OFF)
-    cc_set_if_undefined(USE_SE_NAPI OFF)
-    cc_set_if_undefined(USE_SE_JSVM OFF)
+    # No V8 / NAPI prebuilts under external/emscripten; force all script VMs off
+    # so that target_compile_definitions below emits SCRIPT_ENGINE_TYPE=0 only.
+    set(USE_SE_V8 OFF)
+    set(USE_SE_SM OFF)
+    set(USE_SE_NAPI OFF)
+    set(USE_SE_JSVM OFF)
 elseif(MACOSX OR IOS)
     cc_set_if_undefined(CC_USE_METAL ON)
     cc_set_if_undefined(CC_USE_VULKAN OFF)

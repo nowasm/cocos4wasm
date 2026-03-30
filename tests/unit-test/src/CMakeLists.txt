@@ -9,7 +9,15 @@ add_test(NAME ${BINARY} COMMAND ${BINARY})
 target_link_libraries(${BINARY} PUBLIC gtest ${ENGINE_NAME})
 target_include_directories(${BINARY} PUBLIC ${CMAKE_CURRENT_LIST_DIR}/../..)
 
-if(MSVC)
+if(EMSCRIPTEN)
+    # Allow heap to grow, export main, enable printf output to browser console,
+    # and link the virtual filesystem (needed by gtest's internal file I/O).
+    target_link_options(${BINARY} PRIVATE
+        -sALLOW_MEMORY_GROWTH=1
+        -sEXIT_RUNTIME=1
+        -sENVIRONMENT=web,node
+    )
+elseif(MSVC)
     foreach(item ${WINDOWS_DLLS})
         get_filename_component(filename ${item} NAME)
         get_filename_component(abs ${item} ABSOLUTE)

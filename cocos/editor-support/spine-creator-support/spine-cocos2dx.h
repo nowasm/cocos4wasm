@@ -60,17 +60,32 @@ public:
     virtual void unload(void *texture);
 };
 
+#ifndef __EMSCRIPTEN__
 class Cocos2dExtension : public DefaultSpineExtension {
 public:
     Cocos2dExtension();
-
     virtual ~Cocos2dExtension();
-
     virtual void _free(void *mem, const char *file, int line);
 
 protected:
     virtual char *_readFile(const String &path, int *length);
 };
+#else
+// On Emscripten, DefaultSpineExtension is not available; implement all
+// pure-virtual methods directly on top of SpineExtension.
+class Cocos2dExtension : public SpineExtension {
+public:
+    Cocos2dExtension();
+    virtual ~Cocos2dExtension();
+    virtual void *_alloc(size_t size, const char *file, int line);
+    virtual void *_calloc(size_t size, const char *file, int line);
+    virtual void *_realloc(void *ptr, size_t size, const char *file, int line);
+    virtual void _free(void *mem, const char *file, int line);
+
+protected:
+    virtual char *_readFile(const String &path, int *length);
+};
+#endif
 
 typedef void (*SpineObjectDisposeCallback)(void *);
 void setSpineObjectDisposeCallback(SpineObjectDisposeCallback callback);

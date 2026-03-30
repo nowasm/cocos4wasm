@@ -3,6 +3,11 @@ project(CocosTest)
 
 set(CMAKE_CXX_STANDARD 17)
 
+# Emscripten: produce a self-contained HTML test runner
+if(EMSCRIPTEN)
+    set(CMAKE_EXECUTABLE_SUFFIX ".html")
+endif()
+
 # Download and unpack googletest at configure time
 configure_file(CMakeLists.txt.in googletest-download/CMakeLists.txt)
 execute_process(COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}" .
