@@ -247,7 +247,7 @@ using tImageSource = struct {
     int offset;
 };
 
-#ifdef CC_USE_PNG
+#if CC_USE_PNG
 void pngReadCallback(png_structp pngPtr, png_bytep data, png_size_t length) {
     auto *isource = static_cast<tImageSource *>(png_get_io_ptr(pngPtr));
 
@@ -258,7 +258,7 @@ void pngReadCallback(png_structp pngPtr, png_bytep data, png_size_t length) {
         png_error(pngPtr, "pngReaderCallback failed");
     }
 }
-#endif //CC_USE_PNG
+#endif // CC_USE_PNG
 } // namespace
 
 //////////////////////////////////////////////////////////////////////////
@@ -594,6 +594,10 @@ bool Image::initWithJpgData(const unsigned char *data, uint32_t dataLen) {
     } while (false);
 
     return ret;
+#else
+    (void)data;
+    (void)dataLen;
+    return false;
 #endif // CC_USE_JPEG
 }
 
@@ -718,7 +722,11 @@ bool Image::initWithPngData(const unsigned char *data, uint32_t dataLen) {
         png_destroy_read_struct(&pngPtr, (infoPtr) ? &infoPtr : nullptr, nullptr);
     }
     return ret;
-#endif //CC_USE_PNG
+#else
+    (void)data;
+    (void)dataLen;
+    return false;
+#endif // CC_USE_PNG
 }
 
 bool Image::initWithPVRv2Data(const unsigned char *data, uint32_t dataLen) {
@@ -1006,16 +1014,31 @@ bool Image::saveToFile(const std::string &filename, bool isToRGB) {
     std::string fileExtension = FileUtils::getInstance()->getFileExtension(filename);
 
     if (fileExtension == ".png") {
+#if CC_USE_PNG
         return saveImageToPNG(filename, isToRGB);
+#else
+        CC_LOG_DEBUG("saveToFile: PNG encode disabled (CC_USE_PNG=0)");
+        return false;
+#endif
     }
     if (fileExtension == ".jpg") {
+#if CC_USE_JPEG
         return saveImageToJPG(filename);
+#else
+        CC_LOG_DEBUG("saveToFile: JPEG encode disabled (CC_USE_JPEG=0)");
+        return false;
+#endif
     }
     CC_LOG_DEBUG("saveToFile: Image: saveToFile no support file extension(only .png or .jpg) for file: %s", filename.c_str());
     return false;
 }
 
 bool Image::saveImageToPNG(const std::string &filePath, bool isToRGB) {
+#if !CC_USE_PNG
+    (void)filePath;
+    (void)isToRGB;
+    return false;
+#else
     bool ret = false;
 
     FILE *fp{nullptr};
@@ -1109,9 +1132,14 @@ bool Image::saveImageToPNG(const std::string &filePath, bool isToRGB) {
         png_destroy_write_struct(&pngPtr, nullptr);
     }
     return ret;
+#endif // CC_USE_PNG
 }
 
 bool Image::saveImageToJPG(const std::string &filePath) {
+#if !CC_USE_JPEG
+    (void)filePath;
+    return false;
+#else
     bool ret = false;
     do {
         struct jpeg_compress_struct cinfo;
@@ -1177,6 +1205,7 @@ bool Image::saveImageToJPG(const std::string &filePath) {
         ret = true;
     } while (false);
     return ret;
+#endif // CC_USE_JPEG
 }
 
 } // namespace cc

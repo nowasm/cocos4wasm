@@ -26,8 +26,10 @@
 #define LOG_TAG "AudioDecoderManager"
 
 #include "audio/common/decoder/AudioDecoderManager.h"
-#include "audio/common/decoder/AudioDecoderMp3.h"
-#include "audio/common/decoder/AudioDecoderOgg.h"
+#if CC_PLATFORM != CC_PLATFORM_EMSCRIPTEN
+    #include "audio/common/decoder/AudioDecoderMp3.h"
+    #include "audio/common/decoder/AudioDecoderOgg.h"
+#endif
 #include "audio/common/decoder/AudioDecoderWav.h"
 #include "audio/include/AudioMacros.h"
 #include "base/memory/Memory.h"
@@ -40,11 +42,14 @@ bool AudioDecoderManager::init() {
 }
 
 void AudioDecoderManager::destroy() {
+#if CC_PLATFORM != CC_PLATFORM_EMSCRIPTEN
     AudioDecoderMp3::destroy();
+#endif
 }
 
 AudioDecoder *AudioDecoderManager::createDecoder(const char *path) {
     ccstd::string suffix = FileUtils::getInstance()->getFileExtension(path);
+#if CC_PLATFORM != CC_PLATFORM_EMSCRIPTEN
     if (suffix == ".ogg") {
         return ccnew AudioDecoderOgg();
     }
@@ -52,7 +57,8 @@ AudioDecoder *AudioDecoderManager::createDecoder(const char *path) {
     if (suffix == ".mp3") {
         return ccnew AudioDecoderMp3();
     }
-#if CC_PLATFORM == CC_PLATFORM_OHOS || CC_PLATFORM == CC_PLATFORM_WINDOWS
+#endif
+#if CC_PLATFORM == CC_PLATFORM_OHOS || CC_PLATFORM == CC_PLATFORM_WINDOWS || CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
     if (suffix == ".wav") {
         return ccnew AudioDecoderWav();
     }

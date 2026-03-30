@@ -52,3 +52,7 @@
 #if SCRIPT_ENGINE_TYPE == SCRIPT_ENGINE_JSVM
     #include "jsvm/Object.h"
 #endif
+
+#if SCRIPT_ENGINE_TYPE == SCRIPT_ENGINE_NONE
+    #include "none/Object.h"
+#endif

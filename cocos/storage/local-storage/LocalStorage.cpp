@@ -33,6 +33,79 @@
 #include <cstdio>
 #include <cstdlib>
 
+#if CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
+
+    #include <algorithm>
+    #include "base/Macros.h"
+    #include "base/std/container/unordered_map.h"
+    #include "base/std/container/vector.h"
+
+namespace {
+ccstd::unordered_map<ccstd::string, ccstd::string> gLocalMap;
+ccstd::vector<ccstd::string> gKeyOrder;
+bool gInited = false;
+
+void touchKeyOrder(const ccstd::string &key) {
+    if (std::find(gKeyOrder.begin(), gKeyOrder.end(), key) == gKeyOrder.end()) {
+        gKeyOrder.push_back(key);
+    }
+}
+} // namespace
+
+void localStorageInit(const ccstd::string &fullpath /* = "" */) {
+    (void)fullpath;
+    gInited = true;
+}
+
+void localStorageFree() {
+    gLocalMap.clear();
+    gKeyOrder.clear();
+    gInited = false;
+}
+
+void localStorageSetItem(const ccstd::string &key, const ccstd::string &value) {
+    CC_ASSERT(gInited);
+    touchKeyOrder(key);
+    gLocalMap[key] = value;
+}
+
+bool localStorageGetItem(const ccstd::string &key, ccstd::string *outItem) {
+    CC_ASSERT(gInited);
+    auto it = gLocalMap.find(key);
+    if (it == gLocalMap.end()) {
+        return false;
+    }
+    *outItem = it->second;
+    return true;
+}
+
+void localStorageRemoveItem(const ccstd::string &key) {
+    CC_ASSERT(gInited);
+    gLocalMap.erase(key);
+    gKeyOrder.erase(std::remove(gKeyOrder.begin(), gKeyOrder.end(), key), gKeyOrder.end());
+}
+
+void localStorageClear() {
+    CC_ASSERT(gInited);
+    gLocalMap.clear();
+    gKeyOrder.clear();
+}
+
+void localStorageGetKey(const int nIndex, ccstd::string *outKey) {
+    CC_ASSERT(gInited);
+    if (nIndex < 0 || static_cast<size_t>(nIndex) >= gKeyOrder.size()) {
+        return;
+    }
+    *outKey = gKeyOrder[static_cast<size_t>(nIndex)];
+}
+
+void localStorageGetLength(int &outLength) {
+    CC_ASSERT(gInited);
+    outLength = static_cast<int>(gLocalMap.size());
+}
+
+#else
+
 #if (CC_PLATFORM == CC_PLATFORM_WINDOWS)
     #include <sqlite3/sqlite3.h>
 #else
@@ -228,3 +301,5 @@ void localStorageGetLength(int &outLength) {
         outLength = sqlite3_column_int(_stmt_count, 0);
     }
 }
+
+#endif // CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN

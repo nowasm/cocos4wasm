@@ -22,6 +22,37 @@
  THE SOFTWARE.
 ****************************************************************************/
 
+#include "cocos/bindings/jswrapper/config.h"
+
+#if SCRIPT_ENGINE_TYPE == SCRIPT_ENGINE_NONE
+
+#include "jsb_global.h"
+#include "cocos/bindings/jswrapper/SeApi.h"
+
+cc::LegacyThreadPool *gIOThreadPool = nullptr;
+
+bool jsb_set_extend_property(const char * /*ns*/, const char * /*clsName*/) {
+    return false;
+}
+
+bool jsb_run_script(const ccstd::string & /*filePath*/, se::Value * /*rval*/) {
+    return false;
+}
+
+bool jsb_run_script_module(const ccstd::string & /*filePath*/, se::Value * /*rval*/) {
+    return false;
+}
+
+bool jsb_global_load_image(const ccstd::string & /*path*/, const se::Value & /*callbackVal*/) {
+    return false;
+}
+
+bool jsb_register_global_variables(se::Object * /*global*/) {
+    return true;
+}
+
+#else
+
 #include "jsb_global.h"
 #include "application/ApplicationManager.h"
 #include "base/Assertf.h"
@@ -1649,3 +1680,5 @@ bool jsb_register_global_variables(se::Object *global) { // NOLINT
 
     return true;
 }
+
+#endif // SCRIPT_ENGINE_TYPE == SCRIPT_ENGINE_NONE

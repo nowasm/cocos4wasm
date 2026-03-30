@@ -39,6 +39,8 @@
     #include "platform/qnx/QnxPlatform.h"
 #elif (CC_PLATFORM == CC_PLATFORM_OPENHARMONY)
     #include "platform/openharmony/OpenHarmonyPlatform.h"
+#elif (CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN)
+    #include "platform/wasm/WasmPlatform.h"
 #endif
 
 namespace cc {
@@ -71,6 +73,8 @@ BasePlatform* BasePlatform::createDefaultPlatform() {
     static QnxPlatform platform;
 #elif (CC_PLATFORM == CC_PLATFORM_OPENHARMONY)
     static OpenHarmonyPlatform platform;
+#elif (CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN)
+    static WasmPlatform platform;
 #endif
     return &platform;
 }

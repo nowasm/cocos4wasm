@@ -45,7 +45,7 @@
 #elif CC_PLATFORM == CC_PLATFORM_OHOS
     #include "AL/alc.h"
     #include "AL/alext.h"
-#elif CC_PLATFORM == CC_PLATFORM_LINUX || CC_PLATFORM == CC_PLATFORM_QNX
+#elif CC_PLATFORM == CC_PLATFORM_LINUX || CC_PLATFORM == CC_PLATFORM_QNX || CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
     #include "AL/alc.h"
     #include "AL/alext.h"
 #endif

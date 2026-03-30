@@ -36,7 +36,7 @@
     #include <OpenalSoft/al.h>
 #elif CC_PLATFORM == CC_PLATFORM_OHOS
     #include <AL/al.h>
-#elif CC_PLATFORM == CC_PLATFORM_LINUX || CC_PLATFORM == CC_PLATFORM_QNX
+#elif CC_PLATFORM == CC_PLATFORM_LINUX || CC_PLATFORM == CC_PLATFORM_QNX || CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
     #include <AL/al.h>
 #endif
 #include "base/Macros.h"

@@ -22,6 +22,26 @@
  THE SOFTWARE.
 ****************************************************************************/
 
+#include "cocos/bindings/jswrapper/config.h"
+
+#if SCRIPT_ENGINE_TYPE == SCRIPT_ENGINE_NONE
+
+#include "jsb_global_init.h"
+#include "cocos/bindings/jswrapper/SeApi.h"
+
+se::Object *__jsbObj = nullptr; // NOLINT
+se::Object *__glObj = nullptr;  // NOLINT
+
+void jsb_set_xxtea_key(const ccstd::string & /*key*/) {} // NOLINT
+
+void jsb_init_file_operation_delegate() {} // NOLINT
+
+bool jsb_enable_debugger(const ccstd::string & /*debuggerServerAddr*/, uint32_t /*port*/, bool /*isWaitForConnect*/) { // NOLINT
+    return false;
+}
+
+#else
+
 // clang-format off
 #include "base/Macros.h"
 // clang-format: off
@@ -253,3 +273,5 @@ bool jsb_enable_debugger(const ccstd::string &debuggerServerAddr, uint32_t port,
 #endif
     return true;
 }
+
+#endif // SCRIPT_ENGINE_TYPE == SCRIPT_ENGINE_NONE

@@ -23,12 +23,14 @@
 ****************************************************************************/
 
 #include "platform/wasm/WasmPlatform.h"
+#include "base/memory/Memory.h"
 #include "modules/Accelerometer.h"
 #include "modules/Battery.h"
 #include "modules/Network.h"
 #include "modules/Screen.h"
 #include "modules/System.h"
 #include "modules/SystemWindowManager.h"
+#include "modules/SystemWindow.h"
 #include "modules/Vibrator.h"
 #include "platform/interfaces/OSInterface.h"
 
@@ -52,15 +54,20 @@ int32_t WasmPlatform::init() {
 }
 
 int32_t WasmPlatform::loop() {
+    // fps=0: rAF; simulate_infinite_loop=1: keep runtime alive after main returns (browser HTML build).
     emscripten_set_main_loop([]() {
         static_cast<UniversalPlatform *>(cc::BasePlatform::getPlatform())->runTask();
-    }, 0, 0);
+    }, 0, 1);
     return 0;
 }
 
 void WasmPlatform::exit() {
     emscripten_cancel_main_loop();
     onDestroy();
+}
+
+ISystemWindow *WasmPlatform::createNativeWindow(uint32_t windowId, void *externalHandle) {
+    return ccnew SystemWindow(windowId, externalHandle);
 }
 
 } // namespace cc

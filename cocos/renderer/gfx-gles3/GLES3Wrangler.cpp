@@ -93,10 +93,11 @@ void *gles3wLoad(const char *proc) {
     return res;
 }
 #elif defined(__EMSCRIPTEN__)
+static PFNGLES3WLOADPROC pfnGles3wLoad = nullptr;
 bool gles3wOpen() { return true; }
 bool gles3wClose() { return true; }
 void *gles3wLoad(const char *proc) {
-    return (void *)eglGetProcAddress(proc);
+    return reinterpret_cast<void *>(eglGetProcAddress(proc));
 }
 #else
     #include <dlfcn.h>

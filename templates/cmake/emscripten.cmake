@@ -25,16 +25,20 @@ macro(cc_emscripten_after_target _target_name)
         ${CC_PROJECT_DIR}/../common/Classes
     )
 
+    # Same entry as native: main.cpp uses START_PLATFORM -> UniversalPlatform::run
+    # (cocos_main / Engine::tick via emscripten_set_main_loop in WasmPlatform).
+    # Output .html so emcc emits a loadable page plus .js/.wasm (open via local HTTP server).
     target_link_options(${CC_EXECUTABLE_NAME} PRIVATE
         -sUSE_WEBGL2=1
         -sFULL_ES3=1
         -sALLOW_MEMORY_GROWTH=1
+        -sENVIRONMENT=web
         --bind
         "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap']"
     )
 
     set_target_properties(${CC_EXECUTABLE_NAME} PROPERTIES
-        SUFFIX ".js"
+        SUFFIX ".html"
     )
 
     if(EXISTS ${RES_DIR}/data)

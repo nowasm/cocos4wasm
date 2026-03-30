@@ -86,6 +86,11 @@ elseif(EMSCRIPTEN)
     cc_set_if_undefined(CC_USE_VULKAN OFF)
     cc_set_if_undefined(CC_USE_METAL OFF)
     cc_set_if_undefined(CC_USE_GLES2 OFF)
+    # No V8 / NAPI prebuilts under external/emscripten; wasm template turns script VMs off.
+    cc_set_if_undefined(USE_SE_V8 OFF)
+    cc_set_if_undefined(USE_SE_SM OFF)
+    cc_set_if_undefined(USE_SE_NAPI OFF)
+    cc_set_if_undefined(USE_SE_JSVM OFF)
 elseif(MACOSX OR IOS)
     cc_set_if_undefined(CC_USE_METAL ON)
     cc_set_if_undefined(CC_USE_VULKAN OFF)
@@ -147,6 +152,8 @@ if(EMSCRIPTEN)
     cc_set_if_undefined(USE_VIDEO OFF)
     cc_set_if_undefined(USE_WEBVIEW OFF)
     cc_set_if_undefined(USE_AUDIO OFF)
+    # FreeType / debug text path not wired for wasm prebuilts; allow override in cache if you add deps.
+    set(USE_DEBUG_RENDERER OFF CACHE BOOL "Debug renderer (FreeType)" FORCE)
 endif()
 
 ## disable middleware when dragonbones and spine are disabled
@@ -318,6 +325,22 @@ NO_WERROR   cocos/audio/common/utils/primitives.cpp
             cocos/audio/common/decoder/AudioDecoderMp3.h
             cocos/audio/common/decoder/AudioDecoderOgg.cpp
             cocos/audio/common/decoder/AudioDecoderOgg.h
+            cocos/audio/oalsoft/AudioCache.cpp
+            cocos/audio/oalsoft/AudioCache.h
+            cocos/audio/oalsoft/AudioEngine-soft.cpp
+            cocos/audio/oalsoft/AudioEngine-soft.h
+            cocos/audio/include/AudioMacros.h
+            cocos/audio/oalsoft/AudioPlayer.cpp
+            cocos/audio/oalsoft/AudioPlayer.h
+        )
+    elseif(EMSCRIPTEN)
+        cocos_source_files(
+            cocos/audio/common/decoder/AudioDecoder.cpp
+            cocos/audio/common/decoder/AudioDecoder.h
+            cocos/audio/common/decoder/AudioDecoderManager.cpp
+            cocos/audio/common/decoder/AudioDecoderManager.h
+            cocos/audio/common/decoder/AudioDecoderWav.cpp
+            cocos/audio/common/decoder/AudioDecoderWav.h
             cocos/audio/oalsoft/AudioCache.cpp
             cocos/audio/oalsoft/AudioCache.h
             cocos/audio/oalsoft/AudioEngine-soft.cpp
@@ -1172,6 +1195,10 @@ if(NOT APPLE AND USE_SOCKET)
     cocos_source_files(
         NO_WERROR    cocos/network/WebSocket-okhttp.cpp
     )
+    elseif(EMSCRIPTEN)
+    cocos_source_files(
+        NO_WERROR    cocos/network/WebSocket-wasm.cpp
+    )
     else()
     cocos_source_files(
         NO_WERROR    cocos/network/WebSocket-libwebsockets.cpp
@@ -1186,10 +1213,16 @@ if(WINDOWS OR LINUX OR QNX OR OPENHARMONY)
     )
 endif()
 
-if(WINDOWS OR MACOSX OR LINUX OR QNX OR OPENHARMONY)
-    cocos_source_files(
-        NO_WERROR   NO_UBUILD   cocos/network/HttpClient.cpp
-    )
+if(WINDOWS OR MACOSX OR LINUX OR QNX OR OPENHARMONY OR EMSCRIPTEN)
+    if(EMSCRIPTEN)
+        cocos_source_files(
+            NO_WERROR   NO_UBUILD   cocos/network/HttpClient-wasm.cpp
+        )
+    else()
+        cocos_source_files(
+            NO_WERROR   NO_UBUILD   cocos/network/HttpClient.cpp
+        )
+    endif()
 endif()
 
 set(SWIG_OUTPUT_ROOT ${CMAKE_CURRENT_BINARY_DIR}/generated)
@@ -1319,6 +1352,11 @@ elseif(LINUX)
     cocos_source_files(MODULE ccfilesystem
         cocos/platform/linux/FileUtils-linux.cpp
         cocos/platform/linux/FileUtils-linux.h
+    )
+elseif(EMSCRIPTEN)
+    cocos_source_files(MODULE ccfilesystem
+        cocos/platform/wasm/FileUtils-wasm.cpp
+        cocos/platform/wasm/FileUtils-wasm.h
     )
 endif()
 
@@ -2275,7 +2313,7 @@ cocos_source_files(
 )
 
 # FreeTypeFont is used in DebugRenderer currently
-if (USE_DEBUG_RENDERER)
+if(USE_DEBUG_RENDERER)
 cocos_source_files(
     cocos/core/assets/FreeTypeFont.h
     cocos/core/assets/FreeTypeFont.cpp
@@ -3110,6 +3148,21 @@ if(USE_SE_JSVM)
 
 endif()
 
+if(EMSCRIPTEN AND NOT USE_SE_V8 AND NOT USE_SE_SM AND NOT USE_SE_NAPI AND NOT USE_SE_JSVM)
+    cocos_source_files(MODULE ccbindings
+        cocos/bindings/jswrapper/none/Base.h
+        cocos/bindings/jswrapper/none/Class.cpp
+        cocos/bindings/jswrapper/none/Class.h
+        cocos/bindings/jswrapper/none/HelperMacros.h
+        cocos/bindings/jswrapper/none/Object.cpp
+        cocos/bindings/jswrapper/none/Object.h
+        cocos/bindings/jswrapper/none/ScriptEngine.cpp
+        cocos/bindings/jswrapper/none/ScriptEngine.h
+        cocos/bindings/jswrapper/none/SeApi.h
+        cocos/bindings/jswrapper/none/Utils.h
+    )
+endif()
+
 cocos_source_files(MODULE ccbindings
                  cocos/bindings/jswrapper/config.h
                  cocos/bindings/jswrapper/config.cpp
@@ -3484,7 +3537,7 @@ function(cc_apply_definations target)
         $<IF:$<BOOL:${USE_OCCLUSION_QUERY}>,CC_USE_OCCLUSION_QUERY=1,CC_USE_OCCLUSION_QUERY=0>
         $<IF:$<BOOL:${USE_DEBUG_RENDERER}>,CC_USE_DEBUG_RENDERER=1,CC_USE_DEBUG_RENDERER=0>
         $<IF:$<BOOL:${USE_GEOMETRY_RENDERER}>,CC_USE_GEOMETRY_RENDERER=1,CC_USE_GEOMETRY_RENDERER=0>
-        $<IF:$<BOOL:${USE_WEBP}>,CC_USE_WEBP=1,CC_USE_WEBP=0>
+        $<IF:$<AND:$<BOOL:${USE_WEBP}>,$<NOT:$<BOOL:${EMSCRIPTEN}>>>,CC_USE_WEBP=1,CC_USE_WEBP=0>
         $<IF:$<BOOL:${CC_EDITOR}>,CC_EDITOR=1,CC_EDITOR=0>
         $<IF:$<BOOL:${ENABLE_FLOAT_OUTPUT}>,ENABLE_FLOAT_OUTPUT=1,ENABLE_FLOAT_OUTPUT=0>
         $<$<BOOL:${USE_REMOTE_LOG}>:CC_REMOTE_LOG=1>
@@ -3492,6 +3545,9 @@ function(cc_apply_definations target)
         $<$<BOOL:${USE_SE_V8}>:SCRIPT_ENGINE_TYPE=2>
         $<$<BOOL:${USE_SE_NAPI}>:SCRIPT_ENGINE_TYPE=5>
         $<$<BOOL:${USE_SE_JSVM}>:SCRIPT_ENGINE_TYPE=6>
+        $<$<AND:$<BOOL:${EMSCRIPTEN}>,$<NOT:$<OR:$<BOOL:${USE_SE_V8}>,$<BOOL:${USE_SE_SM}>,$<BOOL:${USE_SE_NAPI}>,$<BOOL:${USE_SE_JSVM}>>>>:SCRIPT_ENGINE_TYPE=0>
+        $<$<BOOL:${EMSCRIPTEN}>:CC_USE_JPEG=0>
+        $<$<BOOL:${EMSCRIPTEN}>:CC_USE_PNG=0>
         $<$<OR:$<CONFIG:Debug>,$<BOOL:${CC_DEBUG_FORCE}>>:CC_DEBUG=1>
         $<IF:$<BOOL:${USE_ADPF}>,CC_USE_ADPF=1,CC_USE_ADPF=0>
         $<IF:$<BOOL:${USE_GOOGLE_BILLING}>,CC_USE_GOOGLE_BILLING=1,CC_USE_GOOGLE_BILLING=0>
@@ -3823,6 +3879,13 @@ elseif(LINUX)
         ${LINUX_GRAPHIC_LIBS}
         ${CC_EXTERNAL_LIBS}
     )
+elseif(EMSCRIPTEN)
+    # Unzip / ZipUtils need zlib symbols at final wasm link; sysroot zlib via Emscripten.
+    target_compile_options(${ENGINE_NAME} PUBLIC "SHELL:-sUSE_ZLIB=1")
+    target_link_options(${ENGINE_NAME} PUBLIC "SHELL:-sUSE_ZLIB=1")
+    if(CC_EXTERNAL_LIBS)
+        target_link_libraries(${ENGINE_NAME} PUBLIC ${CC_EXTERNAL_LIBS})
+    endif()
 endif()
 
 ### set source_group for generated files

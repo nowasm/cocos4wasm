@@ -32,12 +32,18 @@
 #define SCRIPT_ENGINE_NONE 0
 #define SCRIPT_ENGINE_SM   1
 #define SCRIPT_ENGINE_V8   2
+/* Must be distinct from NONE (0); undefined macros are treated as 0 in #if and would match NONE. */
+#define SCRIPT_ENGINE_JSC         3
+#define SCRIPT_ENGINE_CHAKRACORE   4
 #define SCRIPT_ENGINE_NAPI 5
 #define SCRIPT_ENGINE_JSVM 6
 
 #ifndef SCRIPT_ENGINE_TYPE
 #if CC_PLATFORM == CC_PLATFORM_OPENHARMONY
     #define SCRIPT_ENGINE_TYPE SCRIPT_ENGINE_NAPI
+#elif CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
+    /* Overridden by CMake (SCRIPT_ENGINE_TYPE=0) when no JS VM is linked; see none/ backend. */
+    #define SCRIPT_ENGINE_TYPE SCRIPT_ENGINE_NONE
 #else
     #define SCRIPT_ENGINE_TYPE SCRIPT_ENGINE_V8
 #endif

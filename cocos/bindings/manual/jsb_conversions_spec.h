@@ -264,6 +264,15 @@ inline bool sevalue_to_native(const se::Value &from, long *to, se::Object * /*ct
     *to = static_cast<long>(from.toUint64());
     return true;
 }
+#elif CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
+inline bool sevalue_to_native(const se::Value &from, unsigned long *to, se::Object * /*ctx*/) { // NOLINT(readability-identifier-naming)
+    *to = static_cast<unsigned long>(from.toUint32());
+    return true;
+}
+inline bool sevalue_to_native(const se::Value &from, long *to, se::Object * /*ctx*/) { // NOLINT(readability-identifier-naming)
+    *to = static_cast<long>(from.toInt32());
+    return true;
+}
 #endif
 
 inline bool sevalue_to_native(const se::Value &from, float *to, se::Object * /*ctx*/) { // NOLINT(readability-identifier-naming)

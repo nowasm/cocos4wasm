@@ -22,6 +22,18 @@
  THE SOFTWARE.
 ****************************************************************************/
 
+#include "cocos/bindings/jswrapper/config.h"
+
+#if SCRIPT_ENGINE_TYPE == SCRIPT_ENGINE_NONE
+
+#include "cocos/bindings/manual/jsb_module_register.h"
+
+bool jsb_register_all_modules() {
+    return true;
+}
+
+#else
+
 #include "cocos/bindings/manual/jsb_module_register.h"
 #include "cocos/base/DeferredReleasePool.h"
 #include "cocos/bindings/auto/jsb_2d_auto.h"
@@ -268,3 +280,5 @@ bool jsb_register_all_modules() {
     });
     return true;
 }
+
+#endif // SCRIPT_ENGINE_TYPE == SCRIPT_ENGINE_NONE
