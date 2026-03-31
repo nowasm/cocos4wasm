@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.8)
+cmake_minimum_required(VERSION 3.16)
 
 set(APP_NAME "CocosGame" CACHE STRING "Project Name")
 

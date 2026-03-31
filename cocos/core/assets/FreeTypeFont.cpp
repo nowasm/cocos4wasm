@@ -26,7 +26,11 @@
 ****************************************************************************/
 
 #include "FreeTypeFont.h"
+#if defined(CC_FREETYPE_FT2BUILD_AT_ROOT)
+#include <ft2build.h>
+#else
 #include <freetype/ft2build.h>
+#endif
 #include FT_FREETYPE_H
 #include <cstdint>
 #include "base/Log.h"

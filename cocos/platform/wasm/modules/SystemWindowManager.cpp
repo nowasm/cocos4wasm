@@ -30,6 +30,11 @@
 namespace cc {
 
 int SystemWindowManager::init() {
+    if (_windows.empty()) {
+        ISystemWindowInfo info;
+        info.externalHandle = reinterpret_cast<void *>(1);
+        createWindow(info);
+    }
     return 0;
 }
 

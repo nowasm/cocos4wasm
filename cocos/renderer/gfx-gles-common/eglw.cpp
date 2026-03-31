@@ -25,6 +25,93 @@
 #include "eglw.h"
 
 #if (CC_PLATFORM != CC_PLATFORM_IOS)
+#if defined(__EMSCRIPTEN__)
+void eglwLoadProcs(PFNEGLWLOADPROC eglwLoad) {
+    (void)eglwLoad;
+}
+#else
+#if defined(__EMSCRIPTEN__)
+    #include <cstring>
+
+extern "C" {
+EGLBoolean emRealEglChooseConfig(EGLDisplay dpy, const EGLint *attrib_list, EGLConfig *configs, EGLint config_size, EGLint *num_config) asm("eglChooseConfig");
+EGLContext emRealEglCreateContext(EGLDisplay dpy, EGLConfig config, EGLContext share_context, const EGLint *attrib_list) asm("eglCreateContext");
+EGLSurface emRealEglCreatePbufferSurface(EGLDisplay dpy, EGLConfig config, const EGLint *attrib_list) asm("eglCreatePbufferSurface");
+EGLSurface emRealEglCreateWindowSurface(EGLDisplay dpy, EGLConfig config, EGLNativeWindowType win, const EGLint *attrib_list) asm("eglCreateWindowSurface");
+EGLBoolean emRealEglDestroyContext(EGLDisplay dpy, EGLContext ctx) asm("eglDestroyContext");
+EGLBoolean emRealEglDestroySurface(EGLDisplay dpy, EGLSurface surface) asm("eglDestroySurface");
+EGLBoolean emRealEglGetConfigAttrib(EGLDisplay dpy, EGLConfig config, EGLint attribute, EGLint *value) asm("eglGetConfigAttrib");
+EGLBoolean emRealEglGetConfigs(EGLDisplay dpy, EGLConfig *configs, EGLint config_size, EGLint *num_config) asm("eglGetConfigs");
+EGLDisplay emRealEglGetCurrentDisplay(void) asm("eglGetCurrentDisplay");
+EGLSurface emRealEglGetCurrentSurface(EGLint readdraw) asm("eglGetCurrentSurface");
+EGLContext emRealEglGetCurrentContext(void) asm("eglGetCurrentContext");
+EGLDisplay emRealEglGetDisplay(EGLNativeDisplayType display_id) asm("eglGetDisplay");
+EGLint emRealEglGetError(void) asm("eglGetError");
+__eglMustCastToProperFunctionPointerType emRealEglGetProcAddress(const char *procname) asm("eglGetProcAddress");
+EGLBoolean emRealEglInitialize(EGLDisplay dpy, EGLint *major, EGLint *minor) asm("eglInitialize");
+EGLBoolean emRealEglMakeCurrent(EGLDisplay dpy, EGLSurface draw, EGLSurface read, EGLContext ctx) asm("eglMakeCurrent");
+EGLBoolean emRealEglQueryContext(EGLDisplay dpy, EGLContext ctx, EGLint attribute, EGLint *value) asm("eglQueryContext");
+const char *emRealEglQueryString(EGLDisplay dpy, EGLint name) asm("eglQueryString");
+EGLBoolean emRealEglQuerySurface(EGLDisplay dpy, EGLSurface surface, EGLint attribute, EGLint *value) asm("eglQuerySurface");
+EGLBoolean emRealEglSwapBuffers(EGLDisplay dpy, EGLSurface surface) asm("eglSwapBuffers");
+EGLBoolean emRealEglSwapInterval(EGLDisplay dpy, EGLint interval) asm("eglSwapInterval");
+EGLBoolean emRealEglTerminate(EGLDisplay dpy) asm("eglTerminate");
+EGLBoolean emRealEglBindAPI(EGLenum api) asm("eglBindAPI");
+}
+
+namespace {
+__eglMustCastToProperFunctionPointerType EGLAPIENTRY eglGetProcAddressWrapper(const char *procname) { return emRealEglGetProcAddress(procname); }
+EGLBoolean EGLAPIENTRY eglChooseConfigWrapper(EGLDisplay dpy, const EGLint *attrib_list, EGLConfig *configs, EGLint config_size, EGLint *num_config) { return emRealEglChooseConfig(dpy, attrib_list, configs, config_size, num_config); }
+EGLContext EGLAPIENTRY eglCreateContextWrapper(EGLDisplay dpy, EGLConfig config, EGLContext share_context, const EGLint *attrib_list) { return emRealEglCreateContext(dpy, config, share_context, attrib_list); }
+EGLSurface EGLAPIENTRY eglCreatePbufferSurfaceWrapper(EGLDisplay dpy, EGLConfig config, const EGLint *attrib_list) { return emRealEglCreatePbufferSurface(dpy, config, attrib_list); }
+EGLSurface EGLAPIENTRY eglCreateWindowSurfaceWrapper(EGLDisplay dpy, EGLConfig config, EGLNativeWindowType win, const EGLint *attrib_list) { return emRealEglCreateWindowSurface(dpy, config, win, attrib_list); }
+EGLBoolean EGLAPIENTRY eglDestroyContextWrapper(EGLDisplay dpy, EGLContext ctx) { return emRealEglDestroyContext(dpy, ctx); }
+EGLBoolean EGLAPIENTRY eglDestroySurfaceWrapper(EGLDisplay dpy, EGLSurface surface) { return emRealEglDestroySurface(dpy, surface); }
+EGLBoolean EGLAPIENTRY eglGetConfigAttribWrapper(EGLDisplay dpy, EGLConfig config, EGLint attribute, EGLint *value) { return emRealEglGetConfigAttrib(dpy, config, attribute, value); }
+EGLBoolean EGLAPIENTRY eglGetConfigsWrapper(EGLDisplay dpy, EGLConfig *configs, EGLint config_size, EGLint *num_config) { return emRealEglGetConfigs(dpy, configs, config_size, num_config); }
+EGLDisplay EGLAPIENTRY eglGetCurrentDisplayWrapper(void) { return emRealEglGetCurrentDisplay(); }
+EGLSurface EGLAPIENTRY eglGetCurrentSurfaceWrapper(EGLint readdraw) { return emRealEglGetCurrentSurface(readdraw); }
+EGLContext EGLAPIENTRY eglGetCurrentContextWrapper(void) { return emRealEglGetCurrentContext(); }
+EGLDisplay EGLAPIENTRY eglGetDisplayWrapper(EGLNativeDisplayType display_id) { return emRealEglGetDisplay(display_id); }
+EGLint EGLAPIENTRY eglGetErrorWrapper(void) { return emRealEglGetError(); }
+EGLBoolean EGLAPIENTRY eglInitializeWrapper(EGLDisplay dpy, EGLint *major, EGLint *minor) { return emRealEglInitialize(dpy, major, minor); }
+EGLBoolean EGLAPIENTRY eglMakeCurrentWrapper(EGLDisplay dpy, EGLSurface draw, EGLSurface read, EGLContext ctx) { return emRealEglMakeCurrent(dpy, draw, read, ctx); }
+EGLBoolean EGLAPIENTRY eglQueryContextWrapper(EGLDisplay dpy, EGLContext ctx, EGLint attribute, EGLint *value) { return emRealEglQueryContext(dpy, ctx, attribute, value); }
+const char *EGLAPIENTRY eglQueryStringWrapper(EGLDisplay dpy, EGLint name) { return emRealEglQueryString(dpy, name); }
+EGLBoolean EGLAPIENTRY eglQuerySurfaceWrapper(EGLDisplay dpy, EGLSurface surface, EGLint attribute, EGLint *value) { return emRealEglQuerySurface(dpy, surface, attribute, value); }
+EGLBoolean EGLAPIENTRY eglSwapBuffersWrapper(EGLDisplay dpy, EGLSurface surface) { return emRealEglSwapBuffers(dpy, surface); }
+EGLBoolean EGLAPIENTRY eglSwapIntervalWrapper(EGLDisplay dpy, EGLint interval) { return emRealEglSwapInterval(dpy, interval); }
+EGLBoolean EGLAPIENTRY eglTerminateWrapper(EGLDisplay dpy) { return emRealEglTerminate(dpy); }
+EGLBoolean EGLAPIENTRY eglBindAPIWrapper(EGLenum api) { return emRealEglBindAPI(api); }
+} // namespace
+
+void *eglwLoadProcAddress(const char *proc) {
+    if (std::strcmp(proc, "eglGetProcAddress") == 0) return reinterpret_cast<void *>(&eglGetProcAddressWrapper);
+    if (std::strcmp(proc, "eglChooseConfig") == 0) return reinterpret_cast<void *>(&eglChooseConfigWrapper);
+    if (std::strcmp(proc, "eglCreateContext") == 0) return reinterpret_cast<void *>(&eglCreateContextWrapper);
+    if (std::strcmp(proc, "eglCreatePbufferSurface") == 0) return reinterpret_cast<void *>(&eglCreatePbufferSurfaceWrapper);
+    if (std::strcmp(proc, "eglCreateWindowSurface") == 0) return reinterpret_cast<void *>(&eglCreateWindowSurfaceWrapper);
+    if (std::strcmp(proc, "eglDestroyContext") == 0) return reinterpret_cast<void *>(&eglDestroyContextWrapper);
+    if (std::strcmp(proc, "eglDestroySurface") == 0) return reinterpret_cast<void *>(&eglDestroySurfaceWrapper);
+    if (std::strcmp(proc, "eglGetConfigAttrib") == 0) return reinterpret_cast<void *>(&eglGetConfigAttribWrapper);
+    if (std::strcmp(proc, "eglGetConfigs") == 0) return reinterpret_cast<void *>(&eglGetConfigsWrapper);
+    if (std::strcmp(proc, "eglGetCurrentDisplay") == 0) return reinterpret_cast<void *>(&eglGetCurrentDisplayWrapper);
+    if (std::strcmp(proc, "eglGetCurrentSurface") == 0) return reinterpret_cast<void *>(&eglGetCurrentSurfaceWrapper);
+    if (std::strcmp(proc, "eglGetCurrentContext") == 0) return reinterpret_cast<void *>(&eglGetCurrentContextWrapper);
+    if (std::strcmp(proc, "eglGetDisplay") == 0) return reinterpret_cast<void *>(&eglGetDisplayWrapper);
+    if (std::strcmp(proc, "eglGetError") == 0) return reinterpret_cast<void *>(&eglGetErrorWrapper);
+    if (std::strcmp(proc, "eglInitialize") == 0) return reinterpret_cast<void *>(&eglInitializeWrapper);
+    if (std::strcmp(proc, "eglMakeCurrent") == 0) return reinterpret_cast<void *>(&eglMakeCurrentWrapper);
+    if (std::strcmp(proc, "eglQueryContext") == 0) return reinterpret_cast<void *>(&eglQueryContextWrapper);
+    if (std::strcmp(proc, "eglQueryString") == 0) return reinterpret_cast<void *>(&eglQueryStringWrapper);
+    if (std::strcmp(proc, "eglQuerySurface") == 0) return reinterpret_cast<void *>(&eglQuerySurfaceWrapper);
+    if (std::strcmp(proc, "eglSwapBuffers") == 0) return reinterpret_cast<void *>(&eglSwapBuffersWrapper);
+    if (std::strcmp(proc, "eglSwapInterval") == 0) return reinterpret_cast<void *>(&eglSwapIntervalWrapper);
+    if (std::strcmp(proc, "eglTerminate") == 0) return reinterpret_cast<void *>(&eglTerminateWrapper);
+    if (std::strcmp(proc, "eglBindAPI") == 0) return reinterpret_cast<void *>(&eglBindAPIWrapper);
+    return nullptr;
+}
+
 /**
  * ========================= !DO NOT CHANGE THE FOLLOWING SECTION MANUALLY! =========================
  * The following section is auto-generated from EGL spec by running:
@@ -370,6 +457,7 @@ PFNEGLCREATEWAYLANDBUFFERFROMIMAGEWLPROC eglCreateWaylandBufferFromImageWL;
  */
 #endif
 
+#if !defined(__EMSCRIPTEN__)
 void eglwLoadProcs(PFNEGLWLOADPROC eglwLoad) {
 #if (CC_PLATFORM != CC_PLATFORM_IOS)
     /**
@@ -717,3 +805,6 @@ void eglwLoadProcs(PFNEGLWLOADPROC eglwLoad) {
      */
 #endif
 }
+#endif
+#endif
+#endif

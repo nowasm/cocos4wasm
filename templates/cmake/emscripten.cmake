@@ -25,6 +25,25 @@ macro(cc_emscripten_after_target _target_name)
         ${CC_PROJECT_DIR}/../common/Classes
     )
 
+    # Default new wasm projects to richer diagnostics in development builds.
+    # Emscripten single-config generators often leave CMAKE_BUILD_TYPE empty,
+    # so treat that case as a development build too.
+    set(CC_WASM_DEV_DIAGNOSTICS OFF)
+    if((NOT DEFINED CMAKE_BUILD_TYPE) OR "${CMAKE_BUILD_TYPE}" STREQUAL "" OR
+       "${CMAKE_BUILD_TYPE}" STREQUAL "Debug" OR
+       "${CMAKE_BUILD_TYPE}" STREQUAL "RelWithDebInfo")
+        set(CC_WASM_DEV_DIAGNOSTICS ON)
+    endif()
+
+    if(CC_WASM_DEV_DIAGNOSTICS)
+        foreach(_cc_wasm_diag_target ${ENGINE_NAME} ${CC_EXECUTABLE_NAME})
+            target_compile_options(${_cc_wasm_diag_target} PRIVATE
+                -gsource-map
+                --profiling-funcs
+            )
+        endforeach()
+    endif()
+
     # Same entry as native: main.cpp uses START_PLATFORM -> UniversalPlatform::run
     # (cocos_main / Engine::tick via emscripten_set_main_loop in WasmPlatform).
     # Output .html so emcc emits a loadable page plus .js/.wasm (open via local HTTP server).
@@ -36,6 +55,14 @@ macro(cc_emscripten_after_target _target_name)
         --bind
         "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap']"
     )
+
+    if(CC_WASM_DEV_DIAGNOSTICS)
+        target_link_options(${CC_EXECUTABLE_NAME} PRIVATE
+            -sASSERTIONS=2
+            -gsource-map
+            --profiling-funcs
+        )
+    endif()
 
     set_target_properties(${CC_EXECUTABLE_NAME} PROPERTIES
         SUFFIX ".html"

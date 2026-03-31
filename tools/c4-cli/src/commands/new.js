@@ -153,7 +153,7 @@ endif()`;
     cocosRootConfig = autoDetectConfig;
   }
 
-  const cmakeContent = `cmake_minimum_required(VERSION 3.8)
+  const cmakeContent = `cmake_minimum_required(VERSION 3.16)
 project(${projectName})
 
 set(CMAKE_CXX_STANDARD 17)

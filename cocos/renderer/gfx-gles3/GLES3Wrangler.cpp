@@ -24,6 +24,10 @@
 
 #include "GLES3Wrangler.h"
 
+#if defined(__EMSCRIPTEN__)
+    #include <emscripten/html5_webgl.h>
+#endif
+
 #if defined(_WIN32) && !defined(ANDROID)
     #define WIN32_LEAN_AND_MEAN 1
     #include <string>
@@ -97,7 +101,7 @@ static PFNGLES3WLOADPROC pfnGles3wLoad = nullptr;
 bool gles3wOpen() { return true; }
 bool gles3wClose() { return true; }
 void *gles3wLoad(const char *proc) {
-    return reinterpret_cast<void *>(eglGetProcAddress(proc));
+    return emscripten_webgl_get_proc_address(proc);
 }
 #else
     #include <dlfcn.h>

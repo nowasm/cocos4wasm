@@ -24,6 +24,10 @@
 
 #include "GLES2Wrangler.h"
 
+#if defined(__EMSCRIPTEN__)
+    #include <emscripten/html5_webgl.h>
+#endif
+
 #if defined(_WIN32) && !defined(ANDROID)
     #define WIN32_LEAN_AND_MEAN 1
     #include <windows.h>
@@ -62,7 +66,7 @@ void *gles2wLoad(const char *proc) {
 bool gles2wOpen() { return true; }
 bool gles2wClose() { return true; }
 void *gles2wLoad(const char *proc) {
-    return (void *)eglGetProcAddress(proc);
+    return emscripten_webgl_get_proc_address(proc);
 }
 #else
     #include <dlfcn.h>

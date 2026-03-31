@@ -24,9 +24,12 @@
 
 #pragma once
 
+#include <memory>
 #include "platform/UniversalPlatform.h"
 
 namespace cc {
+
+class SystemWindowManager;
 
 class CC_DLL WasmPlatform : public UniversalPlatform {
 public:
@@ -48,6 +51,7 @@ public:
 
 private:
     bool _quit{false};
+    std::shared_ptr<SystemWindowManager> _windowManager;
 };
 
 } // namespace cc

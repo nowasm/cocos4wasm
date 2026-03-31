@@ -48,9 +48,10 @@ int32_t WasmPlatform::init() {
     registerInterface(std::make_shared<Network>());
     registerInterface(std::make_shared<Screen>());
     registerInterface(std::make_shared<System>());
-    registerInterface(std::make_shared<SystemWindowManager>());
+    _windowManager = std::make_shared<SystemWindowManager>();
+    registerInterface(_windowManager);
     registerInterface(std::make_shared<Vibrator>());
-    return 0;
+    return _windowManager->init();
 }
 
 int32_t WasmPlatform::loop() {

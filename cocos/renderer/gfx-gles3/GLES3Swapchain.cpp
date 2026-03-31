@@ -108,11 +108,16 @@ void GLES3Swapchain::doInit(const SwapchainInfo &info) {
 
     EGLSurfaceType surfaceType = _xr ? _xr->acquireEGLSurfaceType(getTypedID()) : EGLSurfaceType::WINDOW;
     if (surfaceType == EGLSurfaceType::PBUFFER) {
+#if CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
+        EGLNativeWindowType dummyWindow{};
+        EGL_CHECK(_gpuSwapchain->eglSurface = eglCreateWindowSurface(context->eglDisplay, context->eglConfig, dummyWindow, nullptr));
+#else
         EGLint pbufferAttribs[]{
             EGL_WIDTH, 1,
             EGL_HEIGHT, 1,
             EGL_NONE};
         EGL_CHECK(_gpuSwapchain->eglSurface = eglCreatePbufferSurface(context->eglDisplay, context->eglConfig, pbufferAttribs));
+#endif
     } else if (surfaceType == EGLSurfaceType::WINDOW) {
         EGL_CHECK(_gpuSwapchain->eglSurface = eglCreateWindowSurface(context->eglDisplay, context->eglConfig, window, nullptr));
         if (_gpuSwapchain->eglSurface == EGL_NO_SURFACE) {
@@ -221,11 +226,16 @@ void GLES3Swapchain::doCreateSurface(void *windowHandle) {
         IXRInterface *xr = CC_GET_XR_INTERFACE();
         EGLSurfaceType surfaceType = xr ? xr->acquireEGLSurfaceType(getTypedID()) : EGLSurfaceType::WINDOW;
         if (surfaceType == EGLSurfaceType::PBUFFER) {
+#if CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
+            EGLNativeWindowType dummyWindow{};
+            EGL_CHECK(_gpuSwapchain->eglSurface = eglCreateWindowSurface(context->eglDisplay, context->eglConfig, dummyWindow, nullptr));
+#else
             EGLint pbufferAttribs[]{
                 EGL_WIDTH, 1,
                 EGL_HEIGHT, 1,
                 EGL_NONE};
             EGL_CHECK(_gpuSwapchain->eglSurface = eglCreatePbufferSurface(context->eglDisplay, context->eglConfig, pbufferAttribs));
+#endif
         } else if (surfaceType == EGLSurfaceType::WINDOW) {
             EGL_CHECK(_gpuSwapchain->eglSurface = eglCreateWindowSurface(context->eglDisplay, context->eglConfig, window, nullptr));
 

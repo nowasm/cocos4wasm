@@ -85,7 +85,11 @@ bool DeviceAgent::doInit(const DeviceInfo &info) {
     static_cast<CommandBufferAgent *>(_cmdBuff)->_queue = _queue;
     static_cast<CommandBufferAgent *>(_cmdBuff)->initAgent();
 
+#if CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN && !defined(__EMSCRIPTEN_PTHREADS__)
+    setMultithreaded(false);
+#else
     setMultithreaded(true);
+#endif
 
     return true;
 }

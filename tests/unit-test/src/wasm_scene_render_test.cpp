@@ -174,6 +174,7 @@ TEST_F(WasmSceneRenderTest, AddAndRemoveModelFromScene) {
 
     auto *model = root->createModel<cc::scene::Model>();
     ASSERT_NE(model, nullptr);
+    model->addRef(); // keep alive after removeModel drops scene ownership
     EXPECT_TRUE(model->isInited());
 
     scene->addModel(model);
@@ -184,6 +185,7 @@ TEST_F(WasmSceneRenderTest, AddAndRemoveModelFromScene) {
     EXPECT_TRUE(scene->getModels().empty());
 
     root->destroyModel(model);
+    model->release();
     root->destroyScene(scene);
 }
 
@@ -198,6 +200,7 @@ TEST_F(WasmSceneRenderTest, MultipleModelsInScene) {
     for (int i = 0; i < kCount; ++i) {
         auto *m = root->createModel<cc::scene::Model>();
         ASSERT_NE(m, nullptr);
+        m->addRef(); // keep alive after removeModels clears scene ownership
         scene->addModel(m);
         models.push_back(m);
     }
@@ -207,7 +210,10 @@ TEST_F(WasmSceneRenderTest, MultipleModelsInScene) {
     scene->removeModels();
     EXPECT_TRUE(scene->getModels().empty());
 
-    for (auto *m : models) root->destroyModel(m);
+    for (auto *m : models) {
+        root->destroyModel(m);
+        m->release();
+    }
     root->destroyScene(scene);
 }
 
@@ -222,6 +228,7 @@ TEST_F(WasmSceneRenderTest, AddDirectionalLightToScene) {
     auto *node  = ccnew cc::Node("dir-light-node");
     auto *light = root->createLight<cc::scene::DirectionalLight>();
     ASSERT_NE(light, nullptr);
+    light->addRef(); // keep alive after removeDirectionalLight drops scene ownership
 
     light->setNode(node);
     scene->addDirectionalLight(light);
@@ -233,6 +240,7 @@ TEST_F(WasmSceneRenderTest, AddDirectionalLightToScene) {
 
     scene->removeDirectionalLight(light);
     root->destroyLight(light);
+    light->release();
     root->destroyScene(scene);
     CC_SAFE_RELEASE(node);
 }
@@ -273,6 +281,7 @@ TEST_F(WasmSceneRenderTest, FullMiniScene) {
     lightNode->addRef();
     auto *dirLight  = root->createLight<cc::scene::DirectionalLight>();
     ASSERT_NE(dirLight, nullptr);
+    dirLight->addRef(); // keep alive after explicit remove from scene
     dirLight->setNode(lightNode);
     scene->addDirectionalLight(dirLight);
     scene->setMainLight(dirLight);
@@ -281,6 +290,9 @@ TEST_F(WasmSceneRenderTest, FullMiniScene) {
     auto *cube   = root->createModel<cc::scene::Model>();
     auto *sphere = root->createModel<cc::scene::Model>();
     auto *plane  = root->createModel<cc::scene::Model>();
+    cube->addRef();
+    sphere->addRef();
+    plane->addRef();
     scene->addModel(cube);
     scene->addModel(sphere);
     scene->addModel(plane);
@@ -306,7 +318,11 @@ TEST_F(WasmSceneRenderTest, FullMiniScene) {
     root->destroyModel(cube);
     root->destroyModel(sphere);
     root->destroyModel(plane);
+    cube->release();
+    sphere->release();
+    plane->release();
     root->destroyLight(dirLight);
+    dirLight->release();
     root->destroyScene(scene);
     root->destroyWindow(win);
     camNode->release();

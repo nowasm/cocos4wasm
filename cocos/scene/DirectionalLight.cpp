@@ -32,6 +32,24 @@
 namespace cc {
 namespace scene {
 
+namespace {
+
+bool isPipelineHDR() {
+    auto *root = Root::getInstance();
+    if (root == nullptr) {
+        return true;
+    }
+
+    auto *pipeline = root->getPipeline();
+    if (pipeline == nullptr || pipeline->getPipelineSceneData() == nullptr) {
+        return true;
+    }
+
+    return pipeline->getPipelineSceneData()->isHDR();
+}
+
+} // namespace
+
 DirectionalLight::DirectionalLight() { _type = LightType::DIRECTIONAL; }
 
 DirectionalLight::~DirectionalLight() = default;
@@ -52,7 +70,7 @@ void DirectionalLight::update() {
 }
 
 float DirectionalLight::getIlluminance() const {
-    const bool isHDR = Root::getInstance()->getPipeline()->getPipelineSceneData()->isHDR();
+    const bool isHDR = isPipelineHDR();
     if (isHDR) {
         return _illuminanceHDR;
     }
@@ -60,7 +78,7 @@ float DirectionalLight::getIlluminance() const {
 }
 
 void DirectionalLight::setIlluminance(float value) {
-    const bool isHDR = Root::getInstance()->getPipeline()->getPipelineSceneData()->isHDR();
+    const bool isHDR = isPipelineHDR();
     if (isHDR) {
         _illuminanceHDR = value;
     } else {

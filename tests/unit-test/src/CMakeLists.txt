@@ -13,6 +13,23 @@ target_link_libraries(${BINARY} PUBLIC gtest ${ENGINE_NAME})
 target_include_directories(${BINARY} PUBLIC ${CMAKE_CURRENT_LIST_DIR}/../..)
 
 if(EMSCRIPTEN)
+    # Match the app wasm template: keep source maps and named wasm functions
+    # in development-oriented builds so browser errors are easier to debug.
+    set(CC_WASM_DEV_DIAGNOSTICS OFF)
+    if((NOT DEFINED CMAKE_BUILD_TYPE) OR "${CMAKE_BUILD_TYPE}" STREQUAL "" OR
+       "${CMAKE_BUILD_TYPE}" STREQUAL "Debug" OR
+       "${CMAKE_BUILD_TYPE}" STREQUAL "RelWithDebInfo")
+        set(CC_WASM_DEV_DIAGNOSTICS ON)
+    endif()
+
+    if(CC_WASM_DEV_DIAGNOSTICS)
+        foreach(_cc_wasm_diag_target ${ENGINE_NAME} ${BINARY})
+            target_compile_options(${_cc_wasm_diag_target} PRIVATE
+                -gsource-map
+            )
+        endforeach()
+    endif()
+
     # Allow heap to grow, export main, enable printf output to browser console,
     # and link the virtual filesystem (needed by gtest's internal file I/O).
     target_link_options(${BINARY} PRIVATE
@@ -22,6 +39,13 @@ if(EMSCRIPTEN)
         -sSTACK_SIZE=1048576
         -sASSERTIONS=1
     )
+
+    if(CC_WASM_DEV_DIAGNOSTICS)
+        target_link_options(${BINARY} PRIVATE
+            -gsource-map
+            --profiling-funcs
+        )
+    endif()
 elseif(MSVC)
     foreach(item ${WINDOWS_DLLS})
         get_filename_component(filename ${item} NAME)

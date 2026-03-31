@@ -230,11 +230,16 @@ bool GLES2GPUContext::initialize(GLES2GPUStateCache *stateCache, GLES2GPUConstan
         return false;
     }
 
+#if CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
+    EGLNativeWindowType dummyWindow{};
+    EGL_CHECK(eglDefaultSurface = eglCreateWindowSurface(eglDisplay, eglConfig, dummyWindow, nullptr));
+#else
     EGLint pbufferAttribs[]{
         EGL_WIDTH, 1,
         EGL_HEIGHT, 1,
         EGL_NONE};
     EGL_CHECK(eglDefaultSurface = eglCreatePbufferSurface(eglDisplay, eglConfig, pbufferAttribs));
+#endif
 
     size_t threadID{std::hash<std::thread::id>{}(std::this_thread::get_id())};
     _sharedContexts[threadID] = eglDefaultContext;

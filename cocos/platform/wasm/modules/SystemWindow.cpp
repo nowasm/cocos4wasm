@@ -26,8 +26,18 @@
 #include "base/Log.h"
 #include "base/Macros.h"
 #include "engine/EngineEvents.h"
+#include <emscripten/html5.h>
 
 namespace cc {
+
+namespace {
+
+bool tryGetCanvasSize(const char *target, int *width, int *height) {
+    return emscripten_get_canvas_element_size(target, width, height) == EMSCRIPTEN_RESULT_SUCCESS;
+}
+
+} // namespace
+
 SystemWindow::SystemWindow(uint32_t windowId, void* externalHandle)
 : _windowId(windowId) {
     if (externalHandle) {
@@ -57,7 +67,30 @@ void SystemWindow::pollEvent(bool* quit) {
 }
 
 SystemWindow::Size SystemWindow::getViewSize() const {
-    return Size{static_cast<float>(_width), static_cast<float>(_height)};
+    int width = _width;
+    int height = _height;
+    if (!tryGetCanvasSize("#canvas", &width, &height) &&
+        !tryGetCanvasSize("canvas", &width, &height) &&
+        !tryGetCanvasSize("#GameCanvas", &width, &height) &&
+        !tryGetCanvasSize("GameCanvas", &width, &height)) {
+        width = _width;
+        height = _height;
+    }
+    return Size{static_cast<float>(width), static_cast<float>(height)};
+}
+
+bool SystemWindow::createWindow(const char *title, int x, int y, int w, int h, int flags) {
+    CC_UNUSED_PARAM(title);
+    CC_UNUSED_PARAM(x);
+    CC_UNUSED_PARAM(y);
+    CC_UNUSED_PARAM(flags);
+    _width = w;
+    _height = h;
+    return true;
+}
+
+bool SystemWindow::createWindow(const char *title, int w, int h, int flags) {
+    return createWindow(title, 0, 0, w, h, flags);
 }
 
 } // namespace cc
