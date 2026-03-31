@@ -343,6 +343,10 @@ NO_WERROR   cocos/audio/common/utils/primitives.cpp
             cocos/audio/common/decoder/AudioDecoderOgg.h
             cocos/audio/common/decoder/AudioDecoderWav.cpp
             cocos/audio/common/decoder/AudioDecoderWav.h
+            cocos/audio/common/utils/include/tinysndfile.h
+            cocos/audio/common/utils/include/primitives.h
+            cocos/audio/common/utils/tinysndfile.cpp
+            cocos/audio/common/utils/primitives.cpp
             cocos/audio/oalsoft/AudioCache.cpp
             cocos/audio/oalsoft/AudioCache.h
             cocos/audio/oalsoft/AudioEngine-soft.cpp

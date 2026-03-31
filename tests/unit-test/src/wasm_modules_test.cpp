@@ -14,15 +14,18 @@
 #include "base/Config.h"
 #include "cocos/platform/Image.h"
 
-// Expose protected static helpers via a thin subclass
+// Expose protected static helpers via a thin subclass.
+// No instances are created — only static methods are called.
 class TestImage : public cc::Image {
 public:
     static cc::Image::Format detect(const unsigned char *data, uint32_t len) {
         return detectFormat(data, len);
     }
-    static bool checkPng(const unsigned char *data, uint32_t len) { return isPng(data, len); }
-    static bool checkJpg(const unsigned char *data, uint32_t len) { return isJpg(data, len); }
-    static bool checkWebp(const unsigned char *data, uint32_t len) { return isWebp(data, len); }
+    static bool checkPng(const unsigned char *d, uint32_t l) { return isPng(d, l); }
+    static bool checkJpg(const unsigned char *d, uint32_t l) { return isJpg(d, l); }
+    static bool checkWebp(const unsigned char *d, uint32_t l) { return isWebp(d, l); }
+    // Satisfy pure-virtual requirements (never called in tests)
+    TestImage() = delete;
 };
 
 // PNG magic: \x89 P N G \r \n \x1a \n
@@ -115,7 +118,9 @@ TEST(WasmAudioDefTest, PCMHeaderAssignment) {
 }
 
 // ── AudioDecoderManager lifecycle ────────────────────────────────────────────
-#if CC_USE_AUDIO
+// AudioDecoderManager::init() tries to open an OpenAL device which is not
+// available in a headless node/wasm environment. Skip these tests on EMSCRIPTEN.
+#if CC_USE_AUDIO && !defined(__EMSCRIPTEN__)
 #include "cocos/audio/common/decoder/AudioDecoderManager.h"
 #include "cocos/audio/common/decoder/AudioDecoder.h"
 
@@ -140,4 +145,4 @@ TEST(WasmAudioDecoderTest, CreateDecoderNonExistentFile) {
     }
     cc::AudioDecoderManager::destroy();
 }
-#endif // CC_USE_AUDIO
+#endif // CC_USE_AUDIO && !defined(__EMSCRIPTEN__)

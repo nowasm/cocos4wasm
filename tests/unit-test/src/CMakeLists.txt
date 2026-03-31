@@ -19,6 +19,8 @@ if(EMSCRIPTEN)
         -sALLOW_MEMORY_GROWTH=1
         -sEXIT_RUNTIME=1
         -sENVIRONMENT=web,node
+        -sSTACK_SIZE=1048576
+        -sASSERTIONS=1
     )
 elseif(MSVC)
     foreach(item ${WINDOWS_DLLS})
