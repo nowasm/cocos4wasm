@@ -61,7 +61,7 @@ bool AudioDecoderOgg::open(const char *path) {
     ccstd::string fullPath = FileUtils::getInstance()->fullPathForFilename(path);
 #if CC_PLATFORM == CC_PLATFORM_WINDOWS
     if (0 == ov_fopen(FileUtils::getInstance()->getSuitableFOpen(fullPath).c_str(), &_vf)) {
-#elif CC_PLATFORM == CC_PLATFORM_LINUX || CC_PLATFORM == CC_PLATFORM_QNX
+#elif CC_PLATFORM == CC_PLATFORM_LINUX || CC_PLATFORM == CC_PLATFORM_QNX || CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
     if (0 == ov_fopen(FileUtils::getInstance()->getSuitableFOpen(fullPath).c_str(), &_vf)) {
 #elif CC_PLATFORM == CC_PLATFORM_OHOS
     auto *fp = cc::ohosOpen(FileUtils::getInstance()->getSuitableFOpen(fullPath).c_str(), this);
@@ -95,7 +95,7 @@ uint32_t AudioDecoderOgg::read(uint32_t framesToRead, char *pcmBuf) {
 #elif CC_PLATFORM == CC_PLATFORM_OHOS
     int bitstream = 0;
     auto bytesRead = ov_read(&_vf, pcmBuf, bytesToRead, &bitstream);
-#elif CC_PLATFORM == CC_PLATFORM_LINUX || CC_PLATFORM == CC_PLATFORM_QNX
+#elif CC_PLATFORM == CC_PLATFORM_LINUX || CC_PLATFORM == CC_PLATFORM_QNX || CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
     auto bytesRead = ov_read(&_vf, pcmBuf, bytesToRead, 0, 2, 1, &currentSection);
 #endif
     return static_cast<uint32_t>(bytesRead / _pcmHeader.bytesPerFrame);

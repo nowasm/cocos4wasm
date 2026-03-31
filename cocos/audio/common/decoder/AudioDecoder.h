@@ -36,6 +36,8 @@
     #include "vorbis/vorbisfile.h"
 #elif CC_PLATFORM == CC_PLATFORM_OHOS
     #include "ivorbisfile.h"
+#elif defined(__EMSCRIPTEN__)
+    #include <vorbis/vorbisfile.h>
 #endif
 
 namespace cc {

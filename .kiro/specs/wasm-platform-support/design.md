@@ -200,6 +200,115 @@ build/
 
 ---
 
+## 扩展设计：恢复5个禁用模块
+
+### 6. JPEG/PNG 图片格式（需求 7）
+
+**当前状态：**
+- `cc_apply_definations` 中有两行强制覆盖：
+  ```cmake
+  $<$<BOOL:${EMSCRIPTEN}>:CC_USE_JPEG=0>
+  $<$<BOOL:${EMSCRIPTEN}>:CC_USE_PNG=0>
+  ```
+- `external/emscripten/CMakeLists.txt` 中 `jpeg` 和 `png` 被注释掉
+
+**修改方案：**
+
+1. 删除 `CMakeLists.txt` 中上述两行强制覆盖
+2. 在 `external/emscripten/CMakeLists.txt` 中添加 INTERFACE 目标：
+   ```cmake
+   add_library(jpeg INTERFACE)
+   target_link_options(jpeg INTERFACE -sUSE_LIBJPEG=1)
+
+   add_library(png INTERFACE)
+   target_link_options(png INTERFACE -sUSE_LIBPNG=1)
+   ```
+3. 将 `jpeg` 和 `png` 加入 `CC_EXTERNAL_LIBS`
+4. `Image.cpp` 中 EMSCRIPTEN 下 `jpeglib.h` 和 `png.h` 可直接 include（sysroot 已有，无需子目录前缀）；需在 EMSCRIPTEN 分支添加条件 include 路径或修改 include guard
+
+**include 路径处理：**
+- `Image.cpp` 中 `#include "jpeg/jpeglib.h"` 在 EMSCRIPTEN 下需改为 `#include <jpeglib.h>`
+- `#include "png/png.h"` 在 EMSCRIPTEN 下需改为 `#include <png.h>`（已有 `__LINUX__` 分支用 `"png.h"`，EMSCRIPTEN 可复用该分支）
+
+### 7. WebP 图片格式（需求 8）
+
+**当前状态：**
+- `CC_USE_WEBP` generator expression：`$<IF:$<AND:$<BOOL:${USE_WEBP}>,$<NOT:$<BOOL:${EMSCRIPTEN}>>>,CC_USE_WEBP=1,CC_USE_WEBP=0>`
+- emsdk 没有 webp port，需要预编译库
+
+**修改方案：**
+
+1. 将 `libwebp.a`（wasm32 编译版本）放入 `external/emscripten/libs/libwebp/libwebp.a`，头文件放入 `external/emscripten/include/webp/`
+2. 在 `external/emscripten/CMakeLists.txt` 中添加：
+   ```cmake
+   if(USE_WEBP)
+     add_library(webp STATIC IMPORTED GLOBAL)
+     set_target_properties(webp PROPERTIES
+       IMPORTED_LOCATION ${CMAKE_CURRENT_LIST_DIR}/libs/libwebp/libwebp.a
+       INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_LIST_DIR}/include
+     )
+     list(APPEND CC_EXTERNAL_LIBS webp)
+   endif()
+   ```
+3. 修改 `CMakeLists.txt` 中的 generator expression，移除 `$<NOT:$<BOOL:${EMSCRIPTEN}>>` 条件：
+   ```cmake
+   $<IF:$<BOOL:${USE_WEBP}>,CC_USE_WEBP=1,CC_USE_WEBP=0>
+   ```
+
+### 8. 音频模块（需求 9）
+
+**当前状态：**
+- `CMakeLists.txt` EMSCRIPTEN 块中：`cc_set_if_undefined(USE_AUDIO OFF)`（可被项目覆盖，但默认关闭）
+- EMSCRIPTEN 的 `if(USE_AUDIO)` 分支已存在（AudioDecoder/AudioDecoderWav/oalsoft），但缺少 ogg/vorbis/mpg123 解码器
+- sysroot 已有 `libal.a`（OpenAL）
+
+**修改方案：**
+
+1. 移除 `CMakeLists.txt` EMSCRIPTEN 块中的 `cc_set_if_undefined(USE_AUDIO OFF)`，使全局默认值 `ON` 生效
+2. 在 EMSCRIPTEN 的 `if(USE_AUDIO)` 分支中补充 ogg/vorbis/mpg123 解码器源文件（参考 LINUX 分支）
+3. 在 `external/emscripten/CMakeLists.txt` 中添加音频 INTERFACE 目标：
+   ```cmake
+   if(USE_AUDIO)
+     add_library(openal INTERFACE)
+     target_link_options(openal INTERFACE -lopenal)
+
+     add_library(ogg INTERFACE)
+     target_link_options(ogg INTERFACE -sUSE_OGG=1)
+
+     add_library(vorbis INTERFACE)
+     target_link_options(vorbis INTERFACE -sUSE_VORBIS=1)
+
+     add_library(mpg123 INTERFACE)
+     target_link_options(mpg123 INTERFACE -sUSE_MPG123=1)
+
+     list(APPEND CC_EXTERNAL_LIBS openal ogg vorbis mpg123)
+   endif()
+   ```
+
+**注意：** emscripten ports 的 `-sUSE_OGG=1` 等选项需同时出现在编译和链接阶段，需通过 `target_compile_options` 和 `target_link_options` 双向传递，或使用 `INTERFACE` 目标的 `INTERFACE_COMPILE_OPTIONS`。
+
+### 9. FreeType/DebugRenderer（需求 10）
+
+**当前状态：**
+- `CMakeLists.txt` EMSCRIPTEN 块中：`set(USE_DEBUG_RENDERER OFF CACHE BOOL "..." FORCE)`（强制禁用，无法覆盖）
+- emsdk 有 `freetype.py` port，通过 `-sUSE_FREETYPE=1` 启用
+
+**修改方案：**
+
+1. 移除 `CMakeLists.txt` EMSCRIPTEN 块中的 `set(USE_DEBUG_RENDERER OFF CACHE BOOL "..." FORCE)` 强制禁用行
+2. 在 `external/emscripten/CMakeLists.txt` 中添加：
+   ```cmake
+   if(USE_DEBUG_RENDERER)
+     add_library(freetype INTERFACE)
+     target_link_options(freetype INTERFACE -sUSE_FREETYPE=1)
+     target_compile_options(freetype INTERFACE -sUSE_FREETYPE=1)
+     list(APPEND CC_EXTERNAL_LIBS freetype)
+   endif()
+   ```
+3. freetype port 的头文件由 emscripten 自动放入 sysroot，`FreeTypeFont.cpp` 中的 `#include <ft2build.h>` 应能直接找到
+
+---
+
 ## 错误处理
 
 | 场景 | 处理方式 |

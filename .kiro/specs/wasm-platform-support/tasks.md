@@ -129,3 +129,154 @@
 - 每个任务均引用具体需求条目，便于追溯
 - 检查点确保增量验证
 - 属性测试验证普遍正确性，单元测试验证具体示例和边界条件
+
+---
+
+## 扩展任务：恢复5个禁用模块（任务 9–13）
+
+### 概述
+
+按依赖复杂度从低到高恢复：JPEG/PNG（sysroot 直接可用）→ WebP（需预编译库）→ Audio（需 ports + 源文件补充）→ FreeType/DebugRenderer（需 port + 强制禁用解除）。
+
+- [x] 9. 恢复 JPEG/PNG 图片格式支持
+  - [x] 9.1 移除 `CMakeLists.txt` 中强制禁用 CC_USE_JPEG/CC_USE_PNG 的两行
+    - 定位 `cc_apply_definations` 函数中的以下两行并删除：
+      ```cmake
+      $<$<BOOL:${EMSCRIPTEN}>:CC_USE_JPEG=0>
+      $<$<BOOL:${EMSCRIPTEN}>:CC_USE_PNG=0>
+      ```
+    - _需求：7.3_
+
+  - [x] 9.2 在 `external/emscripten/CMakeLists.txt` 中添加 jpeg 和 png INTERFACE 目标
+    - 取消注释或新增以下内容：
+      ```cmake
+      add_library(jpeg INTERFACE)
+      target_link_options(jpeg INTERFACE -sUSE_LIBJPEG=1)
+
+      add_library(png INTERFACE)
+      target_link_options(png INTERFACE -sUSE_LIBPNG=1)
+      ```
+    - 将 `jpeg` 和 `png` 加入 `CC_EXTERNAL_LIBS`
+    - _需求：7.1、7.2、7.4_
+
+  - [x] 9.3 修复 `cocos/platform/Image.cpp` 中 EMSCRIPTEN 下的 include 路径
+    - `#include "jpeg/jpeglib.h"` 在 EMSCRIPTEN 下改为 `#include <jpeglib.h>`
+    - PNG 的 include 已有 `__LINUX__` 分支使用 `"png.h"`，在该条件中补充 `|| defined(__EMSCRIPTEN__)` 或添加独立 EMSCRIPTEN 分支
+    - _需求：7.5_
+
+  - [ ]* 9.4 验证 unit-test 仍然通过
+    - 确认 EMSCRIPTEN 构建中 `CC_USE_JPEG=1`、`CC_USE_PNG=1` 编译定义生效
+    - 确保 unit-test 编译和运行不受影响
+    - _需求：7.1、7.2_
+
+- [x] 10. 恢复 WebP 图片格式支持
+  - [x] 10.1 准备 WebP wasm32 预编译库
+    - 将 wasm32 编译的 `libwebp.a` 放入 `external/emscripten/libs/libwebp/libwebp.a`
+    - 将 WebP 头文件（`decode.h`、`encode.h` 等）放入 `external/emscripten/include/webp/`
+    - 可从 `external/linux/lib/libwebp/` 参考目录结构，或通过 `emcmake cmake` 自行编译 libwebp 源码
+    - _需求：8.1_
+
+  - [x] 10.2 在 `external/emscripten/CMakeLists.txt` 中添加 webp IMPORTED STATIC 目标
+    - 添加：
+      ```cmake
+      if(USE_WEBP)
+        add_library(webp STATIC IMPORTED GLOBAL)
+        set_target_properties(webp PROPERTIES
+          IMPORTED_LOCATION ${CMAKE_CURRENT_LIST_DIR}/libs/libwebp/libwebp.a
+          INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_LIST_DIR}/include
+        )
+        list(APPEND CC_EXTERNAL_LIBS webp)
+      endif()
+      ```
+    - _需求：8.2、8.4_
+
+  - [x] 10.3 修改 `CMakeLists.txt` 中 `CC_USE_WEBP` generator expression
+    - 将：
+      ```cmake
+      $<IF:$<AND:$<BOOL:${USE_WEBP}>,$<NOT:$<BOOL:${EMSCRIPTEN}>>>,CC_USE_WEBP=1,CC_USE_WEBP=0>
+      ```
+      改为：
+      ```cmake
+      $<IF:$<BOOL:${USE_WEBP}>,CC_USE_WEBP=1,CC_USE_WEBP=0>
+      ```
+    - _需求：8.3_
+
+  - [ ]* 10.4 验证 unit-test 仍然通过
+    - 确认 EMSCRIPTEN 构建中 `CC_USE_WEBP=1` 编译定义生效
+    - 确保 unit-test 编译和运行不受影响
+    - _需求：8.3_
+
+- [x] 11. 检查点 — 确保 JPEG/PNG/WebP 相关测试通过
+  - 确保所有测试通过，如有疑问请向用户确认。
+
+- [x] 12. 恢复音频模块支持
+  - [x] 12.1 移除 `CMakeLists.txt` EMSCRIPTEN 块中的 `USE_AUDIO` 默认禁用行
+    - 删除或注释掉：`cc_set_if_undefined(USE_AUDIO OFF)`（位于 `## disable unsupported features on EMSCRIPTEN` 块中）
+    - 使全局默认值 `cc_set_if_undefined(USE_AUDIO ON)` 对 EMSCRIPTEN 生效
+    - _需求：9.1_
+
+  - [x] 12.2 在 `CMakeLists.txt` 的 EMSCRIPTEN `if(USE_AUDIO)` 分支中补充 ogg/vorbis/mpg123 解码器源文件
+    - 参考 `elseif(LINUX OR QNX)` 分支，在 `elseif(EMSCRIPTEN)` 分支中补充：
+      ```cmake
+      cocos/audio/common/decoder/AudioDecoderMp3.cpp
+      cocos/audio/common/decoder/AudioDecoderMp3.h
+      cocos/audio/common/decoder/AudioDecoderOgg.cpp
+      cocos/audio/common/decoder/AudioDecoderOgg.h
+      ```
+    - _需求：9.1_
+
+  - [x] 12.3 在 `external/emscripten/CMakeLists.txt` 中添加音频 INTERFACE 目标
+    - 添加：
+      ```cmake
+      if(USE_AUDIO)
+        add_library(openal INTERFACE)
+        target_link_options(openal INTERFACE -lopenal)
+
+        add_library(ogg INTERFACE)
+        target_link_options(ogg INTERFACE -sUSE_OGG=1)
+        target_compile_options(ogg INTERFACE -sUSE_OGG=1)
+
+        add_library(vorbis INTERFACE)
+        target_link_options(vorbis INTERFACE -sUSE_VORBIS=1)
+        target_compile_options(vorbis INTERFACE -sUSE_VORBIS=1)
+
+        add_library(mpg123 INTERFACE)
+        target_link_options(mpg123 INTERFACE -sUSE_MPG123=1)
+        target_compile_options(mpg123 INTERFACE -sUSE_MPG123=1)
+
+        list(APPEND CC_EXTERNAL_LIBS openal ogg vorbis mpg123)
+      endif()
+      ```
+    - _需求：9.2、9.3、9.4_
+
+  - [ ]* 12.4 验证音频模块编译正确
+    - 确认 `CC_USE_AUDIO=1` 编译定义生效
+    - 确认 OpenAL include 路径（`AL/al.h`）在 EMSCRIPTEN sysroot 下可正确解析
+    - 确保 unit-test 编译和运行不受影响
+    - _需求：9.5_
+
+- [x] 13. 恢复 FreeType/DebugRenderer 支持
+  - [x] 13.1 移除 `CMakeLists.txt` EMSCRIPTEN 块中强制禁用 `USE_DEBUG_RENDERER` 的行
+    - 删除：`set(USE_DEBUG_RENDERER OFF CACHE BOOL "Debug renderer (FreeType)" FORCE)`
+    - 使全局默认值 `cc_set_if_undefined(USE_DEBUG_RENDERER ON)` 对 EMSCRIPTEN 生效
+    - _需求：10.1_
+
+  - [x] 13.2 在 `external/emscripten/CMakeLists.txt` 中添加 freetype INTERFACE 目标
+    - 添加：
+      ```cmake
+      if(USE_DEBUG_RENDERER)
+        add_library(freetype INTERFACE)
+        target_link_options(freetype INTERFACE -sUSE_FREETYPE=1)
+        target_compile_options(freetype INTERFACE -sUSE_FREETYPE=1)
+        list(APPEND CC_EXTERNAL_LIBS freetype)
+      endif()
+      ```
+    - _需求：10.2、10.3_
+
+  - [ ]* 13.3 验证 FreeType 头文件可正确解析
+    - 确认 `cocos/core/assets/FreeTypeFont.cpp` 中的 `#include <ft2build.h>` 在 EMSCRIPTEN 下能找到（emscripten freetype port 自动将头文件放入 sysroot）
+    - 确保 unit-test 编译和运行不受影响
+    - _需求：10.4_
+
+- [x] 14. 最终检查点 — 确保所有模块恢复后测试通过
+  - 确保所有测试通过，如有疑问请向用户确认。

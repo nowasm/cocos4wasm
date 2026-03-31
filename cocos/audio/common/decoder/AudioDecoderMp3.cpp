@@ -35,6 +35,8 @@
     #include <unistd.h>
     #include "cocos/platform/ohos/FileUtils-ohos.h"
     #include "mpg123.h"
+#elif defined(__EMSCRIPTEN__)
+    #include <mpg123.h>
 #endif
 
 #include <sys/stat.h>

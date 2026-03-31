@@ -32,7 +32,11 @@
 #include "gfx-base/GFXDef-common.h"
 
 #if CC_USE_JPEG
-    #include "jpeg/jpeglib.h"
+    #if defined(__EMSCRIPTEN__)
+        #include <jpeglib.h>
+    #else
+        #include "jpeg/jpeglib.h"
+    #endif
 #endif // CC_USE_JPEG
 
 #include "base/Data.h"
@@ -42,7 +46,7 @@
 
 extern "C" {
 #if CC_USE_PNG
-    #if __OHOS__ || __LINUX__ || __QNX__
+    #if __OHOS__ || __LINUX__ || __QNX__ || defined(__EMSCRIPTEN__)
         #include "png.h"
     #else
         #include "png/png.h"

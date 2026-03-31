@@ -152,9 +152,6 @@ endif()
 if(EMSCRIPTEN)
     cc_set_if_undefined(USE_VIDEO OFF)
     cc_set_if_undefined(USE_WEBVIEW OFF)
-    cc_set_if_undefined(USE_AUDIO OFF)
-    # FreeType / debug text path not wired for wasm prebuilts; allow override in cache if you add deps.
-    set(USE_DEBUG_RENDERER OFF CACHE BOOL "Debug renderer (FreeType)" FORCE)
 endif()
 
 ## disable middleware when dragonbones and spine are disabled
@@ -340,6 +337,10 @@ NO_WERROR   cocos/audio/common/utils/primitives.cpp
             cocos/audio/common/decoder/AudioDecoder.h
             cocos/audio/common/decoder/AudioDecoderManager.cpp
             cocos/audio/common/decoder/AudioDecoderManager.h
+            cocos/audio/common/decoder/AudioDecoderMp3.cpp
+            cocos/audio/common/decoder/AudioDecoderMp3.h
+            cocos/audio/common/decoder/AudioDecoderOgg.cpp
+            cocos/audio/common/decoder/AudioDecoderOgg.h
             cocos/audio/common/decoder/AudioDecoderWav.cpp
             cocos/audio/common/decoder/AudioDecoderWav.h
             cocos/audio/oalsoft/AudioCache.cpp
@@ -3538,7 +3539,7 @@ function(cc_apply_definations target)
         $<IF:$<BOOL:${USE_OCCLUSION_QUERY}>,CC_USE_OCCLUSION_QUERY=1,CC_USE_OCCLUSION_QUERY=0>
         $<IF:$<BOOL:${USE_DEBUG_RENDERER}>,CC_USE_DEBUG_RENDERER=1,CC_USE_DEBUG_RENDERER=0>
         $<IF:$<BOOL:${USE_GEOMETRY_RENDERER}>,CC_USE_GEOMETRY_RENDERER=1,CC_USE_GEOMETRY_RENDERER=0>
-        $<IF:$<AND:$<BOOL:${USE_WEBP}>,$<NOT:$<BOOL:${EMSCRIPTEN}>>>,CC_USE_WEBP=1,CC_USE_WEBP=0>
+        $<IF:$<BOOL:${USE_WEBP}>,CC_USE_WEBP=1,CC_USE_WEBP=0>
         $<IF:$<BOOL:${CC_EDITOR}>,CC_EDITOR=1,CC_EDITOR=0>
         $<IF:$<BOOL:${ENABLE_FLOAT_OUTPUT}>,ENABLE_FLOAT_OUTPUT=1,ENABLE_FLOAT_OUTPUT=0>
         $<$<BOOL:${USE_REMOTE_LOG}>:CC_REMOTE_LOG=1>
@@ -3547,8 +3548,6 @@ function(cc_apply_definations target)
         $<$<BOOL:${USE_SE_NAPI}>:SCRIPT_ENGINE_TYPE=5>
         $<$<BOOL:${USE_SE_JSVM}>:SCRIPT_ENGINE_TYPE=6>
         $<$<AND:$<BOOL:${EMSCRIPTEN}>,$<NOT:$<OR:$<BOOL:${USE_SE_V8}>,$<BOOL:${USE_SE_SM}>,$<BOOL:${USE_SE_NAPI}>,$<BOOL:${USE_SE_JSVM}>>>>:SCRIPT_ENGINE_TYPE=0>
-        $<$<BOOL:${EMSCRIPTEN}>:CC_USE_JPEG=0>
-        $<$<BOOL:${EMSCRIPTEN}>:CC_USE_PNG=0>
         $<$<OR:$<CONFIG:Debug>,$<BOOL:${CC_DEBUG_FORCE}>>:CC_DEBUG=1>
         $<IF:$<BOOL:${USE_ADPF}>,CC_USE_ADPF=1,CC_USE_ADPF=0>
         $<IF:$<BOOL:${USE_GOOGLE_BILLING}>,CC_USE_GOOGLE_BILLING=1,CC_USE_GOOGLE_BILLING=0>

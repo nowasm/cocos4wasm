@@ -98,6 +98,60 @@
 
 ---
 
+### 需求 7：EMSCRIPTEN 恢复 JPEG/PNG 图片格式支持
+
+**用户故事：** 作为引擎开发者，我希望在 EMSCRIPTEN 构建中启用 JPEG 和 PNG 图片格式解码，以便 wasm 平台能正常加载常见图片资源。
+
+#### 验收标准
+
+1. WHEN CMake 检测到 `EMSCRIPTEN` 时，THE 构建系统 SHALL 通过 `-sUSE_LIBJPEG=1` 链接选项启用 emscripten sysroot 中的 `libjpeg.a`，并将 `CC_USE_JPEG` 编译定义设为 1。
+2. WHEN CMake 检测到 `EMSCRIPTEN` 时，THE 构建系统 SHALL 通过 `-sUSE_LIBPNG=1` 链接选项启用 emscripten sysroot 中的 `libpng.a`，并将 `CC_USE_PNG` 编译定义设为 1。
+3. THE 构建系统 SHALL 移除 `cc_apply_definations` 中强制将 `CC_USE_JPEG` 和 `CC_USE_PNG` 设为 0 的 EMSCRIPTEN 特判逻辑。
+4. THE `external/emscripten/CMakeLists.txt` SHALL 为 jpeg 和 png 添加 INTERFACE 目标，通过 `target_link_options` 传递 `-sUSE_LIBJPEG=1` 和 `-sUSE_LIBPNG=1`。
+5. WHEN `cocos/platform/Image.cpp` 在 EMSCRIPTEN 下编译时，THE 构建系统 SHALL 确保 `jpeglib.h` 和 `png.h` 可从 emscripten sysroot 直接 include（无需 `jpeg/` 或 `png/` 子目录前缀）。
+
+---
+
+### 需求 8：EMSCRIPTEN 恢复 WebP 图片格式支持
+
+**用户故事：** 作为引擎开发者，我希望在 EMSCRIPTEN 构建中启用 WebP 图片格式解码，以便 wasm 平台能加载 WebP 格式资源。
+
+#### 验收标准
+
+1. THE 构建系统 SHALL 为 EMSCRIPTEN 提供 `libwebp.a` 预编译库，放置于 `external/emscripten/libs/libwebp/libwebp.a`，并附带对应头文件于 `external/emscripten/include/webp/`。
+2. THE `external/emscripten/CMakeLists.txt` SHALL 为 webp 添加 IMPORTED STATIC 目标，指向上述预编译库，并设置 `INTERFACE_INCLUDE_DIRECTORIES`。
+3. THE 构建系统 SHALL 修改 `cc_apply_definations` 中的 `CC_USE_WEBP` generator expression，使其在 EMSCRIPTEN 且 `USE_WEBP=ON` 时也能输出 `CC_USE_WEBP=1`。
+4. WHEN `USE_WEBP` 为 ON 且平台为 EMSCRIPTEN 时，THE `external/emscripten/CMakeLists.txt` SHALL 将 webp 目标加入 `CC_EXTERNAL_LIBS`。
+
+---
+
+### 需求 9：EMSCRIPTEN 恢复音频模块支持
+
+**用户故事：** 作为引擎开发者，我希望在 EMSCRIPTEN 构建中启用音频模块（oalsoft 路径），以便 wasm 平台能播放音频。
+
+#### 验收标准
+
+1. THE 构建系统 SHALL 将 `CMakeLists.txt` 中 EMSCRIPTEN 的 `USE_AUDIO` 默认值从 `cc_set_if_undefined(USE_AUDIO OFF)` 改为允许默认启用（移除该行或改为 `ON`），使 `USE_AUDIO` 的全局默认值 `ON` 对 EMSCRIPTEN 生效。
+2. WHEN `USE_AUDIO=ON` 且平台为 EMSCRIPTEN 时，THE 构建系统 SHALL 通过 `-sUSE_OGG=1`、`-sUSE_VORBIS=1`、`-sUSE_MPG123=1` 链接选项启用对应 emscripten ports 库。
+3. WHEN `USE_AUDIO=ON` 且平台为 EMSCRIPTEN 时，THE 构建系统 SHALL 通过 `-lopenal` 链接 sysroot 中的 `libal.a`（OpenAL）。
+4. THE `external/emscripten/CMakeLists.txt` SHALL 在 `USE_AUDIO=ON` 时为 ogg、vorbis、mpg123、openal 添加对应的 INTERFACE 目标或链接选项。
+5. WHEN 音频模块编译时，THE 构建系统 SHALL 确保 `cocos/audio/oalsoft/` 中的 OpenAL include 路径在 EMSCRIPTEN 下正确解析（sysroot 已包含 `AL/al.h`）。
+
+---
+
+### 需求 10：EMSCRIPTEN 恢复 FreeType/DebugRenderer 支持
+
+**用户故事：** 作为引擎开发者，我希望在 EMSCRIPTEN 构建中启用 FreeType 字体渲染和 DebugRenderer，以便 wasm 平台能显示调试文字。
+
+#### 验收标准
+
+1. THE 构建系统 SHALL 移除 `CMakeLists.txt` 中 `set(USE_DEBUG_RENDERER OFF CACHE BOOL "Debug renderer (FreeType)" FORCE)` 这行强制禁用逻辑，改为允许 `USE_DEBUG_RENDERER` 在 EMSCRIPTEN 下默认启用。
+2. WHEN `USE_DEBUG_RENDERER=ON` 且平台为 EMSCRIPTEN 时，THE 构建系统 SHALL 通过 `-sUSE_FREETYPE=1` 链接选项启用 emscripten freetype port。
+3. THE `external/emscripten/CMakeLists.txt` SHALL 在 `USE_DEBUG_RENDERER=ON` 时为 freetype 添加 INTERFACE 目标，通过 `target_link_options` 传递 `-sUSE_FREETYPE=1`，并设置 `INTERFACE_INCLUDE_DIRECTORIES` 指向 emscripten sysroot 的 freetype 头文件路径。
+4. WHEN `USE_DEBUG_RENDERER=ON` 且平台为 EMSCRIPTEN 时，THE 构建系统 SHALL 确保 `cocos/core/assets/FreeTypeFont.cpp` 能正确找到 freetype 头文件（`ft2build.h`）。
+
+---
+
 ### 需求 6：构建产物验证
 
 **用户故事：** 作为游戏开发者，我希望 wasm32 项目能成功编译并产出可在浏览器中加载的文件，以便验证整个工具链的正确性。
