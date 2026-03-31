@@ -24,6 +24,7 @@ cc_set_if_undefined(USE_SE_V8                ON)
 cc_set_if_undefined(USE_SE_SM                OFF)
 cc_set_if_undefined(USE_SE_NAPI              OFF)
 cc_set_if_undefined(USE_SE_JSVM              OFF)
+cc_set_if_undefined(USE_SE_QJS               OFF)
 cc_set_if_undefined(USE_V8_DEBUGGER          ON)
 cc_set_if_undefined(USE_V8_DEBUGGER_FORCE    OFF)
 cc_set_if_undefined(USE_SOCKET               ON)
@@ -86,12 +87,11 @@ elseif(EMSCRIPTEN)
     cc_set_if_undefined(CC_USE_VULKAN OFF)
     cc_set_if_undefined(CC_USE_METAL OFF)
     cc_set_if_undefined(CC_USE_GLES2 OFF)
-    # No V8 / NAPI prebuilts under external/emscripten; force all script VMs off
-    # so that target_compile_definitions below emits SCRIPT_ENGINE_TYPE=0 only.
     set(USE_SE_V8 OFF)
     set(USE_SE_SM OFF)
     set(USE_SE_NAPI OFF)
     set(USE_SE_JSVM OFF)
+    set(USE_SE_QJS ON)
 elseif(MACOSX OR IOS)
     cc_set_if_undefined(CC_USE_METAL ON)
     cc_set_if_undefined(CC_USE_VULKAN OFF)
@@ -3154,7 +3154,23 @@ if(USE_SE_JSVM)
 
 endif()
 
-if(EMSCRIPTEN AND NOT USE_SE_V8 AND NOT USE_SE_SM AND NOT USE_SE_NAPI AND NOT USE_SE_JSVM)
+if(USE_SE_QJS)
+    cocos_source_files(MODULE ccbindings
+        cocos/bindings/jswrapper/quickjs/Base.h
+        cocos/bindings/jswrapper/quickjs/Class.cpp
+        cocos/bindings/jswrapper/quickjs/Class.h
+        cocos/bindings/jswrapper/quickjs/HelperMacros.h
+        cocos/bindings/jswrapper/quickjs/Object.cpp
+        cocos/bindings/jswrapper/quickjs/Object.h
+        cocos/bindings/jswrapper/quickjs/ScriptEngine.cpp
+        cocos/bindings/jswrapper/quickjs/ScriptEngine.h
+        cocos/bindings/jswrapper/quickjs/SeApi.h
+        cocos/bindings/jswrapper/quickjs/Utils.h
+        cocos/bindings/jswrapper/quickjs/Utils.cpp
+    )
+endif()
+
+if(EMSCRIPTEN AND NOT USE_SE_V8 AND NOT USE_SE_SM AND NOT USE_SE_NAPI AND NOT USE_SE_JSVM AND NOT USE_SE_QJS)
     cocos_source_files(MODULE ccbindings
         cocos/bindings/jswrapper/none/Base.h
         cocos/bindings/jswrapper/none/Class.cpp
@@ -3551,7 +3567,8 @@ function(cc_apply_definations target)
         $<$<BOOL:${USE_SE_V8}>:SCRIPT_ENGINE_TYPE=2>
         $<$<BOOL:${USE_SE_NAPI}>:SCRIPT_ENGINE_TYPE=5>
         $<$<BOOL:${USE_SE_JSVM}>:SCRIPT_ENGINE_TYPE=6>
-        $<$<AND:$<BOOL:${EMSCRIPTEN}>,$<NOT:$<OR:$<BOOL:${USE_SE_V8}>,$<BOOL:${USE_SE_SM}>,$<BOOL:${USE_SE_NAPI}>,$<BOOL:${USE_SE_JSVM}>>>>:SCRIPT_ENGINE_TYPE=0>
+        $<$<BOOL:${USE_SE_QJS}>:SCRIPT_ENGINE_TYPE=7>
+        $<$<AND:$<BOOL:${EMSCRIPTEN}>,$<NOT:$<OR:$<BOOL:${USE_SE_V8}>,$<BOOL:${USE_SE_SM}>,$<BOOL:${USE_SE_NAPI}>,$<BOOL:${USE_SE_JSVM}>,$<BOOL:${USE_SE_QJS}>>>>:SCRIPT_ENGINE_TYPE=0>
         $<$<OR:$<CONFIG:Debug>,$<BOOL:${CC_DEBUG_FORCE}>>:CC_DEBUG=1>
         $<IF:$<BOOL:${USE_ADPF}>,CC_USE_ADPF=1,CC_USE_ADPF=0>
         $<IF:$<BOOL:${USE_GOOGLE_BILLING}>,CC_USE_GOOGLE_BILLING=1,CC_USE_GOOGLE_BILLING=0>
