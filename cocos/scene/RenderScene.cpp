@@ -195,6 +195,11 @@ void RenderScene::update(uint32_t stamp) {
 
 void RenderScene::destroy() {
     removeCameras();
+    setMainLight(nullptr);
+    for (const auto &light : _directionalLights) {
+        light->detachFromScene();
+    }
+    _directionalLights.clear();
     removeSphereLights();
     removeSpotLights();
     removePointLights();
@@ -229,9 +234,11 @@ void RenderScene::removeCameras() {
 
 void RenderScene::unsetMainLight(DirectionalLight *dl) {
     if (_mainLight == dl) {
-        const auto &dlList = _directionalLights;
-        if (!dlList.empty()) {
-            setMainLight(dlList[dlList.size() - 1]);
+        for (auto iter = _directionalLights.rbegin(); iter != _directionalLights.rend(); ++iter) {
+            if (iter->get() == dl) {
+                continue;
+            }
+            setMainLight(iter->get());
             if (_mainLight->getNode() != nullptr) {
                 uint32_t flag = _mainLight->getNode()->getChangedFlags();
                 _mainLight->getNode()->setChangedFlags(flag | static_cast<uint32_t>(TransformBit::ROTATION));
@@ -250,6 +257,9 @@ void RenderScene::addDirectionalLight(DirectionalLight *dl) {
 void RenderScene::removeDirectionalLight(DirectionalLight *dl) {
     auto iter = std::find(_directionalLights.begin(), _directionalLights.end(), dl);
     if (iter != _directionalLights.end()) {
+        if (_mainLight == dl) {
+            setMainLight(nullptr);
+        }
         (*iter)->detachFromScene();
         _directionalLights.erase(iter);
         return;

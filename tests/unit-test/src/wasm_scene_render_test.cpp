@@ -52,6 +52,13 @@ protected:
         root = cc::Root::getInstance();
         ASSERT_NE(root, nullptr) << "Root must be initialised by main()";
         ASSERT_NE(root->getDevice(), nullptr) << "GFX device must exist";
+        root->destroyScenes();
+        root->destroyWindows();
+    }
+
+    void TearDown() override {
+        root->destroyScenes();
+        root->destroyWindows();
     }
 };
 

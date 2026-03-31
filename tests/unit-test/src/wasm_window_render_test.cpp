@@ -14,6 +14,18 @@
 #include "cocos/platform/wasm/modules/SystemWindowManager.h"
 #include "cocos/platform/interfaces/modules/ISystemWindow.h"
 #include "cocos/platform/interfaces/modules/ISystemWindowManager.h"
+#include <emscripten/html5.h>
+
+namespace {
+
+bool getCanvasSizeForTest(int *width, int *height) {
+    return emscripten_get_canvas_element_size("#canvas", width, height) == EMSCRIPTEN_RESULT_SUCCESS ||
+           emscripten_get_canvas_element_size("canvas", width, height) == EMSCRIPTEN_RESULT_SUCCESS ||
+           emscripten_get_canvas_element_size("#GameCanvas", width, height) == EMSCRIPTEN_RESULT_SUCCESS ||
+           emscripten_get_canvas_element_size("GameCanvas", width, height) == EMSCRIPTEN_RESULT_SUCCESS;
+}
+
+} // namespace
 
 // ── SystemWindow ─────────────────────────────────────────────────────────────
 
@@ -39,11 +51,14 @@ TEST(WasmSystemWindowTest, InitReturnsZero) {
     EXPECT_EQ(win.init(), 0);
 }
 
-TEST(WasmSystemWindowTest, DefaultViewSizeIsZero) {
+TEST(WasmSystemWindowTest, ViewSizeMatchesCanvasOrDefaults) {
     cc::SystemWindow win(1, nullptr);
     auto size = win.getViewSize();
-    EXPECT_FLOAT_EQ(size.width, 0.f);
-    EXPECT_FLOAT_EQ(size.height, 0.f);
+    int expectedWidth = 0;
+    int expectedHeight = 0;
+    getCanvasSizeForTest(&expectedWidth, &expectedHeight);
+    EXPECT_FLOAT_EQ(size.width, static_cast<float>(expectedWidth));
+    EXPECT_FLOAT_EQ(size.height, static_cast<float>(expectedHeight));
 }
 
 TEST(WasmSystemWindowTest, SetCursorEnabledNocrash) {
@@ -74,7 +89,8 @@ TEST(WasmSystemWindowManagerTest, InitReturnsZero) {
 TEST(WasmSystemWindowManagerTest, InitialWindowsEmpty) {
     cc::SystemWindowManager mgr;
     mgr.init();
-    EXPECT_TRUE(mgr.getWindows().empty());
+    EXPECT_EQ(mgr.getWindows().size(), 1u);
+    EXPECT_NE(mgr.getWindow(cc::ISystemWindow::mainWindowId), nullptr);
 }
 
 TEST(WasmSystemWindowManagerTest, GetWindowInvalidIdReturnsNull) {

@@ -462,6 +462,8 @@ struct FrameGraphDispatcher {
 
     void enableMemoryAliasing(bool enable);
 
+    void enableGFXBarrierInstantiation(bool enable);
+
     void run();
 
     const BarrierNode& getBarrier(RenderGraph::vertex_descriptor u) const;
@@ -504,6 +506,7 @@ struct FrameGraphDispatcher {
     bool _enablePassReorder{false};
     bool _enableAutoBarrier{true};
     bool _enableMemoryAliasing{false};
+    bool _enableGFXBarrierInstantiation{true};
     bool _accessGraphBuilt{false};
     float _paralellExecWeight{0.0F};
 };

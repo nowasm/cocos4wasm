@@ -38,6 +38,7 @@ TEST(complicatedBarrierTest, test12) {
     fillTestGraph(rasterData, resources, layoutInfo, renderGraph, rescGraph, layoutGraphData);
 
     FrameGraphDispatcher fgDispatcher(rescGraph, renderGraph, layoutGraphData, resource, resource);
+    fgDispatcher.enableGFXBarrierInstantiation(false);
     fgDispatcher.run();
 
     auto findBarrierByResID = [](const std::vector<Barrier>& barriers, uint32_t resID) {

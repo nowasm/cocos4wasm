@@ -38,6 +38,7 @@ TEST(simpleClosedBarrierTest, test11) {
     fillTestGraph(rasterData, resources, layoutInfo, renderGraph, rescGraph, layoutGraphData);
 
     FrameGraphDispatcher fgDispatcher(rescGraph, renderGraph, layoutGraphData, resource, resource);
+    fgDispatcher.enableGFXBarrierInstantiation(false);
     fgDispatcher.run();
 
     const auto& barrierMap = fgDispatcher.resourceAccessGraph.barrier;

@@ -93,6 +93,10 @@ void FrameGraphDispatcher::enableMemoryAliasing(bool enable) {
     _enableMemoryAliasing = enable;
 }
 
+void FrameGraphDispatcher::enableGFXBarrierInstantiation(bool enable) {
+    _enableGFXBarrierInstantiation = enable;
+}
+
 void FrameGraphDispatcher::setParalellWeight(float paralellExecWeight) {
     _paralellExecWeight = clampf(paralellExecWeight, 0.0F, 1.0F);
 }
@@ -1920,11 +1924,14 @@ void buildBarriers(FrameGraphDispatcher &fgDispatcher) {
         fgDispatcher._accessGraphBuilt = true;
     }
 
-    auto getGFXBarrier = [&resourceGraph](const Barrier &barrier) {
+    auto getGFXBarrier = [&fgDispatcher, &resourceGraph](const Barrier &barrier) {
+        if (!fgDispatcher._enableGFXBarrierInstantiation) {
+            return static_cast<gfx::GFXObject *>(nullptr);
+        }
         gfx::GFXObject *gfxBarrier{nullptr};
         const auto &desc = get(ResourceGraph::DescTag{}, resourceGraph, barrier.resourceID);
         if (desc.dimension == ResourceDimension::BUFFER) {
-            gfx::BufferBarrierInfo info;
+            gfx::BufferBarrierInfo info{};
             info.prevAccesses = barrier.beginStatus.accessFlag;
             info.nextAccesses = barrier.endStatus.accessFlag;
             const auto &range = barrier.endStatus.range;
@@ -1934,7 +1941,7 @@ void buildBarriers(FrameGraphDispatcher &fgDispatcher) {
             gfxBarrier = gfx::Device::getInstance()->getBufferBarrier(info);
         } else {
             const auto &originRange = getOriginRange(barrier.resourceID, barrier.endStatus.range, resourceGraph);
-            gfx::TextureBarrierInfo info;
+            gfx::TextureBarrierInfo info{};
             info.prevAccesses = barrier.beginStatus.accessFlag;
             info.nextAccesses = barrier.endStatus.accessFlag;
             info.range = originRange;
@@ -2069,7 +2076,7 @@ void buildBarriers(FrameGraphDispatcher &fgDispatcher) {
         }
     }
 
-    {
+    if (fgDispatcher._enableGFXBarrierInstantiation) {
         for (auto &fgRenderpassInfo : rag.rpInfo) {
             auto &colorAttachments = fgRenderpassInfo.rpInfo.colorAttachments;
             uint32_t count{0};
