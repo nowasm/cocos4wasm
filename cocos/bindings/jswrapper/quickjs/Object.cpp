@@ -2,6 +2,8 @@
 #include "Class.h"
 #include "ScriptEngine.h"
 #include "Utils.h"
+#include "HelperMacros.h"
+#include "../State.h"
 #include "../MappingUtils.h"
 #include "base/memory/Memory.h"
 
@@ -439,8 +441,7 @@ bool Object::isWeakSet() const {
 }
 
 bool Object::isArray() const {
-    auto *ctx = ScriptEngine::getInstance()->getContext();
-    return JS_IsArray(ctx, _jsVal) != 0;
+    return JS_IsArray(_jsVal) != 0;
 }
 
 bool Object::getArrayLength(uint32_t *length) const {
@@ -805,7 +806,7 @@ bool Object::strictEquals(Object *o) const {
     if (o == nullptr) return false;
     if (this == o) return true;
     auto *ctx = ScriptEngine::getInstance()->getContext();
-    return JS_StrictEq(ctx, _jsVal, o->_jsVal) != 0;
+    return JS_IsStrictEqual(ctx, _jsVal, o->_jsVal) != 0;
 }
 
 bool Object::attachObject(Object *) { return true; }

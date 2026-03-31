@@ -1,6 +1,8 @@
 #include "Class.h"
 #include "ScriptEngine.h"
 #include "Utils.h"
+#include "HelperMacros.h"
+#include "../State.h"
 #include "base/memory/Memory.h"
 
 namespace se {

@@ -32,7 +32,7 @@ void jsToSeValue(JSContext *ctx, JSValue jsVal, Value *v) {
         auto *obj = Object::_createJSObject(nullptr, JS_DupValue(ctx, jsVal));
         v->setObject(obj);
         obj->decRef();
-    } else if (JS_IsBigInt(ctx, jsVal)) {
+    } else if (JS_IsBigInt(jsVal)) {
         int64_t i64 = 0;
         JS_ToInt64(ctx, &i64, jsVal);
         v->setInt64(i64);

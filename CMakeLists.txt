@@ -1219,6 +1219,13 @@ if(WINDOWS OR LINUX OR QNX OR OPENHARMONY)
     )
 endif()
 
+if(EMSCRIPTEN)
+    cocos_source_files(
+        NO_WERROR    cocos/network/Downloader-wasm.cpp
+                     cocos/network/Downloader-wasm.h
+    )
+endif()
+
 if(WINDOWS OR MACOSX OR LINUX OR QNX OR OPENHARMONY OR EMSCRIPTEN)
     if(EMSCRIPTEN)
         cocos_source_files(
@@ -3025,6 +3032,10 @@ elseif(LINUX)
     cocos_source_files(
         NO_WERROR    cocos/bindings/manual/jsb_platform_linux.cpp
     )
+elseif(EMSCRIPTEN)
+    cocos_source_files(
+        NO_WERROR    cocos/bindings/manual/jsb_platform_linux.cpp
+    )
 endif()
 
 ############# module bindings
@@ -3325,7 +3336,7 @@ elseif(WIN32)
             NO_WERROR    cocos/ui/edit-box/EditBox-win32.cpp
         )
     endif()
-elseif(LINUX OR QNX)
+elseif(LINUX OR QNX OR EMSCRIPTEN)
     if(USE_EDIT_BOX)
         cocos_source_files(
             NO_WERROR    cocos/ui/edit-box/EditBox-linux.cpp

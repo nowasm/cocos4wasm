@@ -39,6 +39,11 @@
     #include "network/Downloader-java.h"
     #define DownloaderImpl DownloaderJava //NOLINT(readability-identifier-naming)
 
+#elif (CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN)
+
+    #include "network/Downloader-wasm.h"
+    #define DownloaderImpl DownloaderWasm //NOLINT(readability-identifier-naming)
+
 #else
 
     #include "network/Downloader-curl.h"

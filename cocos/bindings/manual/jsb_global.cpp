@@ -98,6 +98,17 @@ static std::shared_ptr<cc::network::Downloader> gLocalDownloader = nullptr;
 static ccstd::unordered_map<ccstd::string, std::function<void(const ccstd::string &, unsigned char *, uint)>> gLocalDownloaderHandlers;
 static uint64_t gLocalDownloaderTaskId = 1000000;
 
+template <typename F>
+static inline void runIOTask(F &&task) {
+    if (gIOThreadPool != nullptr) {
+        gIOThreadPool->pushTask([task = std::forward<F>(task)](int /*tid*/) mutable {
+            task();
+        });
+    } else {
+        task();
+    }
+}
+
 static cc::network::Downloader *localDownloader() {
     if (!gLocalDownloader) {
         gLocalDownloader = std::make_shared<cc::network::Downloader>();
@@ -623,7 +634,7 @@ bool jsb_global_load_image(const ccstd::string &path, const se::Value &callbackV
     auto initImageFunc = [path, callbackPtr](const ccstd::string &fullPath, unsigned char *imageData, int imageBytes) {
         auto *img = ccnew Image();
 
-        gIOThreadPool->pushTask([=](int /*tid*/) {
+        runIOTask([=]() {
             // NOTE: FileUtils::getInstance()->fullPathForFilename isn't a threadsafe method,
             // Image::initWithImageFile will call fullPathForFilename internally which may
             // cause thread race issues. Therefore, we get the full path of file before
@@ -759,7 +770,7 @@ static bool js_saveImageData(se::State &s) { // NOLINT
             callbackObj->incRef();
         }
 
-        gIOThreadPool->pushTask([=](int /*tid*/) {
+        runIOTask([=]() {
             // isToRGB = false, to keep alpha channel
             auto *img = ccnew Image();
             // A conversion from size_t to uint32_t might lose integer precision
@@ -1583,7 +1594,11 @@ SE_BIND_FUNC(JSB_openharmony_postSyncMessage)
 #endif
 
 bool jsb_register_global_variables(se::Object *global) { // NOLINT
+#if CC_PLATFORM != CC_PLATFORM_EMSCRIPTEN
     gIOThreadPool = LegacyThreadPool::newFixedThreadPool(5);
+#else
+    gIOThreadPool = nullptr;
+#endif
 
 #if CC_EDITOR
     global->defineFunction("__require", _SE(require));
