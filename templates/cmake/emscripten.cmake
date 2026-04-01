@@ -51,6 +51,7 @@ macro(cc_emscripten_after_target _target_name)
         -sUSE_WEBGL2=1
         -sFULL_ES3=1
         -sALLOW_MEMORY_GROWTH=1
+        -sSTACK_SIZE=5242880
         -sENVIRONMENT=web
         --bind
         "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap']"
@@ -68,9 +69,9 @@ macro(cc_emscripten_after_target _target_name)
         SUFFIX ".html"
     )
 
-    if(EXISTS ${RES_DIR}/data)
+    if(EXISTS ${RES_DIR}/Resources/data)
         target_link_options(${CC_EXECUTABLE_NAME} PRIVATE
-            --preload-file ${RES_DIR}/data@/data
+            --preload-file ${RES_DIR}/Resources/data@/data
         )
     endif()
 

@@ -13,6 +13,112 @@
 
 namespace se {
 
+namespace {
+
+enum class ConsoleLogLevel {
+    DEBUG,
+    INFO,
+    WARN,
+    ERROR,
+};
+
+void logConsoleMessage(ConsoleLogLevel level, const char *prefix, const std::string &msg) {
+    switch (level) {
+        case ConsoleLogLevel::DEBUG:
+            SE_LOGD("JS: %s%s\n", prefix, msg.c_str());
+            break;
+        case ConsoleLogLevel::INFO:
+            CC_LOG_INFO("JS: %s%s", prefix, msg.c_str());
+            break;
+        case ConsoleLogLevel::WARN:
+            CC_LOG_WARNING("JS: %s%s", prefix, msg.c_str());
+            break;
+        case ConsoleLogLevel::ERROR:
+            SE_LOGE("JS: %s%s\n", prefix, msg.c_str());
+            break;
+    }
+}
+
+bool JSB_console_format_log(State &s, ConsoleLogLevel level, const char *prefix, int msgIndex = 0) {
+    if (msgIndex < 0) {
+        return false;
+    }
+
+    const auto &args = s.args();
+    const int argc = static_cast<int>(args.size());
+    if ((argc - msgIndex) == 1) {
+        const std::string msg = args[msgIndex].toStringForce();
+        logConsoleMessage(level, prefix, msg);
+    } else if ((argc - msgIndex) > 1) {
+        std::string msg = args[msgIndex].toStringForce();
+        for (int i = msgIndex + 1; i < argc; ++i) {
+            const size_t pos = msg.find("%");
+            if (pos != std::string::npos && pos != (msg.length() - 1) &&
+                (msg[pos + 1] == 'd' || msg[pos + 1] == 's' || msg[pos + 1] == 'f')) {
+                msg.replace(pos, 2, args[i].toStringForce());
+            } else {
+                msg += " " + args[i].toStringForce();
+            }
+        }
+        logConsoleMessage(level, prefix, msg);
+    }
+
+    return true;
+}
+
+bool JSB_console_log(State &s) {
+    JSB_console_format_log(s, ConsoleLogLevel::DEBUG, "");
+    return true;
+}
+SE_BIND_FUNC(JSB_console_log)
+
+bool JSB_console_debug(State &s) {
+    JSB_console_format_log(s, ConsoleLogLevel::DEBUG, "[DEBUG]: ");
+    return true;
+}
+SE_BIND_FUNC(JSB_console_debug)
+
+bool JSB_console_info(State &s) {
+    JSB_console_format_log(s, ConsoleLogLevel::INFO, "[INFO]: ");
+    return true;
+}
+SE_BIND_FUNC(JSB_console_info)
+
+bool JSB_console_warn(State &s) {
+    JSB_console_format_log(s, ConsoleLogLevel::WARN, "[WARN]: ");
+    return true;
+}
+SE_BIND_FUNC(JSB_console_warn)
+
+bool JSB_console_error(State &s) {
+    JSB_console_format_log(s, ConsoleLogLevel::ERROR, "[ERROR]: ");
+    return true;
+}
+SE_BIND_FUNC(JSB_console_error)
+
+bool JSB_console_assert(State &s) {
+    const auto &args = s.args();
+    if (!args.empty() && args[0].isBoolean() && !args[0].toBoolean()) {
+        JSB_console_format_log(s, ConsoleLogLevel::ERROR, "[ASSERT]: ", 1);
+    }
+    return true;
+}
+SE_BIND_FUNC(JSB_console_assert)
+
+bool JSB_console_time(State &s) {
+    CC_UNUSED_PARAM(s);
+    return true;
+}
+SE_BIND_FUNC(JSB_console_time)
+
+bool JSB_console_timeEnd(State &s) {
+    CC_UNUSED_PARAM(s);
+    return true;
+}
+SE_BIND_FUNC(JSB_console_timeEnd)
+
+} // namespace
+
 ScriptEngine *ScriptEngine::sInstance = nullptr;
 ScriptEngine::DebuggerInfo ScriptEngine::sDebuggerInfo;
 
@@ -82,6 +188,23 @@ bool ScriptEngine::init() {
     if (_globalObj != nullptr) {
         _globalObj->incRef();
         _globalObj->root();
+        _globalObj->setProperty("window", se::Value(_globalObj));
+
+        se::Value consoleVal;
+        const bool hasConsole = _globalObj->getProperty("console", &consoleVal) && consoleVal.isObject();
+        if (!hasConsole) {
+            const HandleObject consoleObj(Object::createPlainObject());
+            consoleObj->defineFunction("log", _SE(JSB_console_log));
+            consoleObj->defineFunction("debug", _SE(JSB_console_debug));
+            consoleObj->defineFunction("info", _SE(JSB_console_info));
+            consoleObj->defineFunction("warn", _SE(JSB_console_warn));
+            consoleObj->defineFunction("error", _SE(JSB_console_error));
+            consoleObj->defineFunction("assert", _SE(JSB_console_assert));
+            consoleObj->defineFunction("time", _SE(JSB_console_time));
+            consoleObj->defineFunction("timeEnd", _SE(JSB_console_timeEnd));
+            _globalObj->setProperty("console", se::Value(consoleObj));
+        }
+
         _globalObj->setProperty("scriptEngineType", se::Value(ccstd::string("QuickJS")));
     }
 
