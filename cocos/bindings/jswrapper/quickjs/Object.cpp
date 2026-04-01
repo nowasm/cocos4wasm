@@ -9,6 +9,23 @@
 
 namespace se {
 
+namespace {
+ccstd::vector<NativeFunctionPtr> __objectNativeFunctions; // NOLINT
+
+int registerObjectNativeFunction(NativeFunctionPtr func) {
+    CC_ASSERT(func != nullptr);
+    __objectNativeFunctions.push_back(func);
+    return static_cast<int>(__objectNativeFunctions.size() - 1);
+}
+
+NativeFunctionPtr getObjectNativeFunction(int id) {
+    if (id < 0 || id >= static_cast<int>(__objectNativeFunctions.size())) {
+        return nullptr;
+    }
+    return __objectNativeFunctions[id];
+}
+} // namespace
+
 Object::Object() = default;
 
 Object::~Object() {
@@ -296,8 +313,10 @@ bool Object::defineProperty(const char *name, NativeFunctionPtr getter, NativeFu
     JSValue setterVal = JS_UNDEFINED;
     int flags = JS_PROP_HAS_CONFIGURABLE | JS_PROP_CONFIGURABLE;
 
-    auto wrapNative = [](JSContext *cx, JSValue thisVal, int argc, JSValue *argv, int magic, JSValue *funcData) -> JSValue {
-        auto *fn = reinterpret_cast<NativeFunctionPtr>(JS_GetOpaque(funcData[0], 0));
+    auto wrapNative = [](JSContext *cx, JSValueConst thisVal, int argc, JSValueConst *argv, int magic, JSValueConst *funcData) -> JSValue {
+        int funcId = -1;
+        JS_ToInt32(cx, &funcId, funcData[0]);
+        auto *fn = getObjectNativeFunction(funcId);
         if (!fn) return JS_UNDEFINED;
         se::ValueArray seArgs;
         seArgs.reserve(argc);
@@ -320,14 +339,12 @@ bool Object::defineProperty(const char *name, NativeFunctionPtr getter, NativeFu
     };
 
     if (getter) {
-        JSValue funcDataVal = JS_NewObjectClass(ctx, 0);
-        JS_SetOpaque(funcDataVal, reinterpret_cast<void *>(getter));
+        JSValue funcDataVal = JS_NewInt32(ctx, registerObjectNativeFunction(getter));
         getterVal = JS_NewCFunctionData(ctx, wrapNative, 0, 0, 1, &funcDataVal);
         flags |= JS_PROP_HAS_GET;
     }
     if (setter) {
-        JSValue funcDataVal = JS_NewObjectClass(ctx, 0);
-        JS_SetOpaque(funcDataVal, reinterpret_cast<void *>(setter));
+        JSValue funcDataVal = JS_NewInt32(ctx, registerObjectNativeFunction(setter));
         setterVal = JS_NewCFunctionData(ctx, wrapNative, 1, 0, 1, &funcDataVal);
         flags |= JS_PROP_HAS_SET;
     }
@@ -342,11 +359,12 @@ bool Object::defineProperty(const char *name, NativeFunctionPtr getter, NativeFu
 bool Object::defineFunction(const char *funcName, NativeFunctionPtr func) {
     if (funcName == nullptr || func == nullptr) return false;
     auto *ctx = ScriptEngine::getInstance()->getContext();
-    JSValue funcDataVal = JS_NewObjectClass(ctx, 0);
-    JS_SetOpaque(funcDataVal, reinterpret_cast<void *>(func));
+    JSValue funcDataVal = JS_NewInt32(ctx, registerObjectNativeFunction(func));
 
-    auto wrapper = [](JSContext *cx, JSValue thisVal, int argc, JSValue *argv, int magic, JSValue *funcData) -> JSValue {
-        auto *fn = reinterpret_cast<NativeFunctionPtr>(JS_GetOpaque(funcData[0], 0));
+    auto wrapper = [](JSContext *cx, JSValueConst thisVal, int argc, JSValueConst *argv, int magic, JSValueConst *funcData) -> JSValue {
+        int funcId = -1;
+        JS_ToInt32(cx, &funcId, funcData[0]);
+        auto *fn = getObjectNativeFunction(funcId);
         if (!fn) return JS_UNDEFINED;
 
         se::ValueArray seArgs;

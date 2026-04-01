@@ -24,6 +24,7 @@
 
 #include "2d/renderer/Batcher2d.h"
 #include "application/ApplicationManager.h"
+#include "base/Log.h"
 #include "base/TypeDef.h"
 #include "core/Root.h"
 #include "core/scene-graph/Scene.h"
@@ -40,16 +41,23 @@ int32_t sorting2DCount{0};
 
 CC_FORCE_INLINE void fillIndexBuffers(RenderDrawInfo* drawInfo) { // NOLINT(readability-convert-member-functions-to-static)
     uint16_t* ib = drawInfo->getIDataBuffer();
-    
     UIMeshBuffer* buffer = drawInfo->getMeshBuffer();
-    uint32_t indexOffset = buffer->getIndexOffset();
-    
     uint16_t* indexb = drawInfo->getIbBuffer();
+    if (ib == nullptr || buffer == nullptr || indexb == nullptr) {
+        return;
+    }
+    uint32_t indexOffset = buffer->getIndexOffset();
     uint32_t indexCount = drawInfo->getIbCount();
-    
+    const uint32_t indexCap = buffer->getSharedIndexCapacity();
+    if (indexCap > 0) {
+        if (indexOffset > indexCap || indexCount > indexCap - indexOffset) {
+            CC_LOG_ERROR("fillIndexBuffers: index range overflow (offset %u count %u cap %u), skip.",
+                         indexOffset, indexCount, indexCap);
+            return;
+        }
+    }
     memcpy(&ib[indexOffset], indexb, indexCount * sizeof(uint16_t));
     indexOffset += indexCount;
-    
     buffer->setIndexOffset(indexOffset);
 }
 
@@ -59,6 +67,9 @@ CC_FORCE_INLINE void fillVertexBuffers(RenderEntity* entity, RenderDrawInfo* dra
     uint8_t stride = drawInfo->getStride();
     uint32_t size = drawInfo->getVbCount() * stride;
     float* vbBuffer = drawInfo->getVbBuffer();
+    if (vbBuffer == nullptr) {
+        return;
+    }
     for (int i = 0; i < size; i += stride) {
         Render2dLayout* curLayout = drawInfo->getRender2dLayout(i);
         // make sure that the layout of Vec3 is three consecutive floats
@@ -70,6 +81,9 @@ CC_FORCE_INLINE void fillVertexBuffers(RenderEntity* entity, RenderDrawInfo* dra
 
 CC_FORCE_INLINE void setIndexRange(RenderDrawInfo* drawInfo) { // NOLINT(readability-convert-member-functions-to-static)
     UIMeshBuffer* buffer = drawInfo->getMeshBuffer();
+    if (buffer == nullptr) {
+        return;
+    }
     uint32_t indexOffset = drawInfo->getIndexOffset();
     uint32_t indexCount = drawInfo->getIbCount();
     indexOffset += indexCount;
@@ -82,6 +96,9 @@ CC_FORCE_INLINE void fillColor(RenderEntity* entity, RenderDrawInfo* drawInfo) {
     uint8_t stride = drawInfo->getStride();
     uint32_t size = drawInfo->getVbCount() * stride;
     float* vbBuffer = drawInfo->getVbBuffer();
+    if (vbBuffer == nullptr) {
+        return;
+    }
     Color temp = entity->getColor();
     
     uint32_t offset = 0;
@@ -147,8 +164,15 @@ void Batcher2d::syncMeshBuffersToNative(uint16_t accId, ccstd::vector<UIMeshBuff
 }
 
 UIMeshBuffer* Batcher2d::getMeshBuffer(uint16_t accId, uint16_t bufferId) { // NOLINT(bugprone-easily-swappable-parameters)
-    const auto& map = _meshBuffersMap[accId];
-    return map[bufferId];
+    auto it = _meshBuffersMap.find(accId);
+    if (it == _meshBuffersMap.end()) {
+        return nullptr;
+    }
+    const auto& arr = it->second;
+    if (bufferId >= arr.size()) {
+        return nullptr;
+    }
+    return arr[bufferId];
 }
 
 gfx::Device* Batcher2d::getDevice() {
@@ -321,9 +345,9 @@ CC_FORCE_INLINE void Batcher2d::handleComponentDraw(RenderEntity* entity, Render
 
         if (!drawInfo->getIsMeshBuffer()) {
             UIMeshBuffer* buffer = drawInfo->getMeshBuffer();
-            if (_currMeshBuffer != buffer) {
+            if (buffer != nullptr && _currMeshBuffer != buffer) {
                 _currMeshBuffer = buffer;
-                _indexStart = _currMeshBuffer->getIndexOffset();
+                _indexStart = buffer->getIndexOffset();
             }
         }
         _currHash = dataHash;
@@ -494,7 +518,9 @@ void Batcher2d::generateBatch(RenderEntity* entity, RenderDrawInfo* drawInfo) {
         _meshRenderDrawInfo.emplace_back(drawInfo);
     } else {
         UIMeshBuffer* currMeshBuffer = drawInfo->getMeshBuffer();
-
+        if (currMeshBuffer == nullptr) {
+            return;
+        }
         currMeshBuffer->setDirty(true);
 
         ia = currMeshBuffer->requireFreeIA(getDevice());
@@ -540,6 +566,9 @@ void Batcher2d::generateBatchForMiddleware(RenderEntity* entity, RenderDrawInfo*
     auto* texture = drawInfo->getTexture();
     auto* sampler = drawInfo->getSampler();
     auto* meshBuffer = drawInfo->getMeshBuffer();
+    if (meshBuffer == nullptr) {
+        return;
+    }
     // set meshbuffer offset
     auto indexOffset = drawInfo->getIndexOffset();
     auto indexCount = _currMiddlewareIbCount;
@@ -642,12 +671,32 @@ bool Batcher2d::initialize() {
 }
 
 void Batcher2d::update() {
+    // Root::frameMoveProcess skips uploadBuffers() when there are no cameras; without the
+    // per-frame upload path, UIMeshBuffer::reset() never runs and fillIndexBuffers() keeps
+    // advancing indexOffset until iData is memcpy-past-end (memory corruption / stack cookies).
+    for (auto& map : _meshBuffersMap) {
+        for (auto* buffer : map.second) {
+            if (buffer) {
+                buffer->reset();
+            }
+        }
+    }
     fillBuffersAndMergeBatches();
     resetRenderStates();
 }
 
 void Batcher2d::uploadBuffers() {
     if (_batches.empty()) {
+        // fillIndexBuffers() may still have advanced shared mesh layout offsets during walk();
+        // if generateBatch() emitted nothing (e.g. null material or empty passes), we must reset
+        // CPU-side offsets or the next frame will memcpy past the end of iData / corrupt memory.
+        for (auto& map : _meshBuffersMap) {
+            for (auto* buffer : map.second) {
+                if (buffer) {
+                    buffer->reset();
+                }
+            }
+        }
         return;
     }
 
@@ -656,9 +705,11 @@ void Batcher2d::uploadBuffers() {
     }
 
     for (auto& map : _meshBuffersMap) {
-        for (auto& buffer : map.second) {
-            buffer->uploadBuffers();
-            buffer->reset();
+        for (auto* buffer : map.second) {
+            if (buffer) {
+                buffer->uploadBuffers();
+                buffer->reset();
+            }
         }
     }
     updateDescriptorSet();

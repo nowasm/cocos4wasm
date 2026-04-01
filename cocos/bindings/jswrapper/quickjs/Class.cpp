@@ -9,6 +9,20 @@ namespace se {
 
 namespace {
 ccstd::vector<Class *> __allClasses; // NOLINT
+ccstd::vector<NativeFunctionPtr> __nativeFunctions; // NOLINT
+
+int registerNativeFunction(NativeFunctionPtr func) {
+    CC_ASSERT(func != nullptr);
+    __nativeFunctions.push_back(func);
+    return static_cast<int>(__nativeFunctions.size() - 1);
+}
+
+NativeFunctionPtr getRegisteredNativeFunction(int id) {
+    if (id < 0 || id >= static_cast<int>(__nativeFunctions.size())) {
+        return nullptr;
+    }
+    return __nativeFunctions[id];
+}
 
 struct QJSClassOpaque {
     Class *cls{nullptr};
@@ -25,8 +39,10 @@ void qjsFinalizer(JSRuntime *rt, JSValue val) {
     delete opaque;
 }
 
-JSValue qjsCallNative(JSContext *ctx, JSValue thisVal, int argc, JSValue *argv, int /*magic*/, JSValue *funcData) {
-    auto *funcPtr = reinterpret_cast<NativeFunctionPtr>(JS_GetOpaque(funcData[0], 0));
+JSValue qjsCallNative(JSContext *ctx, JSValueConst thisVal, int argc, JSValueConst *argv, int /*magic*/, JSValueConst *funcData) {
+    int funcId = -1;
+    JS_ToInt32(ctx, &funcId, funcData[0]);
+    auto *funcPtr = getRegisteredNativeFunction(funcId);
     if (funcPtr == nullptr) {
         return JS_UNDEFINED;
     }
@@ -62,10 +78,65 @@ JSValue qjsCallNative(JSContext *ctx, JSValue thisVal, int argc, JSValue *argv, 
     return internal::seToJsValue(ctx, retVal);
 }
 
+Class *findClassByMagic(int magic) {
+    const auto classId = static_cast<JSClassID>(magic);
+    for (auto *cls : __allClasses) {
+        if (cls != nullptr && cls->getClassID() == classId) {
+            return cls;
+        }
+    }
+    return nullptr;
+}
+
 JSValue createQJSFunction(JSContext *ctx, NativeFunctionPtr func) {
-    JSValue funcDataVal = JS_NewObjectClass(ctx, 0);
-    JS_SetOpaque(funcDataVal, reinterpret_cast<void *>(func));
+    const int funcId = registerNativeFunction(func);
+    JSValue funcDataVal = JS_NewInt32(ctx, funcId);
     return JS_NewCFunctionData(ctx, qjsCallNative, 0, 0, 1, &funcDataVal);
+}
+
+JSValue qjsCallConstructor(JSContext *ctx, JSValueConst newTarget, int argc, JSValueConst *argv, int magic) {
+    Class *cls = findClassByMagic(magic);
+    NativeFunctionPtr constructor = cls != nullptr ? cls->getConstructor() : nullptr;
+    if (constructor == nullptr) {
+        return JS_ThrowInternalError(ctx, "Native constructor metadata is missing");
+    }
+
+    JSValue proto = JS_GetPropertyStr(ctx, newTarget, "prototype");
+    if (JS_IsException(proto)) {
+        return JS_EXCEPTION;
+    }
+
+    JSValue obj = JS_NewObjectProtoClass(ctx, proto, cls->getClassID());
+    JS_FreeValue(ctx, proto);
+    if (JS_IsException(obj)) {
+        return JS_EXCEPTION;
+    }
+
+    se::ValueArray seArgs;
+    seArgs.reserve(argc);
+    for (int i = 0; i < argc; ++i) {
+        se::Value v;
+        internal::jsToSeValue(ctx, argv[i], &v);
+        seArgs.push_back(std::move(v));
+    }
+
+    se::Object *thisObj = Object::_createJSObject(cls, JS_DupValue(ctx, obj));
+    se::State state(thisObj, seArgs);
+    const bool ok = constructor(state);
+    thisObj->decRef();
+
+    if (!ok) {
+        JS_FreeValue(ctx, obj);
+        return JS_ThrowInternalError(ctx, "Native constructor failed");
+    }
+
+    const auto &retVal = state.rval();
+    if (retVal.isObject()) {
+        JS_FreeValue(ctx, obj);
+        return internal::seToJsValue(ctx, retVal);
+    }
+
+    return obj;
 }
 
 } // namespace
@@ -228,7 +299,8 @@ bool Class::install() {
 
     JSValue ctorFunc = JS_UNDEFINED;
     if (_constructor != nullptr) {
-        ctorFunc = createQJSFunction(ctx, _constructor);
+        ctorFunc = JS_NewCFunctionMagic(ctx, qjsCallConstructor, _name.c_str(), 0, JS_CFUNC_constructor_magic, static_cast<int>(_classId));
+        JS_SetConstructor(ctx, ctorFunc, protoVal);
     } else {
         ctorFunc = JS_NewObject(ctx);
     }
@@ -241,6 +313,24 @@ bool Class::install() {
     for (const auto &sv : _staticValues) {
         JSValue val = internal::seToJsValue(ctx, sv.second);
         JS_SetPropertyStr(ctx, ctorFunc, sv.first.c_str(), val);
+    }
+
+    for (const auto &sp : _staticProps) {
+        JSAtom atom = JS_NewAtom(ctx, sp.name.c_str());
+        JSValue getter = JS_UNDEFINED;
+        JSValue setter = JS_UNDEFINED;
+        if (sp.getter) getter = createQJSFunction(ctx, sp.getter);
+        if (sp.setter) setter = createQJSFunction(ctx, sp.setter);
+
+        int flags = JS_PROP_HAS_CONFIGURABLE | JS_PROP_CONFIGURABLE;
+        if (sp.getter) flags |= JS_PROP_HAS_GET;
+        if (sp.setter) flags |= JS_PROP_HAS_SET;
+
+        JS_DefineProperty(ctx, ctorFunc, atom, JS_UNDEFINED, getter, setter, flags);
+
+        if (sp.getter) JS_FreeValue(ctx, getter);
+        if (sp.setter) JS_FreeValue(ctx, setter);
+        JS_FreeAtom(ctx, atom);
     }
 
     if (_parent != nullptr) {

@@ -2959,6 +2959,8 @@ cocos_source_files(
             cocos/bindings/manual/jsb_platform.h
             cocos/bindings/manual/jsb_scene_manual.cpp
             cocos/bindings/manual/jsb_scene_manual.h
+            cocos/bindings/manual/jsb_wasm32_facade.cpp
+            cocos/bindings/manual/jsb_wasm32_facade.h
             cocos/bindings/manual/jsb_assets_manual.cpp
             cocos/bindings/manual/jsb_assets_manual.h
             cocos/bindings/manual/jsb_network_manual.cpp

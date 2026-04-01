@@ -48,8 +48,9 @@ RenderDrawInfo::~RenderDrawInfo() {
 }
 
 void RenderDrawInfo::changeMeshBuffer() {
-    CC_ASSERT(Root::getInstance()->getBatcher2D());
-    _meshBuffer = Root::getInstance()->getBatcher2D()->getMeshBuffer(_drawInfoAttrs._accId, _drawInfoAttrs._bufferId);
+    auto *root = Root::getInstance();
+    auto *batcher = root != nullptr ? root->getBatcher2D() : nullptr;
+    _meshBuffer = batcher != nullptr ? batcher->getMeshBuffer(_drawInfoAttrs._accId, _drawInfoAttrs._bufferId) : nullptr;
 }
 
 gfx::InputAssembler* RenderDrawInfo::requestIA(gfx::Device* device) {

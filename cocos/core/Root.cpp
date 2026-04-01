@@ -85,6 +85,10 @@ void Root::initialize(gfx::Swapchain * /*swapchain*/) {
             _mainRenderWindow = renderWindow;
         }
     }
+    // Wasm/minimal hosts may assign system window IDs that do not equal mainWindowId; still need a main swapchain.
+    if (!_mainRenderWindow && !_renderWindows.empty()) {
+        _mainRenderWindow = _renderWindows[0];
+    }
     _curRenderWindow = _mainRenderWindow;
     _xr = CC_GET_XR_INTERFACE();
     addWindowEventListener();

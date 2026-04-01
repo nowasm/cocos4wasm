@@ -31,6 +31,27 @@
 
 namespace cc {
 
+namespace {
+
+// Without TS Director/NodeActivator, _activeInHierarchy never becomes true and Batcher2d::walk
+// returns immediately (no UI). Propagate from the scene root when a scene is activated.
+void propagateActiveInHierarchy(Node *node, bool parentContributesActive) {
+    if (node == nullptr) {
+        return;
+    }
+    const bool aih = node->isActive() && parentContributesActive;
+    if (node->isActiveInHierarchy() != aih) {
+        node->setActiveInHierarchy(aih);
+        node->emit<Node::ActiveNode>(aih);
+    }
+    const auto &children = node->getChildren();
+    for (const auto &child : children) {
+        propagateActiveInHierarchy(child.get(), aih);
+    }
+}
+
+} // namespace
+
 Scene::Scene(const ccstd::string &name)
 : Node(name) {
     // _activeInHierarchy is initalized to 'false', so doesn't need to set it to false again
@@ -76,6 +97,7 @@ void Scene::activate(bool active /* = true */) { // NOLINT(misc-unused-parameter
     if (_renderScene) {
         _renderScene->activate();
     }
+    propagateActiveInHierarchy(this, active);
     //        }
 }
 

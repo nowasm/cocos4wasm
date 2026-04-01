@@ -35,6 +35,7 @@ public:
     const char *getName() const { return _name.c_str(); }
 
     JSClassID getClassID() const { return _classId; }
+    NativeFunctionPtr getConstructor() const { return _constructor; }
     V8FinalizeFunc _getFinalizeFunction() const;
     void _setCtor(Object *obj);
     inline const ccstd::optional<Object *> &_getCtor() const { return _ctor; }

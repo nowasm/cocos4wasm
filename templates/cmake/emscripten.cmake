@@ -1,3 +1,5 @@
+# OFF = skip --preload-file (useful when postRun/checkStackCookie aborts during package unpack).
+option(CC_WASM_PRELOAD_DATA "Pack RES_DIR/Resources/data with emcc --preload-file" ON)
 
 macro(cc_emscripten_before_target _target_name)
     if((NOT DEFINED CC_EXECUTABLE_NAME) OR "${CC_EXECUTABLE_NAME}" STREQUAL "")
@@ -47,11 +49,16 @@ macro(cc_emscripten_after_target _target_name)
     # Same entry as native: main.cpp uses START_PLATFORM -> UniversalPlatform::run
     # (cocos_main / Engine::tick via emscripten_set_main_loop in WasmPlatform).
     # Output .html so emcc emits a loadable page plus .js/.wasm (open via local HTTP server).
+    # Large engine + sync --preload-file unpacking runs in preRun; Emscripten's postRun
+    # checkStackCookie often aborts here (stack canary) even with a multi-MB stack — disable
+    # the cookie check for this target; use SAFE_HEAP / ASAN builds if you need memory audits.
     target_link_options(${CC_EXECUTABLE_NAME} PRIVATE
         -sUSE_WEBGL2=1
         -sFULL_ES3=1
         -sALLOW_MEMORY_GROWTH=1
-        -sSTACK_SIZE=5242880
+        -sINITIAL_MEMORY=134217728
+        -sSTACK_SIZE=33554432
+        -sSTACK_OVERFLOW_CHECK=0
         -sENVIRONMENT=web
         --bind
         "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap']"
@@ -59,9 +66,13 @@ macro(cc_emscripten_after_target _target_name)
 
     if(CC_WASM_DEV_DIAGNOSTICS)
         target_link_options(${CC_EXECUTABLE_NAME} PRIVATE
-            -sASSERTIONS=2
+            -sASSERTIONS=1
             -gsource-map
             --profiling-funcs
+        )
+    else()
+        target_link_options(${CC_EXECUTABLE_NAME} PRIVATE
+            -sASSERTIONS=0
         )
     endif()
 
@@ -69,10 +80,13 @@ macro(cc_emscripten_after_target _target_name)
         SUFFIX ".html"
     )
 
-    if(EXISTS ${RES_DIR}/Resources/data)
+    if(CC_WASM_PRELOAD_DATA AND EXISTS ${RES_DIR}/Resources/data)
+        message(STATUS "WASM preload: ${RES_DIR}/Resources/data -> /data")
         target_link_options(${CC_EXECUTABLE_NAME} PRIVATE
             --preload-file ${RES_DIR}/Resources/data@/data
         )
+    elseif(NOT CC_WASM_PRELOAD_DATA AND EXISTS ${RES_DIR}/Resources/data)
+        message(STATUS "WASM preload skipped (CC_WASM_PRELOAD_DATA=OFF); ${RES_DIR}/Resources/data not embedded")
     endif()
 
     cc_common_after_target(${CC_EXECUTABLE_NAME})

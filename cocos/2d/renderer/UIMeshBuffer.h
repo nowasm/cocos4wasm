@@ -74,6 +74,10 @@ public:
         return _attributes;
     }
 
+    /** Max uint16 slots in _iData (0 = unknown, bounds check skipped). Used by wasm/shared UI. */
+    inline void setSharedIndexCapacity(uint32_t count) { _sharedIndexCapacity = count; }
+    inline uint32_t getSharedIndexCapacity() const { return _sharedIndexCapacity; }
+
 protected:
     CC_DISALLOW_COPY_MOVE_ASSIGN(UIMeshBuffer);
 
@@ -87,6 +91,7 @@ private:
     uint32_t _vertexFormatBytes{0};
     uint32_t _initVDataCount{0};
     uint32_t _initIDataCount{0};
+    uint32_t _sharedIndexCapacity{0};
 
     ccstd::vector<gfx::Attribute> _attributes;
     IntrusivePtr<gfx::InputAssembler> _ia;

@@ -24,7 +24,6 @@ namespace cc {
 namespace network {
 
 static HttpClient *_httpClient = nullptr;
-static LegacyThreadPool *gThreadPool = nullptr;
 
 static void stubProcessResponse(HttpResponse *response, char *responseMessage) {
     static const char kMsg[] = "HttpClient stub on Emscripten (no libcurl in build)";
@@ -129,12 +128,7 @@ void HttpClient::destroyInstance() {
     thiz->_scheduler.reset();
     thiz->_schedulerMutex.unlock();
 
-    thiz->_requestQueueMutex.lock();
-    thiz->_requestQueue.pushBack(thiz->_requestSentinel);
-    thiz->_requestQueueMutex.unlock();
-
-    thiz->_sleepCondition.notify_one();
-    thiz->decreaseThreadCountAndMayDeleteThis();
+    delete thiz;
 
     CC_LOG_DEBUG("HttpClient::destroyInstance() finished!");
 }
@@ -162,12 +156,8 @@ HttpClient::HttpClient()
   _requestSentinel(ccnew HttpRequest()) {
     CC_LOG_DEBUG("In the constructor of HttpClient!");
     _requestSentinel->addRef();
-    if (gThreadPool == nullptr) {
-        gThreadPool = LegacyThreadPool::newFixedThreadPool(4);
-    }
     memset(_responseMessage, 0, RESPONSE_BUFFER_SIZE * sizeof(char));
     _scheduler = CC_CURRENT_ENGINE()->getScheduler();
-    increaseThreadCount();
 }
 
 HttpClient::~HttpClient() {
@@ -176,32 +166,15 @@ HttpClient::~HttpClient() {
 }
 
 bool HttpClient::lazyInitThreadSemaphore() {
-    if (_isInited) {
-        return true;
-    }
-    auto t = std::thread(CC_CALLBACK_0(HttpClient::networkThread, this));
-    t.detach();
     _isInited = true;
-
     return true;
 }
 
 void HttpClient::send(HttpRequest *request) {
-    if (false == lazyInitThreadSemaphore()) {
-        return;
-    }
-
     if (!request) {
         return;
     }
-
-    request->addRef();
-
-    _requestQueueMutex.lock();
-    _requestQueue.pushBack(request);
-    _requestQueueMutex.unlock();
-
-    _sleepCondition.notify_one();
+    sendImmediate(request);
 }
 
 void HttpClient::sendImmediate(HttpRequest *request) {
@@ -214,7 +187,7 @@ void HttpClient::sendImmediate(HttpRequest *request) {
     response->addRef();
 
     increaseThreadCount();
-    gThreadPool->pushTask([this, request, response](int /*tid*/) { HttpClient::networkThreadAlone(request, response); });
+    networkThreadAlone(request, response);
 }
 
 void HttpClient::dispatchResponseCallbacks() {

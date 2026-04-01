@@ -14,7 +14,6 @@
 namespace se {
 
 namespace {
-
 enum class ConsoleLogLevel {
     DEBUG,
     INFO,
