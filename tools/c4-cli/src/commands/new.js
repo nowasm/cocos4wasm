@@ -1,12 +1,13 @@
 const fs = require('fs-extra');
 const path = require('path');
 const chalk = require('chalk');
+const { resolveCreatorBuildOutputDir, creatorBuildSubdirForCliPlatform } = require('../lib/creator-build-dir');
 
 const TEMPLATES_DIR = path.join(__dirname, '../../../../templates');
 const SUPPORTED_PLATFORMS = ['windows', 'android', 'ios', 'linux', 'mac', 'wasm32'];
 
 async function newCommand(projectName, options) {
-  const { platform, package, directory, engine, dataDir } = options;
+  const { platform, package, directory, engine, dataDir, project: creatorProject } = options;
   const packageName = package || 'com.cocos.helloworld';
   const projectDir = directory || '.';
 
@@ -14,6 +15,19 @@ async function newCommand(projectName, options) {
   if (!SUPPORTED_PLATFORMS.includes(platform)) {
     console.error(chalk.red(`Error: Unsupported platform "${platform}". Supported platforms: ${SUPPORTED_PLATFORMS.join(', ')}`));
     process.exit(1);
+  }
+
+  if (creatorProject) {
+    const creatorRoot = path.resolve(creatorProject);
+    if (!await fs.pathExists(creatorRoot)) {
+      console.error(chalk.red(`Error: Creator project directory not found: ${creatorRoot}`));
+      process.exit(1);
+    }
+    const stat = await fs.stat(creatorRoot);
+    if (!stat.isDirectory()) {
+      console.error(chalk.red(`Error: --project must be a directory: ${creatorRoot}`));
+      process.exit(1);
+    }
   }
 
   // Resolve project path
@@ -28,6 +42,11 @@ async function newCommand(projectName, options) {
   console.log(chalk.blue(`Creating new Cocos Native project: ${projectName}`));
   console.log(chalk.blue(`Platform: ${platform}`));
   console.log(chalk.blue(`Output: ${projectPath}`));
+  if (creatorProject) {
+    const sub = creatorBuildSubdirForCliPlatform(platform);
+    console.log(chalk.blue(`Creator project: ${path.resolve(creatorProject)}`));
+    console.log(chalk.blue(`Default run data dir (build/${sub}): ${resolveCreatorBuildOutputDir(creatorProject, platform)}`));
+  }
 
   try {
     // Create project directory
@@ -87,10 +106,25 @@ async function newCommand(projectName, options) {
     await fs.writeFile(path.join(projectPath, '.cocos-engine'), currentEnginePath);
     console.log(chalk.green('✓ Created .cocos-engine config'));
 
-    // Write data directory config if specified
+    if (creatorProject) {
+      const creatorRoot = path.resolve(creatorProject);
+      await fs.writeFile(path.join(projectPath, '.cocos-project'), creatorRoot + '\n');
+      console.log(chalk.green(`✓ Created .cocos-project: ${creatorRoot}`));
+    }
+
+    let effectiveDataDir = null;
     if (dataDir) {
-      await fs.writeFile(path.join(projectPath, '.cocos-data-dir'), dataDir);
-      console.log(chalk.green(`✓ Created .cocos-data-dir: ${dataDir}`));
+      effectiveDataDir = path.resolve(dataDir);
+    } else if (creatorProject) {
+      effectiveDataDir = resolveCreatorBuildOutputDir(creatorProject, platform);
+    }
+
+    if (effectiveDataDir) {
+      await fs.writeFile(path.join(projectPath, '.cocos-data-dir'), effectiveDataDir + '\n');
+      console.log(chalk.green(`✓ Created .cocos-data-dir: ${effectiveDataDir}`));
+      if (!await fs.pathExists(effectiveDataDir)) {
+        console.log(chalk.yellow(`Warning: Directory does not exist yet (build the game in Creator first): ${effectiveDataDir}`));
+      }
     }
 
     // Replace variables in files

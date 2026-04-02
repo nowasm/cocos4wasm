@@ -37,7 +37,8 @@ program
   .option('-P, --package <packageName>', 'Package name for Android (default: com.cocos.helloworld)', 'com.cocos.helloworld')
   .option('-d, --directory <directory>', 'Project output directory', '.')
   .option('-e, --engine <path>', 'Engine directory path (default: auto-detect from project location)')
-  .option('--data-dir <dir>', 'Default data directory for running the project')
+  .option('--project <path>', 'Cocos Creator project root; default run data dir is <path>/build/<platform> (wasm32 uses host: windows/mac/linux build output)')
+  .option('--data-dir <dir>', 'Default data directory for running the project (overrides --project-derived path when both are set)')
   .action(async (projectName, options) => {
     const newCommand = require('./commands/new');
     await newCommand(projectName, options);
