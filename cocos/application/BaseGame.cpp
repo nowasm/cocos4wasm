@@ -104,10 +104,10 @@ int BaseGame::init() {
     {
         auto *device = gfx::Device::getInstance();
         CC_ASSERT(device);
+        BuiltinResMgr::getInstance()->initBuiltinRes();  // shaders/materials must exist before pipeline activation
         auto *root = ccnew Root(device);
         root->initialize(nullptr);
         root->setRenderPipeline(nullptr);      // uses default built-in pipeline
-        BuiltinResMgr::getInstance()->initBuiltinRes();
     }
 #endif
     runScript("main.js");
