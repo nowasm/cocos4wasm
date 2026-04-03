@@ -3,18 +3,21 @@
  Copyright (c) 2013-2016 Chukong Technologies Inc.
  Copyright (c) 2016-2023 Xiamen Yaji Software Co., Ltd.
 
- WebAssembly stub: no libwebsockets / libuv. init() reports CONNECTION_FAILURE on the engine thread.
+ Emscripten: uses browser WebSocket API via Emscripten's websocket.h.
 ****************************************************************************/
 
 #include "base/memory/Memory.h"
 #include "application/ApplicationManager.h"
 #include "engine/Engine.h"
 #include "network/WebSocket.h"
+#include "base/Log.h"
 
 #include <algorithm>
 #include <mutex>
 #include "base/std/container/string.h"
 #include "base/std/container/vector.h"
+
+#include <emscripten/websocket.h>
 
 namespace {
 
@@ -47,7 +50,12 @@ public:
     ccstd::string getExtensions() const;
 
 private:
-    void failConnect();
+    static EM_BOOL onOpen(int eventType, const EmscriptenWebSocketOpenEvent *event, void *userData);
+    static EM_BOOL onMessage(int eventType, const EmscriptenWebSocketMessageEvent *event, void *userData);
+    static EM_BOOL onError(int eventType, const EmscriptenWebSocketErrorEvent *event, void *userData);
+    static EM_BOOL onClose(int eventType, const EmscriptenWebSocketCloseEvent *event, void *userData);
+
+    void dispatchOnMainThread(std::function<void()> func);
 
     cc::network::WebSocket *_ws{nullptr};
     cc::network::WebSocket::State _readyState{cc::network::WebSocket::State::CLOSED};
@@ -55,28 +63,102 @@ private:
     ccstd::string _url;
     ccstd::string _selectedProtocol;
     cc::network::WebSocket::Delegate *_delegate{nullptr};
+    EMSCRIPTEN_WEBSOCKET_T _socket{0};
 };
 
-void WebSocketImpl::failConnect() {
-    auto *del = _delegate;
-    auto *ws = _ws;
-    auto report = [del, ws]() {
-        if (del != nullptr && ws != nullptr) {
-            del->onError(ws, cc::network::WebSocket::ErrorCode::CONNECTION_FAILURE);
+// ---- Static callbacks ----
+
+EM_BOOL WebSocketImpl::onOpen(int /*eventType*/, const EmscriptenWebSocketOpenEvent *event, void *userData) {
+    auto *impl = reinterpret_cast<WebSocketImpl *>(userData);
+    if (!impl) return EM_FALSE;
+
+    {
+        std::lock_guard<std::mutex> lk(impl->_readyStateMutex);
+        impl->_readyState = cc::network::WebSocket::State::OPEN;
+    }
+
+    impl->dispatchOnMainThread([impl]() {
+        if (impl->_delegate) {
+            impl->_delegate->onOpen(impl->_ws);
         }
-    };
+    });
+
+    return EM_TRUE;
+}
+
+EM_BOOL WebSocketImpl::onMessage(int /*eventType*/, const EmscriptenWebSocketMessageEvent *event, void *userData) {
+    auto *impl = reinterpret_cast<WebSocketImpl *>(userData);
+    if (!impl) return EM_FALSE;
+
+    cc::network::WebSocket::Data wsData;
+    wsData.isBinary = event->isText == 0;
+    wsData.len = static_cast<uint32_t>(event->numBytes);
+
+    // Copy the data since the event pointer may be invalidated
+    char *dataCopy = new char[event->numBytes];
+    memcpy(dataCopy, event->data, event->numBytes);
+    wsData.bytes = dataCopy;
+
+    impl->dispatchOnMainThread([impl, wsData]() {
+        if (impl->_delegate) {
+            impl->_delegate->onMessage(impl->_ws, wsData);
+        }
+        delete[] wsData.bytes;
+    });
+
+    return EM_TRUE;
+}
+
+EM_BOOL WebSocketImpl::onError(int /*eventType*/, const EmscriptenWebSocketErrorEvent *event, void *userData) {
+    auto *impl = reinterpret_cast<WebSocketImpl *>(userData);
+    if (!impl) return EM_FALSE;
+
+    impl->dispatchOnMainThread([impl]() {
+        if (impl->_delegate) {
+            impl->_delegate->onError(impl->_ws, cc::network::WebSocket::ErrorCode::CONNECTION_FAILURE);
+        }
+    });
+
+    return EM_TRUE;
+}
+
+EM_BOOL WebSocketImpl::onClose(int /*eventType*/, const EmscriptenWebSocketCloseEvent *event, void *userData) {
+    auto *impl = reinterpret_cast<WebSocketImpl *>(userData);
+    if (!impl) return EM_FALSE;
+
+    {
+        std::lock_guard<std::mutex> lk(impl->_readyStateMutex);
+        impl->_readyState = cc::network::WebSocket::State::CLOSED;
+    }
+
+    uint16_t code = static_cast<uint16_t>(event->code);
+    ccstd::string reason = event->reason ? event->reason : "";
+    bool wasClean = event->wasClean;
+
+    impl->dispatchOnMainThread([impl, code, reason, wasClean]() {
+        if (impl->_delegate) {
+            impl->_delegate->onClose(impl->_ws, code, reason, wasClean);
+        }
+    });
+
+    return EM_TRUE;
+}
+
+void WebSocketImpl::dispatchOnMainThread(std::function<void()> func) {
     auto *mgr = cc::ApplicationManager::getInstance();
     if (mgr == nullptr) {
-        report();
+        func();
         return;
     }
     auto app = mgr->getCurrentAppSafe();
     if (app != nullptr && app->getEngine() != nullptr) {
-        app->getEngine()->getScheduler()->performFunctionInCocosThread(report);
+        app->getEngine()->getScheduler()->performFunctionInCocosThread(std::move(func));
     } else {
-        report();
+        func();
     }
 }
+
+// ---- Instance lifecycle ----
 
 void WebSocketImpl::closeAllConnections() {
     std::lock_guard<std::mutex> lk(instanceMutex);
@@ -105,6 +187,12 @@ WebSocketImpl::WebSocketImpl(cc::network::WebSocket *ws)
 }
 
 WebSocketImpl::~WebSocketImpl() {
+    if (_socket) {
+        emscripten_websocket_close(_socket, 1000, "destructor");
+        emscripten_websocket_delete(_socket);
+        _socket = 0;
+    }
+
     std::lock_guard<std::mutex> lk(instanceMutex);
     if (websocketInstances != nullptr) {
         auto iter = std::find(websocketInstances->begin(), websocketInstances->end(), this);
@@ -116,39 +204,92 @@ WebSocketImpl::~WebSocketImpl() {
 
 bool WebSocketImpl::init(const cc::network::WebSocket::Delegate &delegate,
                          const ccstd::string &url,
-                         const ccstd::vector<ccstd::string> * /*protocols*/,
+                         const ccstd::vector<ccstd::string> *protocols,
                          const ccstd::string & /*caFilePath*/) {
     _delegate = const_cast<cc::network::WebSocket::Delegate *>(&delegate);
     _url = url;
     if (_url.empty()) {
         return false;
     }
+
     {
         std::lock_guard<std::mutex> lk(_readyStateMutex);
         _readyState = cc::network::WebSocket::State::CONNECTING;
     }
-    failConnect();
-    {
-        std::lock_guard<std::mutex> lk(_readyStateMutex);
-        _readyState = cc::network::WebSocket::State::CLOSED;
+
+    // Create WebSocket
+    EmscriptenWebSocketCreateAttributes attrs;
+    emscripten_websocket_init_create_attributes(&attrs);
+    attrs.url = _url.c_str();
+
+    // Build protocol string (comma-separated)
+    ccstd::string protocolStr;
+    if (protocols && !protocols->empty()) {
+        for (size_t i = 0; i < protocols->size(); ++i) {
+            if (i > 0) protocolStr += ",";
+            protocolStr += (*protocols)[i];
+        }
+        attrs.protocols = protocolStr.c_str();
     }
+
+    _socket = emscripten_websocket_new(&attrs);
+    if (_socket <= 0) {
+        CC_LOG_ERROR("WebSocket: Failed to create WebSocket for URL: %s", _url.c_str());
+        {
+            std::lock_guard<std::mutex> lk(_readyStateMutex);
+            _readyState = cc::network::WebSocket::State::CLOSED;
+        }
+        dispatchOnMainThread([this]() {
+            if (_delegate) {
+                _delegate->onError(_ws, cc::network::WebSocket::ErrorCode::CONNECTION_FAILURE);
+            }
+        });
+        return false;
+    }
+
+    // Set callbacks
+    emscripten_websocket_set_onopen_callback(_socket, this, onOpen);
+    emscripten_websocket_set_onmessage_callback(_socket, this, onMessage);
+    emscripten_websocket_set_onerror_callback(_socket, this, onError);
+    emscripten_websocket_set_onclose_callback(_socket, this, onClose);
+
     return true;
 }
 
-void WebSocketImpl::send(const ccstd::string & /*message*/) {}
-void WebSocketImpl::send(const unsigned char * /*binaryMsg*/, unsigned int /*len*/) {}
+void WebSocketImpl::send(const ccstd::string &message) {
+    if (_socket) {
+        emscripten_websocket_send_utf8_text(_socket, message.c_str());
+    }
+}
+
+void WebSocketImpl::send(const unsigned char *binaryMsg, unsigned int len) {
+    if (_socket) {
+        emscripten_websocket_send_binary(_socket, const_cast<void *>(static_cast<const void *>(binaryMsg)), len);
+    }
+}
 
 void WebSocketImpl::close() {
-    std::lock_guard<std::mutex> lk(_readyStateMutex);
-    _readyState = cc::network::WebSocket::State::CLOSED;
+    if (_socket) {
+        {
+            std::lock_guard<std::mutex> lk(_readyStateMutex);
+            _readyState = cc::network::WebSocket::State::CLOSING;
+        }
+        emscripten_websocket_close(_socket, 1000, "normal closure");
+    }
 }
 
 void WebSocketImpl::closeAsync() {
     close();
 }
 
-void WebSocketImpl::closeAsync(int /*code*/, const ccstd::string & /*reason*/) {
-    close();
+void WebSocketImpl::closeAsync(int code, const ccstd::string &reason) {
+    if (_socket) {
+        {
+            std::lock_guard<std::mutex> lk(_readyStateMutex);
+            _readyState = cc::network::WebSocket::State::CLOSING;
+        }
+        emscripten_websocket_close(_socket, static_cast<unsigned short>(code), reason.c_str());
+    }
 }
 
 cc::network::WebSocket::State WebSocketImpl::getReadyState() const {
@@ -169,12 +310,19 @@ cc::network::WebSocket::Delegate *WebSocketImpl::getDelegate() const {
 }
 
 size_t WebSocketImpl::getBufferedAmount() const {
+    if (_socket) {
+        unsigned long long amount = 0;
+        emscripten_websocket_get_buffered_amount(_socket, &amount);
+        return static_cast<size_t>(amount);
+    }
     return 0;
 }
 
 ccstd::string WebSocketImpl::getExtensions() const {
     return {};
 }
+
+// ---- WebSocket public API ----
 
 namespace cc {
 namespace network {

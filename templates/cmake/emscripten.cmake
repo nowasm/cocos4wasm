@@ -62,6 +62,7 @@ macro(cc_emscripten_after_target _target_name)
         -sENVIRONMENT=web
         --bind
         "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap']"
+        "-sEXPORTED_FUNCTIONS=['_main','_wasmEditBoxOnInput','_wasmEditBoxOnConfirm','_wasmEditBoxOnComplete']"
     )
 
     if(CC_WASM_DEV_DIAGNOSTICS)

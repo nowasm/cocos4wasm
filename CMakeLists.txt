@@ -3338,7 +3338,13 @@ elseif(WIN32)
             NO_WERROR    cocos/ui/edit-box/EditBox-win32.cpp
         )
     endif()
-elseif(LINUX OR QNX OR EMSCRIPTEN)
+elseif(EMSCRIPTEN)
+    if(USE_EDIT_BOX)
+        cocos_source_files(
+            NO_WERROR    cocos/ui/edit-box/EditBox-wasm.cpp
+        )
+    endif()
+elseif(LINUX OR QNX)
     if(USE_EDIT_BOX)
         cocos_source_files(
             NO_WERROR    cocos/ui/edit-box/EditBox-linux.cpp
@@ -3917,6 +3923,9 @@ elseif(EMSCRIPTEN)
     # Unzip / ZipUtils need zlib symbols at final wasm link; sysroot zlib via Emscripten.
     target_compile_options(${ENGINE_NAME} PUBLIC "SHELL:-sUSE_ZLIB=1")
     target_link_options(${ENGINE_NAME} PUBLIC "SHELL:-sUSE_ZLIB=1")
+    # Emscripten Fetch API for HttpClient and Downloader
+    target_compile_options(${ENGINE_NAME} PUBLIC "SHELL:-sFETCH=1")
+    target_link_options(${ENGINE_NAME} PUBLIC "SHELL:-sFETCH=1")
     if(CC_EXTERNAL_LIBS)
         target_link_libraries(${ENGINE_NAME} PUBLIC ${CC_EXTERNAL_LIBS})
     endif()

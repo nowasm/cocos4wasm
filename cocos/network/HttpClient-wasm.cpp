@@ -4,8 +4,7 @@
  Copyright (c) 2013-2016 Chukong Technologies Inc.
  Copyright (c) 2017-2023 Xiamen Yaji Software Co., Ltd.
 
- Emscripten: no bundled libcurl / USE_LIBCURL in this toolchain — minimal
- HttpClient that completes requests as failures so the engine and bindings link.
+ Emscripten: uses emscripten_fetch API for async HTTP requests.
 ****************************************************************************/
 
 #include "network/HttpClient.h"
@@ -19,94 +18,147 @@
 #include "platform/FileUtils.h"
 #include "platform/StdC.h"
 
+#include <emscripten/fetch.h>
+
 namespace cc {
 
 namespace network {
 
 static HttpClient *_httpClient = nullptr;
 
-static void stubProcessResponse(HttpResponse *response, char *responseMessage) {
-    static const char kMsg[] = "HttpClient stub on Emscripten (no libcurl in build)";
-    const int cap = HttpClient::RESPONSE_BUFFER_SIZE;
-    strncpy(responseMessage, kMsg, static_cast<size_t>(cap - 1));
-    responseMessage[cap - 1] = '\0';
-    response->setResponseCode(-1);
-    response->setSucceed(false);
-    response->setErrorBuffer(responseMessage);
+// ---- Fetch callback context ----
+struct FetchCallbackData {
+    HttpClient *client{nullptr};
+    HttpRequest *request{nullptr};
+    HttpResponse *response{nullptr};
+};
+
+static const char *httpMethodStr(HttpRequest::Type type) {
+    switch (type) {
+        case HttpRequest::Type::GET: return "GET";
+        case HttpRequest::Type::POST: return "POST";
+        case HttpRequest::Type::PUT: return "PUT";
+        case HttpRequest::Type::DELETE_: return "DELETE";
+        case HttpRequest::Type::PATCH: return "PATCH";
+        default: return "GET";
+    }
 }
 
-void HttpClient::networkThread() {
-    increaseThreadCount();
-
-    while (true) {
-        HttpRequest *request;
-
-        {
-            std::lock_guard<std::mutex> lock(_requestQueueMutex);
-            while (_requestQueue.empty()) {
-                _sleepCondition.wait(_requestQueueMutex);
-            }
-            request = _requestQueue.at(0);
-            _requestQueue.erase(0);
-        }
-
-        if (request == _requestSentinel) {
-            break;
-        }
-
-        HttpResponse *response = ccnew HttpResponse(request);
-        response->addRef();
-
-        stubProcessResponse(response, _responseMessage);
-
-        _responseQueueMutex.lock();
-        _responseQueue.pushBack(response);
-        _responseQueueMutex.unlock();
-
-        _schedulerMutex.lock();
-        if (auto sche = _scheduler.lock()) {
-            sche->performFunctionInCocosThread(CC_CALLBACK_0(HttpClient::dispatchResponseCallbacks, this));
-        }
-        _schedulerMutex.unlock();
+static void fetchOnLoad(emscripten_fetch_t *fetch) {
+    auto *cbData = reinterpret_cast<FetchCallbackData *>(fetch->userData);
+    if (!cbData) {
+        emscripten_fetch_close(fetch);
+        return;
     }
 
-    _requestQueueMutex.lock();
-    _requestQueue.clear();
-    _requestQueueMutex.unlock();
+    HttpResponse *response = cbData->response;
+    HttpRequest *request = cbData->request;
+    HttpClient *client = cbData->client;
 
-    _responseQueueMutex.lock();
-    _responseQueue.clear();
-    _responseQueueMutex.unlock();
+    response->setResponseCode(static_cast<long>(fetch->status));
+    response->setSucceed(true);
 
-    decreaseThreadCountAndMayDeleteThis();
-}
+    // Copy response data
+    auto *responseData = response->getResponseData();
+    if (fetch->numBytes > 0 && fetch->data) {
+        responseData->insert(responseData->end(), fetch->data, fetch->data + fetch->numBytes);
+    }
 
-void HttpClient::networkThreadAlone(HttpRequest *request, HttpResponse *response) {
-    char responseMessage[HttpClient::RESPONSE_BUFFER_SIZE] = {0};
-    stubProcessResponse(response, responseMessage);
+    // Copy response headers
+    auto *responseHeaders = response->getResponseHeader();
+    size_t headersLength = emscripten_fetch_get_response_headers_length(fetch);
+    if (headersLength > 0) {
+        char *headersBuf = new char[headersLength + 1];
+        emscripten_fetch_get_response_headers(fetch, headersBuf, headersLength + 1);
+        responseHeaders->insert(responseHeaders->end(), headersBuf, headersBuf + headersLength);
+        delete[] headersBuf;
+    }
 
-    _schedulerMutex.lock();
-    if (auto sche = _scheduler.lock()) {
-        sche->performFunctionInCocosThread([this, response, request] {
+    // Dispatch callback on main thread
+    auto *mgr = cc::ApplicationManager::getInstance();
+    if (mgr != nullptr) {
+        auto app = mgr->getCurrentAppSafe();
+        if (app != nullptr && app->getEngine() != nullptr) {
+            app->getEngine()->getScheduler()->performFunctionInCocosThread([client, request, response]() {
+                const ccHttpRequestCallback &callback = request->getResponseCallback();
+                if (callback != nullptr) {
+                    callback(client, response);
+                }
+                response->release();
+                request->release();
+            });
+        } else {
             const ccHttpRequestCallback &callback = request->getResponseCallback();
-
             if (callback != nullptr) {
-                callback(this, response);
+                callback(client, response);
             }
             response->release();
             request->release();
-        });
+        }
     }
-    _schedulerMutex.unlock();
 
-    decreaseThreadCountAndMayDeleteThis();
+    delete cbData;
+    emscripten_fetch_close(fetch);
+}
+
+static void fetchOnError(emscripten_fetch_t *fetch) {
+    auto *cbData = reinterpret_cast<FetchCallbackData *>(fetch->userData);
+    if (!cbData) {
+        emscripten_fetch_close(fetch);
+        return;
+    }
+
+    HttpResponse *response = cbData->response;
+    HttpRequest *request = cbData->request;
+    HttpClient *client = cbData->client;
+
+    response->setResponseCode(static_cast<long>(fetch->status));
+    response->setSucceed(false);
+
+    char errBuf[256];
+    snprintf(errBuf, sizeof(errBuf), "HTTP fetch failed with status %d for %s", fetch->status, fetch->url);
+    response->setErrorBuffer(errBuf);
+
+    auto *mgr = cc::ApplicationManager::getInstance();
+    if (mgr != nullptr) {
+        auto app = mgr->getCurrentAppSafe();
+        if (app != nullptr && app->getEngine() != nullptr) {
+            app->getEngine()->getScheduler()->performFunctionInCocosThread([client, request, response]() {
+                const ccHttpRequestCallback &callback = request->getResponseCallback();
+                if (callback != nullptr) {
+                    callback(client, response);
+                }
+                response->release();
+                request->release();
+            });
+        } else {
+            const ccHttpRequestCallback &callback = request->getResponseCallback();
+            if (callback != nullptr) {
+                callback(client, response);
+            }
+            response->release();
+            request->release();
+        }
+    }
+
+    delete cbData;
+    emscripten_fetch_close(fetch);
+}
+
+// ---- HttpClient implementation ----
+
+void HttpClient::networkThread() {
+    // Not used on Emscripten - fetch is async
+}
+
+void HttpClient::networkThreadAlone(HttpRequest *request, HttpResponse *response) {
+    // Not used on Emscripten - fetch is async
 }
 
 HttpClient *HttpClient::getInstance() {
     if (_httpClient == nullptr) {
         _httpClient = ccnew HttpClient();
     }
-
     return _httpClient;
 }
 
@@ -186,31 +238,71 @@ void HttpClient::sendImmediate(HttpRequest *request) {
     HttpResponse *response = ccnew HttpResponse(request);
     response->addRef();
 
-    increaseThreadCount();
-    networkThreadAlone(request, response);
+    // Prepare fetch attributes
+    emscripten_fetch_attr_t attr;
+    emscripten_fetch_attr_init(&attr);
+
+    strncpy(attr.requestMethod, httpMethodStr(request->getRequestType()), sizeof(attr.requestMethod) - 1);
+    attr.attributes = EMSCRIPTEN_FETCH_LOAD_TO_MEMORY;
+    attr.onsuccess = fetchOnLoad;
+    attr.onerror = fetchOnError;
+    attr.timeoutMSecs = static_cast<unsigned long>(_timeoutForRead * 1000);
+
+    // Set request body for POST/PUT/PATCH
+    const char *requestData = nullptr;
+    size_t requestDataSize = 0;
+    if (request->getRequestType() == HttpRequest::Type::POST ||
+        request->getRequestType() == HttpRequest::Type::PUT ||
+        request->getRequestType() == HttpRequest::Type::PATCH) {
+        auto *reqData = request->getRequestData();
+        if (reqData && !reqData->empty()) {
+            requestData = reqData->data();
+            requestDataSize = reqData->size();
+            attr.requestData = requestData;
+            attr.requestDataSize = requestDataSize;
+        }
+    }
+
+    // Set custom headers
+    // emscripten_fetch expects headers as alternating key-value pairs: [key, value, key, value, ..., NULL]
+    const auto headers = request->getHeaders();
+    ccstd::vector<ccstd::string> headerParts; // Keep strings alive
+    ccstd::vector<const char *> headerPtrs;
+    if (!headers.empty()) {
+        for (const auto &header : headers) {
+            auto colonPos = header.find(':');
+            if (colonPos != ccstd::string::npos) {
+                ccstd::string key = header.substr(0, colonPos);
+                ccstd::string value = header.substr(colonPos + 1);
+                // Trim leading whitespace from value
+                size_t start = value.find_first_not_of(' ');
+                if (start != ccstd::string::npos) {
+                    value = value.substr(start);
+                }
+                headerParts.push_back(std::move(key));
+                headerParts.push_back(std::move(value));
+            }
+        }
+        for (const auto &part : headerParts) {
+            headerPtrs.push_back(part.c_str());
+        }
+        headerPtrs.push_back(nullptr);
+        attr.requestHeaders = headerPtrs.data();
+    }
+
+    // Create callback context
+    auto *cbData = new FetchCallbackData();
+    cbData->client = this;
+    cbData->request = request;
+    cbData->response = response;
+    attr.userData = cbData;
+
+    // Perform the fetch
+    emscripten_fetch(&attr, request->getUrl());
 }
 
 void HttpClient::dispatchResponseCallbacks() {
-    HttpResponse *response = nullptr;
-
-    _responseQueueMutex.lock();
-    if (!_responseQueue.empty()) {
-        response = _responseQueue.at(0);
-        _responseQueue.erase(0);
-    }
-    _responseQueueMutex.unlock();
-
-    if (response) {
-        HttpRequest *request = response->getHttpRequest();
-        const ccHttpRequestCallback &callback = request->getResponseCallback();
-
-        if (callback != nullptr) {
-            callback(this, response);
-        }
-
-        response->release();
-        request->release();
-    }
+    // Not used on Emscripten - callbacks are dispatched via fetch callbacks
 }
 
 void HttpClient::increaseThreadCount() {
@@ -229,7 +321,6 @@ void HttpClient::decreaseThreadCountAndMayDeleteThis() {
     if (0 == _threadCount) {
         needDeleteThis = true;
     }
-
     _threadCountMutex.unlock();
     if (needDeleteThis) {
         delete this;

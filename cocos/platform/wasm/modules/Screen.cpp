@@ -26,23 +26,39 @@
 #include "base/Macros.h"
 #include "cocos/bindings/jswrapper/SeApi.h"
 
+#include <emscripten.h>
+
 namespace cc {
 
 int Screen::getDPI() const {
-    static int dpi = -1;
-    return dpi;
+    // Use devicePixelRatio to estimate DPI (96 is the standard CSS DPI)
+    double dpr = emscripten_get_device_pixel_ratio();
+    return static_cast<int>(96.0 * dpr);
 }
 
 float Screen::getDevicePixelRatio() const {
-    return 1;
+    return static_cast<float>(emscripten_get_device_pixel_ratio());
 }
 
 void Screen::setKeepScreenOn(bool value) {
     CC_UNUSED_PARAM(value);
+    // Not applicable for web browsers
 }
 
 Screen::Orientation Screen::getDeviceOrientation() const {
-    return Orientation::PORTRAIT;
+    int orientation = EM_ASM_INT({
+        // 0 = portrait, 90/-90 = landscape
+        if (window.screen && window.screen.orientation) {
+            var angle = window.screen.orientation.angle || 0;
+            return angle;
+        }
+        return window.orientation || 0;
+    });
+
+    if (orientation == 0 || orientation == 180) {
+        return Orientation::PORTRAIT;
+    }
+    return Orientation::LANDSCAPE_RIGHT;
 }
 
 Vec4 Screen::getSafeAreaEdge() const {
