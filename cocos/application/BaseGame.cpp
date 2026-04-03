@@ -107,7 +107,7 @@ int BaseGame::init() {
         auto *root = ccnew Root(device);
         root->initialize(nullptr);
         root->setRenderPipeline(nullptr);      // uses default built-in pipeline
-        BuiltinResMgr::getInstance()->initBuiltinRes(device);
+        BuiltinResMgr::getInstance()->initBuiltinRes();
     }
 #endif
     runScript("main.js");
