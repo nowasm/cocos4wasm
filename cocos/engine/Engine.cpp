@@ -30,6 +30,7 @@
 #include "base/DeferredReleasePool.h"
 #include "base/Macros.h"
 #include "bindings/jswrapper/SeApi.h"
+#include "core/Root.h"
 #include "core/builtin/BuiltinResMgr.h"
 #include "engine/EngineEvents.h"
 #include "platform/BasePlatform.h"
@@ -315,6 +316,14 @@ void Engine::tick() {
 
         se::ScriptEngine::getInstance()->handlePromiseExceptions();
         events::Tick::broadcast(dt);
+
+        // Drive Root::frameMove from C++ directly.  In Creator builds this is
+        // done from JS (gameTick -> root.frameMove), but frameMove has no JSB
+        // binding so standalone WASM projects need this native call path.
+        if (auto *root = Root::getInstance()) {
+            root->frameMove(dt, static_cast<int32_t>(_totalFrames));
+        }
+
         se::ScriptEngine::getInstance()->mainLoopUpdate();
 
         cc::DeferredReleasePool::clear();

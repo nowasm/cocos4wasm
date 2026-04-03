@@ -28,6 +28,12 @@
 #include "platform/interfaces/modules/ISystemWindowManager.h"
 #include "renderer/pipeline/GlobalDescriptorSetManager.h"
 
+#if CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
+    #include "core/Root.h"
+    #include "core/builtin/BuiltinResMgr.h"
+    #include "renderer/GFXDeviceManager.h"
+#endif
+
 #if CC_PLATFORM == CC_PLATFORM_ANDROID
     #include "platform/android/adpf_manager.h"
 #endif
@@ -92,6 +98,17 @@ int BaseGame::init() {
     setXXTeaKey(_xxteaKey);
 #if CC_PLATFORM != CC_PLATFORM_EMSCRIPTEN
     runScript("jsb-adapter/web-adapter.js");
+#else
+    // Standalone WASM mode: initialise Root + render pipeline from C++ since
+    // there is no Creator JS bootstrap (web-adapter.js / application.js) to do it.
+    {
+        auto *device = gfx::Device::getInstance();
+        CC_ASSERT(device);
+        auto *root = ccnew Root(device);
+        root->initialize(nullptr);
+        root->setRenderPipeline(nullptr);      // uses default built-in pipeline
+        BuiltinResMgr::getInstance()->initBuiltinRes(device);
+    }
 #endif
     runScript("main.js");
     return 0;
