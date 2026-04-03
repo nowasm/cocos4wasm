@@ -3925,6 +3925,8 @@ elseif(EMSCRIPTEN)
     target_link_options(${ENGINE_NAME} PUBLIC "SHELL:-sUSE_ZLIB=1")
     # Emscripten Fetch API for HttpClient and Downloader (link-time only)
     target_link_options(${ENGINE_NAME} PUBLIC "SHELL:-sFETCH=1")
+    # Emscripten WebSocket API
+    target_link_options(${ENGINE_NAME} PUBLIC "SHELL:-lwebsocket.js")
     if(CC_EXTERNAL_LIBS)
         target_link_libraries(${ENGINE_NAME} PUBLIC ${CC_EXTERNAL_LIBS})
     endif()
