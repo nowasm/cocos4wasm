@@ -670,6 +670,21 @@ constexpr char WASM32_CC_FACADE_SCRIPT[] = R"JS(
       }
     },
   });
+  // --------------------------------------------------------------------------
+  // gameTick — called every frame by the C++ Engine::tick() via EventDispatcher.
+  // The engine's native tick broadcasts events::Tick which dispatches to the JS
+  // global "gameTick" function.  Without this the Root never runs frameMove()
+  // and nothing is rendered.
+  // --------------------------------------------------------------------------
+  var _totalFrames = 0;
+  global.gameTick = function gameTick(nowMillis) {
+    _totalFrames++;
+    var root = jsb.Root && typeof jsb.Root.getInstance === "function" ? jsb.Root.getInstance() : null;
+    if (root && typeof root.frameMove === "function") {
+      var dt = 1.0 / 60.0; // approximate; native side has the real dt
+      root.frameMove(dt, _totalFrames);
+    }
+  };
 })(window);
 )JS";
 
