@@ -28,6 +28,93 @@
 #include "base/Log.h"
 
 #include <emscripten.h>
+#include <emscripten/html5.h>
+
+// Use EM_JS instead of EM_ASM to avoid C-preprocessor issues with commas
+// and single quotes inside JavaScript code.
+
+EM_JS(void, js_editbox_show, (int isMultiline, const char *inputTypePtr, const char *defaultValuePtr,
+                               int maxLen, int x, int y, int w, int h, int fontSize), {
+    var existing = document.getElementById("cocos-editbox");
+    if (existing) existing.remove();
+
+    var elem;
+    if (isMultiline) {
+        elem = document.createElement("textarea");
+    } else {
+        elem = document.createElement("input");
+        var inputType = UTF8ToString(inputTypePtr);
+        if (inputType === "password") {
+            elem.type = "password";
+        } else if (inputType === "email") {
+            elem.type = "email";
+        } else if (inputType === "number") {
+            elem.type = "number";
+        } else {
+            elem.type = "text";
+        }
+    }
+
+    elem.id = "cocos-editbox";
+    elem.value = UTF8ToString(defaultValuePtr);
+
+    if (maxLen > 0) {
+        elem.maxLength = maxLen;
+    }
+
+    // Position over the canvas
+    var canvas = document.querySelector("#canvas") || document.querySelector("canvas");
+    var canvasRect = canvas ? canvas.getBoundingClientRect() : {left: 0, top: 0};
+
+    elem.style.position = "absolute";
+    elem.style.left = (canvasRect.left + x) + "px";
+    elem.style.top = (canvasRect.top + y) + "px";
+    elem.style.width = w + "px";
+    elem.style.height = h + "px";
+    elem.style.fontSize = fontSize + "px";
+    elem.style.border = "1px solid #ccc";
+    elem.style.outline = "none";
+    elem.style.padding = "2px";
+    elem.style.boxSizing = "border-box";
+    elem.style.zIndex = "9999";
+    elem.style.background = "white";
+    elem.style.color = "black";
+
+    document.body.appendChild(elem);
+    elem.focus();
+
+    // Input event -> send text back to engine
+    elem.addEventListener("input", function() {
+        ccall("wasmEditBoxOnInput", null, ["string"], [elem.value]);
+    });
+
+    // Enter/confirm handling
+    elem.addEventListener("keydown", function(e) {
+        if (e.key === "Enter" && !isMultiline) {
+            e.preventDefault();
+            ccall("wasmEditBoxOnConfirm", null, ["string"], [elem.value]);
+        }
+    });
+
+    // Blur (lost focus) -> complete
+    elem.addEventListener("blur", function() {
+        ccall("wasmEditBoxOnComplete", null, ["string"], [elem.value]);
+    });
+});
+
+EM_JS(void, js_editbox_hide, (), {
+    var existing = document.getElementById("cocos-editbox");
+    if (existing) {
+        existing.remove();
+    }
+});
+
+EM_JS(void, js_editbox_complete, (), {
+    var elem = document.getElementById("cocos-editbox");
+    if (elem) {
+        ccall("wasmEditBoxOnComplete", null, ["string"], [elem.value]);
+    }
+});
 
 namespace cc {
 
@@ -67,145 +154,34 @@ void EditBox::show(const ShowInfo &showInfo) {
     }
     _isShown = true;
 
-    const char *inputType = showInfo.inputType.c_str();
-    const char *defaultValue = showInfo.defaultValue.c_str();
-    bool isMultiline = showInfo.isMultiline;
-    int maxLength = showInfo.maxLength;
-    int x = showInfo.x;
-    int y = showInfo.y;
-    int width = showInfo.width;
-    int height = showInfo.height;
-    uint32_t fontSize = showInfo.fontSize;
-
-    // Create an HTML input element overlaying the canvas
-    EM_ASM({
-        // Remove existing edit box if any
-        var existing = document.getElementById('cocos-editbox');
-        if (existing) existing.remove();
-
-        var isMultiline = $0;
-        var elem;
-        if (isMultiline) {
-            elem = document.createElement('textarea');
-        } else {
-            elem = document.createElement('input');
-            var inputType = UTF8ToString($1);
-            if (inputType === 'password') {
-                elem.type = 'password';
-            } else if (inputType === 'email') {
-                elem.type = 'email';
-            } else if (inputType === 'number') {
-                elem.type = 'number';
-            } else {
-                elem.type = 'text';
-            }
-        }
-
-        elem.id = 'cocos-editbox';
-        elem.value = UTF8ToString($2);
-
-        var maxLen = $3;
-        if (maxLen > 0) {
-            elem.maxLength = maxLen;
-        }
-
-        // Position over the canvas
-        var canvas = document.querySelector('#canvas') || document.querySelector('canvas');
-        var canvasRect = canvas ? canvas.getBoundingClientRect() : { left: 0, top: 0 };
-
-        elem.style.position = 'absolute';
-        elem.style.left = (canvasRect.left + $4) + 'px';
-        elem.style.top = (canvasRect.top + $5) + 'px';
-        elem.style.width = $6 + 'px';
-        elem.style.height = $7 + 'px';
-        elem.style.fontSize = $8 + 'px';
-        elem.style.border = '1px solid #ccc';
-        elem.style.outline = 'none';
-        elem.style.padding = '2px';
-        elem.style.boxSizing = 'border-box';
-        elem.style.zIndex = '9999';
-        elem.style.background = 'white';
-        elem.style.color = 'black';
-
-        document.body.appendChild(elem);
-        elem.focus();
-
-        // Input event -> send text back to engine
-        elem.addEventListener('input', function() {
-            var text = elem.value;
-            // Call the native callback
-            if (Module._editboxInputCallback) {
-                Module._editboxInputCallback(text);
-            }
-        });
-
-        // Enter/confirm handling
-        elem.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter' && !isMultiline) {
-                e.preventDefault();
-                var text = elem.value;
-                if (Module._editboxConfirmCallback) {
-                    Module._editboxConfirmCallback(text);
-                }
-            }
-        });
-
-        // Blur (lost focus) -> complete
-        elem.addEventListener('blur', function() {
-            var text = elem.value;
-            if (Module._editboxCompleteCallback) {
-                Module._editboxCompleteCallback(text);
-            }
-        });
-
-        // Store callbacks from C++
-        Module._editboxInputCallback = function(text) {
-            ccall('wasmEditBoxOnInput', null, ['string'], [text]);
-        };
-        Module._editboxConfirmCallback = function(text) {
-            ccall('wasmEditBoxOnConfirm', null, ['string'], [text]);
-        };
-        Module._editboxCompleteCallback = function(text) {
-            ccall('wasmEditBoxOnComplete', null, ['string'], [text]);
-        };
-
-    }, isMultiline, inputType, defaultValue, maxLength, x, y, width, height, fontSize);
+    js_editbox_show(
+        showInfo.isMultiline ? 1 : 0,
+        showInfo.inputType.c_str(),
+        showInfo.defaultValue.c_str(),
+        showInfo.maxLength,
+        showInfo.x,
+        showInfo.y,
+        showInfo.width,
+        showInfo.height,
+        static_cast<int>(showInfo.fontSize));
 }
 
 void EditBox::hide() {
     if (!_isShown) return;
     _isShown = false;
-
-    EM_ASM({
-        var existing = document.getElementById('cocos-editbox');
-        if (existing) {
-            existing.remove();
-        }
-        Module._editboxInputCallback = null;
-        Module._editboxConfirmCallback = null;
-        Module._editboxCompleteCallback = null;
-    });
+    js_editbox_hide();
 }
 
 bool EditBox::complete() {
     if (!_isShown) return true;
-
-    // Get the current text and send complete event
-    EM_ASM({
-        var elem = document.getElementById('cocos-editbox');
-        if (elem) {
-            var text = elem.value;
-            ccall('wasmEditBoxOnComplete', null, ['string'], [text]);
-        }
-    });
-
+    js_editbox_complete();
     hide();
     return true;
 }
 
 } // namespace cc
 
-// C-linkage callbacks called from JavaScript
+// C-linkage callbacks called from JavaScript via ccall
 extern "C" {
 
 EMSCRIPTEN_KEEPALIVE
