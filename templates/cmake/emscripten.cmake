@@ -90,5 +90,13 @@ macro(cc_emscripten_after_target _target_name)
         message(STATUS "WASM preload skipped (CC_WASM_PRELOAD_DATA=OFF); ${RES_DIR}/Resources/data not embedded")
     endif()
 
+    # Preload the user entry script (main.js) from the project directory.
+    if(EXISTS ${CC_PROJECT_DIR}/main.js)
+        message(STATUS "WASM preload: ${CC_PROJECT_DIR}/main.js -> /data/main.js")
+        target_link_options(${CC_EXECUTABLE_NAME} PRIVATE
+            --preload-file ${CC_PROJECT_DIR}/main.js@/data/main.js
+        )
+    endif()
+
     cc_common_after_target(${CC_EXECUTABLE_NAME})
 endmacro()

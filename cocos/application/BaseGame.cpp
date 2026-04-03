@@ -90,7 +90,9 @@ int BaseGame::init() {
     }
 
     setXXTeaKey(_xxteaKey);
+#if CC_PLATFORM != CC_PLATFORM_EMSCRIPTEN
     runScript("jsb-adapter/web-adapter.js");
+#endif
     runScript("main.js");
     return 0;
 }
