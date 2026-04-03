@@ -132,7 +132,7 @@ EM_BOOL WebSocketImpl::onClose(int /*eventType*/, const EmscriptenWebSocketClose
     }
 
     uint16_t code = static_cast<uint16_t>(event->code);
-    ccstd::string reason = event->reason ? event->reason : "";
+    ccstd::string reason = event->reason[0] != '\0' ? event->reason : "";
     bool wasClean = event->wasClean;
 
     impl->dispatchOnMainThread([impl, code, reason, wasClean]() {
@@ -311,9 +311,9 @@ cc::network::WebSocket::Delegate *WebSocketImpl::getDelegate() const {
 
 size_t WebSocketImpl::getBufferedAmount() const {
     if (_socket) {
-        unsigned long long amount = 0;
+        size_t amount = 0;
         emscripten_websocket_get_buffered_amount(_socket, &amount);
-        return static_cast<size_t>(amount);
+        return amount;
     }
     return 0;
 }

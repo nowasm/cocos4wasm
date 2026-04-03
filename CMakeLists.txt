@@ -3923,8 +3923,7 @@ elseif(EMSCRIPTEN)
     # Unzip / ZipUtils need zlib symbols at final wasm link; sysroot zlib via Emscripten.
     target_compile_options(${ENGINE_NAME} PUBLIC "SHELL:-sUSE_ZLIB=1")
     target_link_options(${ENGINE_NAME} PUBLIC "SHELL:-sUSE_ZLIB=1")
-    # Emscripten Fetch API for HttpClient and Downloader
-    target_compile_options(${ENGINE_NAME} PUBLIC "SHELL:-sFETCH=1")
+    # Emscripten Fetch API for HttpClient and Downloader (link-time only)
     target_link_options(${ENGINE_NAME} PUBLIC "SHELL:-sFETCH=1")
     if(CC_EXTERNAL_LIBS)
         target_link_libraries(${ENGINE_NAME} PUBLIC ${CC_EXTERNAL_LIBS})

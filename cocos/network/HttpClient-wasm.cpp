@@ -38,7 +38,7 @@ static const char *httpMethodStr(HttpRequest::Type type) {
         case HttpRequest::Type::GET: return "GET";
         case HttpRequest::Type::POST: return "POST";
         case HttpRequest::Type::PUT: return "PUT";
-        case HttpRequest::Type::DELETE_: return "DELETE";
+        case HttpRequest::Type::DELETE: return "DELETE";
         case HttpRequest::Type::PATCH: return "PATCH";
         default: return "GET";
     }
@@ -249,17 +249,14 @@ void HttpClient::sendImmediate(HttpRequest *request) {
     attr.timeoutMSecs = static_cast<unsigned long>(_timeoutForRead * 1000);
 
     // Set request body for POST/PUT/PATCH
-    const char *requestData = nullptr;
-    size_t requestDataSize = 0;
     if (request->getRequestType() == HttpRequest::Type::POST ||
         request->getRequestType() == HttpRequest::Type::PUT ||
         request->getRequestType() == HttpRequest::Type::PATCH) {
-        auto *reqData = request->getRequestData();
-        if (reqData && !reqData->empty()) {
-            requestData = reqData->data();
-            requestDataSize = reqData->size();
-            attr.requestData = requestData;
-            attr.requestDataSize = requestDataSize;
+        char *reqData = request->getRequestData();
+        uint32_t reqDataSize = request->getRequestDataSize();
+        if (reqData && reqDataSize > 0) {
+            attr.requestData = reqData;
+            attr.requestDataSize = static_cast<size_t>(reqDataSize);
         }
     }
 

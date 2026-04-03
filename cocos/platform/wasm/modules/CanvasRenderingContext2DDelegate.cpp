@@ -177,12 +177,12 @@ void CanvasRenderingContext2DDelegate::updateFont(const ccstd::string &fontName,
                                                   bool /* smallCaps */) {
     EM_ASM({
         if (!Module._canvas2dCtx) return;
-        var style = '';
-        if ($3) style += 'italic ';
-        else if ($4) style += 'oblique ';
-        if ($2) style += 'bold ';
-        style += $1 + 'px ';
-        style += UTF8ToString($0) || 'sans-serif';
+        var style = "";
+        if ($3) style += "italic ";
+        else if ($4) style += "oblique ";
+        if ($2) style += "bold ";
+        style += $1 + "px ";
+        style += UTF8ToString($0) || "sans-serif";
         Module._canvas2dCtx.font = style;
         Module._canvas2dFontSize = $1;
     }, fontName.c_str(), static_cast<double>(fontSize), bold, italic, oblique);
