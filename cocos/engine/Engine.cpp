@@ -283,6 +283,7 @@ void Engine::setPreferredFramesPerSecond(int fps) {
     _preferredNanosecondsPerFrame = static_cast<long>(1.0 / fps * NANOSECONDS_PER_SECOND); // NOLINT(google-runtime-int)
 }
 
+#if CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
 namespace {
 
 static bool sBatcher2dRootSynced = false;
