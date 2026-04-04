@@ -81,8 +81,15 @@ constexpr char WASM32_CC_FACADE_SCRIPT[] = R"JS(
     }
   }
 
+  function getRoot() {
+    // jsb.__rt is the JS-wrapped Root object set by BaseGame (C++ standalone mode).
+    // jsb.Root.getInstance() may return null if the C++ Root has no JS wrapper.
+    if (jsb.__rt) return jsb.__rt;
+    return jsb.Root && typeof jsb.Root.getInstance === "function" ? jsb.Root.getInstance() : null;
+  }
+
   function getBatcher2D() {
-    const root = jsb.Root && typeof jsb.Root.getInstance === "function" ? jsb.Root.getInstance() : null;
+    const root = getRoot();
     return root && typeof root.getBatcher2D === "function" ? root.getBatcher2D() : null;
   }
 
@@ -273,10 +280,7 @@ constexpr char WASM32_CC_FACADE_SCRIPT[] = R"JS(
     if (rs && rs.root != null) {
       return rs.root;
     }
-    if (jsb.Root && typeof jsb.Root.getInstance === "function") {
-      return jsb.Root.getInstance();
-    }
-    return null;
+    return getRoot();
   }
 
   function pickMainRenderWindow(root) {

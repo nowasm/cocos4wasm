@@ -103,23 +103,45 @@ int BaseGame::init() {
 #if CC_PLATFORM != CC_PLATFORM_EMSCRIPTEN
     runScript("jsb-adapter/web-adapter.js");
 #else
-    // Standalone WASM mode: initialise Root + render pipeline from C++ since
-    // there is no Creator JS bootstrap (web-adapter.js / application.js) to do it.
+    // Standalone WASM mode: initialise Root + render pipeline.
     {
-        auto *device = gfx::Device::getInstance();
-        CC_ASSERT(device);
+        // 1. Load builtin resources and effects (C++ only, no JSB needed)
         BuiltinResMgr::getInstance()->initBuiltinRes();
         int effectCount = loadBuiltinEffectsFromJson("builtin-effects.json");
         CC_LOG_INFO("Loaded %d builtin effects for standalone WASM mode", effectCount);
 
+        // 2. Create Root + Pipeline from C++ (needed for engine internals)
+        auto *device = gfx::Device::getInstance();
+        CC_ASSERT(device);
         auto *root = ccnew Root(device);
         root->initialize(nullptr);
         auto *pipeline = ccnew pipeline::ForwardPipeline();
         pipeline->initialize({});
         root->setRenderPipeline(pipeline);
-        // Camera is auto-attached by C++ Engine::tick (ensureDefaultCameraOnScenes).
-        // Builtin materials are created from JS (facade ensureBuiltinMaterials)
-        // because C++ ccnew Material has no JS wrapper and nativevalue_to_se fails.
+
+        // 3. Wrap the C++ Root in a JS object and expose as jsb.__rt so the
+        //    facade can access Root's JSB methods (getBatcher2D, mainWindow etc.)
+        //    This creates the NativePtrToObjectMap entry that nativevalue_to_se needs.
+        auto *seEngine = se::ScriptEngine::getInstance();
+        se::Value rootVal;
+        nativevalue_to_se(root, rootVal);
+        if (!rootVal.isObject()) {
+            // nativevalue_to_se failed (no class mapping).  Create wrapper manually.
+            auto *rootCls = JSBClassType::findClass(root);
+            if (rootCls) {
+                auto *rootSeObj = se::Object::createObjectWithClass(rootCls);
+                rootSeObj->setPrivateData(root);
+                rootVal.setObject(rootSeObj);
+            }
+        }
+        if (rootVal.isObject()) {
+            se::Value jsbVal;
+            seEngine->getGlobalObject()->getProperty("jsb", &jsbVal);
+            if (jsbVal.isObject()) {
+                jsbVal.toObject()->setProperty("__rt", rootVal);
+            }
+            CC_LOG_INFO("BaseGame: Root JS wrapper registered as jsb.__rt");
+        }
     }
 #endif
     runScript("main.js");
