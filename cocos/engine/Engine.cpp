@@ -292,23 +292,25 @@ static bool sBatcher2dRootSynced = false;
 // Must be called after a scene has been activated and has children.
 void syncBatcher2DRootNodes(Root *root) {
     auto *batcher = root->getBatcher2D();
-    if (!batcher) return;
-
-    for (auto &rs : root->getScenes()) {
-        if (!rs) continue;
-        // Find all activated scene Nodes by checking the node associated with the scene
-        // RenderScene doesn't track the Node directly, so we iterate Root's scenes
+    if (!batcher) {
+        CC_LOG_WARNING("syncBatcher2D: batcher is null");
+        return;
     }
 
     // Use the ScriptEngine to get __ccCurrentScene and its children from JS
-    auto *se = se::ScriptEngine::getInstance();
+    auto *seInst = se::ScriptEngine::getInstance();
     se::Value sceneVal;
-    se->getGlobalObject()->getProperty("__ccCurrentScene", &sceneVal);
-    if (!sceneVal.isObject()) return;
+    seInst->getGlobalObject()->getProperty("__ccCurrentScene", &sceneVal);
+    if (!sceneVal.isObject()) {
+        CC_LOG_WARNING("syncBatcher2D: __ccCurrentScene not set");
+        return;
+    }
 
-    // Get the native Scene* from the JS object
     auto *sceneNode = static_cast<Node *>(sceneVal.toObject()->getPrivateData());
-    if (!sceneNode) return;
+    if (!sceneNode) {
+        CC_LOG_WARNING("syncBatcher2D: scene has no native Node");
+        return;
+    }
 
     auto &children = sceneNode->getChildren();
     ccstd::vector<Node *> rootNodes;
@@ -319,7 +321,9 @@ void syncBatcher2DRootNodes(Root *root) {
     if (!rootNodes.empty()) {
         batcher->syncRootNodesToNative(std::move(rootNodes));
         sBatcher2dRootSynced = true;
-        CC_LOG_INFO("Engine: synced %d root nodes to Batcher2D", static_cast<int>(rootNodes.size()));
+        CC_LOG_INFO("Engine: synced %d root nodes to Batcher2D", static_cast<int>(children.size()));
+    } else {
+        CC_LOG_WARNING("syncBatcher2D: scene has no children");
     }
 }
 
