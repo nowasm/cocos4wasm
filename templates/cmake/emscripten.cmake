@@ -91,10 +91,11 @@ macro(cc_emscripten_after_target _target_name)
     endif()
 
     # Preload the user entry script (main.js) from the project directory.
+    # SHELL: prefix prevents CMake from splitting the flag+path into two args.
     if(EXISTS ${CC_PROJECT_DIR}/main.js)
         message(STATUS "WASM preload: ${CC_PROJECT_DIR}/main.js -> /data/main.js")
         target_link_options(${CC_EXECUTABLE_NAME} PRIVATE
-            --preload-file ${CC_PROJECT_DIR}/main.js@/data/main.js
+            "SHELL:--preload-file ${CC_PROJECT_DIR}/main.js@/data/main.js"
         )
     endif()
 
@@ -102,7 +103,7 @@ macro(cc_emscripten_after_target _target_name)
     if(EXISTS ${CC_PROJECT_DIR}/builtin-effects.json)
         message(STATUS "WASM preload: ${CC_PROJECT_DIR}/builtin-effects.json -> /data/builtin-effects.json")
         target_link_options(${CC_EXECUTABLE_NAME} PRIVATE
-            --preload-file ${CC_PROJECT_DIR}/builtin-effects.json@/data/builtin-effects.json
+            "SHELL:--preload-file ${CC_PROJECT_DIR}/builtin-effects.json@/data/builtin-effects.json"
         )
     endif()
 
