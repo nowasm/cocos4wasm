@@ -32,7 +32,6 @@
 
 #if CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
     #include "core/Root.h"
-    #include "core/assets/Material.h"
     #include "core/builtin/BuiltinResMgr.h"
     #include "core/builtin/BuiltinEffectLoader.h"
     #include "renderer/GFXDeviceManager.h"
@@ -119,24 +118,8 @@ int BaseGame::init() {
         pipeline->initialize({});
         root->setRenderPipeline(pipeline);
         // Camera is auto-attached by C++ Engine::tick (ensureDefaultCameraOnScenes).
-
-        // Create builtin materials that the UI rendering system expects.
-        // Must happen after setRenderPipeline so the GFX device is fully ready.
-        auto *builtinMgr = BuiltinResMgr::getInstance();
-        {
-            auto *uiBaseMat = ccnew Material();
-            uiBaseMat->setUuid("ui-base-material");
-            IMaterialInfo matInfo;
-            matInfo.effectName = "for2d/builtin-sprite";
-            uiBaseMat->initialize(matInfo);
-            builtinMgr->addAsset("ui-base-material", uiBaseMat);
-
-            auto *uiSpriteMat = ccnew Material();
-            uiSpriteMat->setUuid("ui-sprite-material");
-            uiSpriteMat->initialize(matInfo);
-            builtinMgr->addAsset("ui-sprite-material", uiSpriteMat);
-            CC_LOG_INFO("BaseGame: registered ui-base-material and ui-sprite-material");
-        }
+        // Builtin materials are created from JS (facade ensureBuiltinMaterials)
+        // because C++ ccnew Material has no JS wrapper and nativevalue_to_se fails.
     }
 #endif
     runScript("main.js");

@@ -86,9 +86,37 @@ constexpr char WASM32_CC_FACADE_SCRIPT[] = R"JS(
     return root && typeof root.getBatcher2D === "function" ? root.getBatcher2D() : null;
   }
 
+  // Cache for builtin assets created from JS (Material objects need JS wrappers
+  // for nativevalue_to_se to work — C++ ccnew Material has no JS counterpart).
+  var _builtinAssetCache = Object.create(null);
+
   function getBuiltinAsset(name) {
-    const mgr = jsb.BuiltinResMgr && typeof jsb.BuiltinResMgr.getInstance === "function" ? jsb.BuiltinResMgr.getInstance() : null;
-    return mgr && typeof mgr.getAsset === "function" ? mgr.getAsset(name) : null;
+    if (_builtinAssetCache[name]) return _builtinAssetCache[name];
+    var mgr = jsb.BuiltinResMgr && typeof jsb.BuiltinResMgr.getInstance === "function" ? jsb.BuiltinResMgr.getInstance() : null;
+    if (mgr && typeof mgr.getAsset === "function") {
+      var asset = mgr.getAsset(name);
+      if (asset) return asset;
+    }
+    return null;
+  }
+
+  function ensureBuiltinMaterials() {
+    if (_builtinAssetCache["ui-base-material"]) return;
+    if (!jsb.Material || !jsb.IMaterialInfo) return;
+    var mgr = jsb.BuiltinResMgr && typeof jsb.BuiltinResMgr.getInstance === "function" ? jsb.BuiltinResMgr.getInstance() : null;
+
+    var names = ["ui-base-material", "ui-sprite-material"];
+    for (var i = 0; i < names.length; i++) {
+      var mat = new jsb.Material();
+      var info = new jsb.IMaterialInfo();
+      info.effectName = "for2d/builtin-sprite";
+      mat.initialize(info);
+      _builtinAssetCache[names[i]] = mat;
+      if (mgr && typeof mgr.addAsset === "function") {
+        mgr.addAsset(names[i], mat);
+      }
+      console.log("[facade] created builtin material: " + names[i]);
+    }
   }
 
   function createAttribute(name, format) {
@@ -587,6 +615,7 @@ constexpr char WASM32_CC_FACADE_SCRIPT[] = R"JS(
 
   cc.director = {
     runSceneImmediate: function (scene) {
+      ensureBuiltinMaterials();
       global.__ccCurrentScene = scene;
       if (scene && typeof scene._load === "function") {
         scene._load();
