@@ -594,9 +594,47 @@ constexpr char WASM32_CC_FACADE_SCRIPT[] = R"JS(
       if (scene && typeof scene._activate === "function") {
         scene._activate(true);
       }
-      // Camera + RenderScene are created from C++ (BaseGame::init).
-      // The JS scene's native RenderScene (from _activate) is separate;
-      // the C++ default camera renders regardless.
+
+      // Attach a camera to the scene's native RenderScene so content
+      // is visible.  Root, mainWindow, createCamera and Camera are all
+      // exposed through auto-generated JSB bindings.
+      var root = jsb.Root && typeof jsb.Root.getInstance === "function"
+                   ? jsb.Root.getInstance() : null;
+      if (root) {
+        var mainWin = root.mainWindow;
+        var renderScene = getSceneRenderScene(scene);
+        if (mainWin && renderScene) {
+          var cams = renderScene.cameras;
+          if (!cams || cams.length === 0) {
+            var camNode = new jsb.Node("MainCamera");
+            scene.addChild(camNode);
+            camNode.setPosition(0, 0, 1000);
+            var cam = root.createCamera();
+            cam.initialize({
+              name: "MainCamera",
+              node: camNode,
+              projection: CAMERA_PROJECTION_ORTHO,
+              window: mainWin,
+              priority: 0,
+            });
+            var vs = cc.view.getVisibleSize();
+            var h = vs && vs.height > 0 ? vs.height : 640;
+            cam.orthoHeight = Math.max(h * 0.5, 1);
+            cam.nearClip = 0.1;
+            cam.farClip = 2000;
+            cam.visibility = 0xffffffff;
+            cam.clearFlag = CLEAR_FLAG_COLOR_DEPTH;
+            if (gfx && gfx.Color) {
+              cam.clearColor = new gfx.Color(0.2, 0.2, 0.2, 1.0);
+            }
+            renderScene.addCamera(cam);
+            console.log("[facade] camera attached to scene renderScene");
+          }
+        } else {
+          console.warn("[facade] mainWin=" + !!mainWin + " renderScene=" + !!renderScene);
+        }
+      }
+
       tryRegisterSharedMeshWithBatcher();
     },
   };

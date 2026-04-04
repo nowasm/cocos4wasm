@@ -36,8 +36,6 @@
     #include "core/builtin/BuiltinEffectLoader.h"
     #include "renderer/GFXDeviceManager.h"
     #include "renderer/pipeline/forward/ForwardPipeline.h"
-    #include "scene/Camera.h"
-    #include "scene/RenderScene.h"
 #endif
 
 #if CC_PLATFORM == CC_PLATFORM_ANDROID
@@ -118,39 +116,9 @@ int BaseGame::init() {
         auto *pipeline = ccnew pipeline::ForwardPipeline();
         pipeline->initialize({});
         root->setRenderPipeline(pipeline);
-
-        // Create a default RenderScene + Camera. The JS scene created by main.js
-        // will get its own RenderScene via _activate(), but that native RenderScene
-        // has no camera. We create one here and the facade will move it.
-        auto *mainWindow = root->getMainWindow();
-        if (mainWindow) {
-            scene::IRenderSceneInfo sceneInfo;
-            sceneInfo.name = "DefaultScene";
-            auto *renderScene = root->createScene(sceneInfo);
-
-            auto *camNode = ccnew Node("DefaultCamera");
-            camNode->setPosition(cc::Vec3(0, 0, 1000));
-
-            auto *camera = root->createCamera();
-            scene::ICameraInfo camInfo;
-            camInfo.name = "DefaultCamera";
-            camInfo.node = camNode;
-            camInfo.projection = scene::CameraProjection::ORTHO;
-            camInfo.window = mainWindow;
-            camera->initialize(camInfo);
-            float halfH = mainWindow->getHeight() * 0.5F;
-            camera->setOrthoHeight(halfH > 0 ? halfH : 320.F);
-            camera->setNearClip(0.1F);
-            camera->setFarClip(2000.F);
-            camera->setVisibility(0xFFFFFFFF);
-            camera->setClearFlag(gfx::ClearFlagBit::ALL);
-            camera->setClearColor(gfx::Color{0.2F, 0.2F, 0.2F, 1.0F});
-            renderScene->addCamera(camera);
-            CC_LOG_INFO("BaseGame: default camera+scene created, window %dx%d",
-                        mainWindow->getWidth(), mainWindow->getHeight());
-        } else {
-            CC_LOG_WARNING("BaseGame: no main RenderWindow, cannot create default camera");
-        }
+        // Camera creation is handled by the JS facade (runSceneImmediate)
+        // which uses the auto-generated JSB bindings for Root.mainWindow,
+        // Root.createCamera, Camera.initialize, and RenderScene.addCamera.
     }
 #endif
     runScript("main.js");
