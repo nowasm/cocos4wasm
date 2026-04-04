@@ -32,6 +32,8 @@
 #include "bindings/jswrapper/SeApi.h"
 #include "core/Root.h"
 #include "core/builtin/BuiltinResMgr.h"
+#include "scene/Camera.h"
+#include "scene/RenderScene.h"
 #include "engine/EngineEvents.h"
 #include "platform/BasePlatform.h"
 #include "platform/FileUtils.h"
@@ -278,6 +280,44 @@ void Engine::setPreferredFramesPerSecond(int fps) {
     _preferredNanosecondsPerFrame = static_cast<long>(1.0 / fps * NANOSECONDS_PER_SECOND); // NOLINT(google-runtime-int)
 }
 
+#if CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
+namespace {
+// Automatically attach a default ortho camera to any RenderScene that
+// has no cameras.  Called once per scene (the flag is the camera itself).
+void ensureDefaultCameraOnScenes(Root *root) {
+    auto *mainWindow = root->getMainWindow();
+    if (!mainWindow) return;
+
+    for (auto &rs : root->getScenes()) {
+        if (!rs) continue;
+        const auto &cams = rs->getCameras();
+        if (!cams.empty()) continue;
+
+        // This scene has no camera — create one
+        auto *camNode = ccnew Node("DefaultCamera");
+        camNode->setPosition(cc::Vec3(0, 0, 1000));
+
+        auto *camera = root->createCamera();
+        scene::ICameraInfo camInfo;
+        camInfo.name = "DefaultCamera";
+        camInfo.node = camNode;
+        camInfo.projection = scene::CameraProjection::ORTHO;
+        camInfo.window = mainWindow;
+        camera->initialize(camInfo);
+        float halfH = static_cast<float>(mainWindow->getHeight()) * 0.5F;
+        camera->setOrthoHeight(halfH > 0 ? halfH : 320.F);
+        camera->setNearClip(0.1F);
+        camera->setFarClip(2000.F);
+        camera->setVisibility(0xFFFFFFFF);
+        camera->setClearFlag(gfx::ClearFlagBit::ALL);
+        camera->setClearColor(gfx::Color{0.2F, 0.2F, 0.2F, 1.0F});
+        rs->addCamera(camera);
+        CC_LOG_INFO("Engine: auto-attached camera to RenderScene '%s'", rs->getName().c_str());
+    }
+}
+} // namespace
+#endif
+
 void Engine::tick() {
     CC_PROFILER_BEGIN_FRAME;
     {
@@ -321,6 +361,12 @@ void Engine::tick() {
         // done from JS (gameTick -> root.frameMove), but frameMove has no JSB
         // binding so standalone WASM projects need this native call path.
         if (auto *root = Root::getInstance()) {
+#if CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
+            // Auto-attach a default camera to any RenderScene that has none.
+            // JS facade creates scenes via jsb.Scene._activate() but cannot
+            // access Root.mainWindow through JSB, so we do it from C++.
+            ensureDefaultCameraOnScenes(root);
+#endif
             root->frameMove(dt, static_cast<int32_t>(_totalFrames));
         }
 
