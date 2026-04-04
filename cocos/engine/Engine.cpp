@@ -306,9 +306,19 @@ void syncBatcher2DRootNodes(Root *root) {
         return;
     }
 
-    auto *sceneNode = static_cast<Node *>(sceneVal.toObject()->getPrivateData());
+    auto *seObj = sceneVal.toObject();
+    void *rawPtr = seObj->getPrivateData();
+    if (!rawPtr) {
+        // Try getPrivateObject path
+        auto *privObj = seObj->getPrivateObject();
+        if (privObj) {
+            rawPtr = privObj->getRaw();
+        }
+    }
+    auto *sceneNode = static_cast<Node *>(rawPtr);
     if (!sceneNode) {
-        CC_LOG_WARNING("syncBatcher2D: scene has no native Node");
+        CC_LOG_WARNING("syncBatcher2D: scene has no native Node (privateData=%p, privateObject=%p)",
+                       seObj->getPrivateData(), static_cast<void*>(seObj->getPrivateObject()));
         return;
     }
 
