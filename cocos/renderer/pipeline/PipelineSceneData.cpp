@@ -105,9 +105,12 @@ void PipelineSceneData::initOcclusionQuery() {
         IMaterialInfo info;
         info.effectName = "internal/builtin-occlusion-query";
         _occlusionQueryMaterial->initialize(info);
-        if (!_occlusionQueryMaterial->getPasses()->empty()) {
+        if (_occlusionQueryMaterial->getPasses() && !_occlusionQueryMaterial->getPasses()->empty()) {
             _occlusionQueryPass = (*_occlusionQueryMaterial->getPasses())[0];
             _occlusionQueryShader = _occlusionQueryPass->getShaderVariant();
+        } else {
+            CC_LOG_WARNING("PipelineSceneData: occlusion-query effect not found, occlusion query disabled.");
+            _occlusionQueryMaterial = nullptr;
         }
     }
 }
@@ -129,6 +132,15 @@ void PipelineSceneData::initGeometryRenderer() {
         materialInfo.technique = tech;
         _geometryRendererMaterials[tech]->initialize(materialInfo);
 
+        if (!_geometryRendererMaterials[tech]->getPasses() ||
+            _geometryRendererMaterials[tech]->getPasses()->empty()) {
+            CC_LOG_WARNING("PipelineSceneData: geometry-renderer effect not found, geometry renderer disabled.");
+            _geometryRendererMaterials.clear();
+            _geometryRendererPasses.clear();
+            _geometryRendererShaders.clear();
+            return;
+        }
+
         const auto &passes = _geometryRendererMaterials[tech]->getPasses().get();
         for (const auto &pass : *passes) {
             _geometryRendererPasses.emplace_back(pass);
@@ -144,8 +156,13 @@ void PipelineSceneData::initDebugRenderer() {
         IMaterialInfo info;
         info.effectName = "internal/builtin-debug-renderer";
         _debugRendererMaterial->initialize(info);
-        _debugRendererPass = (*_debugRendererMaterial->getPasses())[0];
-        _debugRendererShader = _debugRendererPass->getShaderVariant();
+        if (_debugRendererMaterial->getPasses() && !_debugRendererMaterial->getPasses()->empty()) {
+            _debugRendererPass = (*_debugRendererMaterial->getPasses())[0];
+            _debugRendererShader = _debugRendererPass->getShaderVariant();
+        } else {
+            CC_LOG_WARNING("PipelineSceneData: debug-renderer effect not found, debug renderer disabled.");
+            _debugRendererMaterial = nullptr;
+        }
     }
 }
 
