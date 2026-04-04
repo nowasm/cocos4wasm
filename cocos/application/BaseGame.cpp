@@ -32,6 +32,7 @@
 
 #if CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
     #include "core/Root.h"
+    #include "core/assets/Material.h"
     #include "core/builtin/BuiltinResMgr.h"
     #include "core/builtin/BuiltinEffectLoader.h"
     #include "renderer/GFXDeviceManager.h"
@@ -111,14 +112,31 @@ int BaseGame::init() {
         BuiltinResMgr::getInstance()->initBuiltinRes();
         int effectCount = loadBuiltinEffectsFromJson("builtin-effects.json");
         CC_LOG_INFO("Loaded %d builtin effects for standalone WASM mode", effectCount);
+
+        // Create builtin materials that the UI rendering system expects.
+        // These must exist before any material lookup (e.g. facade Button).
+        auto *builtinMgr = BuiltinResMgr::getInstance();
+        {
+            auto *uiBaseMat = ccnew Material();
+            uiBaseMat->setUuid("ui-base-material");
+            IMaterialInfo matInfo;
+            matInfo.effectName = "for2d/builtin-sprite";
+            uiBaseMat->initialize(matInfo);
+            builtinMgr->addAsset("ui-base-material", uiBaseMat);
+
+            auto *uiSpriteMat = ccnew Material();
+            uiSpriteMat->setUuid("ui-sprite-material");
+            uiSpriteMat->initialize(matInfo); // same effect
+            builtinMgr->addAsset("ui-sprite-material", uiSpriteMat);
+            CC_LOG_INFO("BaseGame: registered ui-base-material and ui-sprite-material");
+        }
+
         auto *root = ccnew Root(device);
         root->initialize(nullptr);
         auto *pipeline = ccnew pipeline::ForwardPipeline();
         pipeline->initialize({});
         root->setRenderPipeline(pipeline);
-        // Camera creation is handled by the JS facade (runSceneImmediate)
-        // which uses the auto-generated JSB bindings for Root.mainWindow,
-        // Root.createCamera, Camera.initialize, and RenderScene.addCamera.
+        // Camera is auto-attached by C++ Engine::tick (ensureDefaultCameraOnScenes).
     }
 #endif
     runScript("main.js");
