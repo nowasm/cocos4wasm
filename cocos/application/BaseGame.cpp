@@ -32,6 +32,7 @@
     #include "core/Root.h"
     #include "core/builtin/BuiltinResMgr.h"
     #include "renderer/GFXDeviceManager.h"
+    #include "renderer/pipeline/forward/ForwardPipeline.h"
 #endif
 
 #if CC_PLATFORM == CC_PLATFORM_ANDROID
@@ -104,10 +105,14 @@ int BaseGame::init() {
     {
         auto *device = gfx::Device::getInstance();
         CC_ASSERT(device);
-        BuiltinResMgr::getInstance()->initBuiltinRes();  // shaders/materials must exist before pipeline activation
+        BuiltinResMgr::getInstance()->initBuiltinRes();
         auto *root = ccnew Root(device);
         root->initialize(nullptr);
-        root->setRenderPipeline(nullptr);      // uses default built-in pipeline
+        // Use the legacy ForwardPipeline — NativePipeline (nullptr) requires a
+        // fully populated program library which only Creator builds provide.
+        auto *pipeline = ccnew pipeline::ForwardPipeline();
+        pipeline->initialize({});
+        root->setRenderPipeline(pipeline);
     }
 #endif
     runScript("main.js");
