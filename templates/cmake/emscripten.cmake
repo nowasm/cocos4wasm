@@ -98,5 +98,13 @@ macro(cc_emscripten_after_target _target_name)
         )
     endif()
 
+    # Preload compiled builtin effects for standalone WASM rendering.
+    if(EXISTS ${CC_PROJECT_DIR}/builtin-effects.json)
+        message(STATUS "WASM preload: ${CC_PROJECT_DIR}/builtin-effects.json -> /data/builtin-effects.json")
+        target_link_options(${CC_EXECUTABLE_NAME} PRIVATE
+            --preload-file ${CC_PROJECT_DIR}/builtin-effects.json@/data/builtin-effects.json
+        )
+    endif()
+
     cc_common_after_target(${CC_EXECUTABLE_NAME})
 endmacro()
