@@ -25,6 +25,7 @@
 #include "BaseGame.h"
 #include <string>
 #include "ApplicationManager.h"
+#include "platform/FileUtils.h"
 #include "platform/interfaces/modules/ISystemWindowManager.h"
 #include "renderer/pipeline/GlobalDescriptorSetManager.h"
 
@@ -120,7 +121,18 @@ int BaseGame::init() {
         root->setRenderPipeline(pipeline);
     }
 #endif
+    CC_LOG_INFO("BaseGame: about to runScript main.js");
+    bool scriptOk = false;
+    auto *fileUtils = FileUtils::getInstance();
+    if (fileUtils) {
+        ccstd::string fullPath = fileUtils->fullPathForFilename("main.js");
+        CC_LOG_INFO("BaseGame: main.js resolved to: %s (exists=%d)", fullPath.c_str(), fileUtils->isFileExist(fullPath));
+        // Also check builtin-effects.json resolution
+        ccstd::string effectsPath = fileUtils->fullPathForFilename("builtin-effects.json");
+        CC_LOG_INFO("BaseGame: builtin-effects.json resolved to: %s (exists=%d)", effectsPath.c_str(), fileUtils->isFileExist(effectsPath));
+    }
     runScript("main.js");
+    CC_LOG_INFO("BaseGame: runScript main.js finished");
     return 0;
 }
 } // namespace cc
