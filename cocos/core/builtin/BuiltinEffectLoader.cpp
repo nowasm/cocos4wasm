@@ -14,32 +14,33 @@ namespace cc {
 
 namespace {
 
-using namespace rapidjson; // NOLINT
+// NOTE: do NOT use "using namespace rapidjson" here — cc::Value would conflict.
+using JsonValue = rapidjson::Value;
 
 // ---- helpers ----
 
-ccstd::string getString(const Value &v, const char *key, const char *def = "") {
+ccstd::string getString(const JsonValue &v, const char *key, const char *def = "") {
     if (v.HasMember(key) && v[key].IsString()) return v[key].GetString();
     return def;
 }
 
-int32_t getInt(const Value &v, const char *key, int32_t def = 0) {
+int32_t getInt(const JsonValue &v, const char *key, int32_t def = 0) {
     if (v.HasMember(key) && v[key].IsInt()) return v[key].GetInt();
     return def;
 }
 
-uint32_t getUint(const Value &v, const char *key, uint32_t def = 0) {
+uint32_t getUint(const JsonValue &v, const char *key, uint32_t def = 0) {
     if (v.HasMember(key) && v[key].IsUint()) return v[key].GetUint();
     if (v.HasMember(key) && v[key].IsInt()) return static_cast<uint32_t>(v[key].GetInt());
     return def;
 }
 
-bool getBool(const Value &v, const char *key, bool def = false) {
+bool getBool(const JsonValue &v, const char *key, bool def = false) {
     if (v.HasMember(key) && v[key].IsBool()) return v[key].GetBool();
     return def;
 }
 
-ccstd::vector<ccstd::string> getStringArray(const Value &v, const char *key) {
+ccstd::vector<ccstd::string> getStringArray(const JsonValue &v, const char *key) {
     ccstd::vector<ccstd::string> out;
     if (v.HasMember(key) && v[key].IsArray()) {
         for (auto &e : v[key].GetArray()) {
@@ -51,7 +52,7 @@ ccstd::vector<ccstd::string> getStringArray(const Value &v, const char *key) {
 
 // ---- parse sub-structures ----
 
-IShaderSource parseShaderSource(const Value &v) {
+IShaderSource parseShaderSource(const JsonValue &v) {
     IShaderSource s;
     s.vert = getString(v, "vert");
     s.frag = getString(v, "frag");
@@ -61,14 +62,14 @@ IShaderSource parseShaderSource(const Value &v) {
     return s;
 }
 
-IBuiltin parseBuiltin(const Value &v) {
+IBuiltin parseBuiltin(const JsonValue &v) {
     IBuiltin b;
     b.name = getString(v, "name");
     b.defines = getStringArray(v, "defines");
     return b;
 }
 
-ccstd::vector<IBuiltin> parseBuiltinArray(const Value &v, const char *key) {
+ccstd::vector<IBuiltin> parseBuiltinArray(const JsonValue &v, const char *key) {
     ccstd::vector<IBuiltin> out;
     if (v.HasMember(key) && v[key].IsArray()) {
         for (auto &e : v[key].GetArray()) {
@@ -78,7 +79,7 @@ ccstd::vector<IBuiltin> parseBuiltinArray(const Value &v, const char *key) {
     return out;
 }
 
-IBuiltinInfo parseBuiltinInfo(const Value &v) {
+IBuiltinInfo parseBuiltinInfo(const JsonValue &v) {
     IBuiltinInfo info;
     info.blocks = parseBuiltinArray(v, "blocks");
     info.samplerTextures = parseBuiltinArray(v, "samplerTextures");
@@ -87,7 +88,7 @@ IBuiltinInfo parseBuiltinInfo(const Value &v) {
     return info;
 }
 
-IBuiltins parseBuiltins(const Value &v) {
+IBuiltins parseBuiltins(const JsonValue &v) {
     IBuiltins b;
     if (v.HasMember("globals") && v["globals"].IsObject()) {
         b.globals = parseBuiltinInfo(v["globals"]);
@@ -105,7 +106,7 @@ IBuiltins parseBuiltins(const Value &v) {
     return b;
 }
 
-IDefineInfo parseDefine(const Value &v) {
+IDefineInfo parseDefine(const JsonValue &v) {
     IDefineInfo d;
     d.name = getString(v, "name");
     d.type = getString(v, "type", "boolean");
@@ -131,7 +132,7 @@ IDefineInfo parseDefine(const Value &v) {
     return d;
 }
 
-IAttributeInfo parseAttribute(const Value &v) {
+IAttributeInfo parseAttribute(const JsonValue &v) {
     IAttributeInfo a;
     a.name = getString(v, "name");
     a.format = static_cast<gfx::Format>(getUint(v, "format"));
@@ -143,7 +144,7 @@ IAttributeInfo parseAttribute(const Value &v) {
     return a;
 }
 
-gfx::Uniform parseUniform(const Value &v) {
+gfx::Uniform parseUniform(const JsonValue &v) {
     gfx::Uniform u;
     u.name = getString(v, "name");
     u.type = static_cast<gfx::Type>(getUint(v, "type"));
@@ -151,7 +152,7 @@ gfx::Uniform parseUniform(const Value &v) {
     return u;
 }
 
-IBlockInfo parseBlock(const Value &v) {
+IBlockInfo parseBlock(const JsonValue &v) {
     IBlockInfo b;
     b.binding = getUint(v, "binding");
     b.name = getString(v, "name");
@@ -168,7 +169,7 @@ IBlockInfo parseBlock(const Value &v) {
     return b;
 }
 
-ISamplerTextureInfo parseSamplerTexture(const Value &v) {
+ISamplerTextureInfo parseSamplerTexture(const JsonValue &v) {
     ISamplerTextureInfo st;
     st.binding = getUint(v, "binding");
     st.name = getString(v, "name");
@@ -179,7 +180,7 @@ ISamplerTextureInfo parseSamplerTexture(const Value &v) {
     return st;
 }
 
-ISamplerInfo parseSampler(const Value &v) {
+ISamplerInfo parseSampler(const JsonValue &v) {
     ISamplerInfo s;
     s.binding = getUint(v, "binding");
     s.name = getString(v, "name");
@@ -189,7 +190,7 @@ ISamplerInfo parseSampler(const Value &v) {
     return s;
 }
 
-ITextureInfo parseTexture(const Value &v) {
+ITextureInfo parseTexture(const JsonValue &v) {
     ITextureInfo t;
     t.binding = getUint(v, "binding");
     t.name = getString(v, "name");
@@ -200,7 +201,7 @@ ITextureInfo parseTexture(const Value &v) {
     return t;
 }
 
-IBufferInfo parseBuffer(const Value &v) {
+IBufferInfo parseBuffer(const JsonValue &v) {
     IBufferInfo b;
     b.binding = getUint(v, "binding");
     b.name = getString(v, "name");
@@ -209,7 +210,7 @@ IBufferInfo parseBuffer(const Value &v) {
     return b;
 }
 
-IImageInfo parseImage(const Value &v) {
+IImageInfo parseImage(const JsonValue &v) {
     IImageInfo img;
     img.binding = getUint(v, "binding");
     img.name = getString(v, "name");
@@ -221,7 +222,7 @@ IImageInfo parseImage(const Value &v) {
     return img;
 }
 
-IInputAttachmentInfo parseSubpassInput(const Value &v) {
+IInputAttachmentInfo parseSubpassInput(const JsonValue &v) {
     IInputAttachmentInfo si;
     si.binding = getUint(v, "binding");
     si.name = getString(v, "name");
@@ -232,7 +233,7 @@ IInputAttachmentInfo parseSubpassInput(const Value &v) {
 }
 
 template <typename T, typename ParseFn>
-ccstd::vector<T> parseArray(const Value &parent, const char *key, ParseFn fn) {
+ccstd::vector<T> parseArray(const JsonValue &parent, const char *key, ParseFn fn) {
     ccstd::vector<T> out;
     if (parent.HasMember(key) && parent[key].IsArray()) {
         for (auto &e : parent[key].GetArray()) {
@@ -242,7 +243,7 @@ ccstd::vector<T> parseArray(const Value &parent, const char *key, ParseFn fn) {
     return out;
 }
 
-IShaderInfo parseShader(const Value &v) {
+IShaderInfo parseShader(const JsonValue &v) {
     IShaderInfo s;
     s.name = getString(v, "name");
     s.hash = static_cast<ccstd::hash_t>(getUint(v, "hash"));
@@ -263,7 +264,7 @@ IShaderInfo parseShader(const Value &v) {
 }
 
 // Parse pipeline state objects
-RasterizerStateInfo parseRasterizerState(const Value &v) {
+RasterizerStateInfo parseRasterizerState(const JsonValue &v) {
     RasterizerStateInfo rs;
     if (v.HasMember("cullMode")) rs.cullMode = static_cast<gfx::CullMode>(v["cullMode"].GetInt());
     if (v.HasMember("polygonMode")) rs.polygonMode = static_cast<gfx::PolygonMode>(v["polygonMode"].GetInt());
@@ -272,7 +273,7 @@ RasterizerStateInfo parseRasterizerState(const Value &v) {
     return rs;
 }
 
-DepthStencilStateInfo parseDepthStencilState(const Value &v) {
+DepthStencilStateInfo parseDepthStencilState(const JsonValue &v) {
     DepthStencilStateInfo ds;
     if (v.HasMember("depthTest")) ds.depthTest = v["depthTest"].GetBool();
     if (v.HasMember("depthWrite")) ds.depthWrite = v["depthWrite"].GetBool();
@@ -282,7 +283,7 @@ DepthStencilStateInfo parseDepthStencilState(const Value &v) {
     return ds;
 }
 
-BlendStateInfo parseBlendState(const Value &v) {
+BlendStateInfo parseBlendState(const JsonValue &v) {
     BlendStateInfo bs;
     if (v.HasMember("targets") && v["targets"].IsArray()) {
         ccstd::vector<BlendTargetInfo> targets;
@@ -300,7 +301,7 @@ BlendStateInfo parseBlendState(const Value &v) {
     return bs;
 }
 
-IPropertyInfo parseProperty(const Value &v) {
+IPropertyInfo parseProperty(const JsonValue &v) {
     IPropertyInfo p;
     p.type = getInt(v, "type");
     if (v.HasMember("value")) {
@@ -320,7 +321,7 @@ IPropertyInfo parseProperty(const Value &v) {
     return p;
 }
 
-IPassInfoFull parsePass(const Value &v) {
+IPassInfoFull parsePass(const JsonValue &v) {
     IPassInfoFull pass;
     pass.program = getString(v, "program");
     if (v.HasMember("priority")) pass.priority = v["priority"].GetInt();
@@ -352,7 +353,7 @@ IPassInfoFull parsePass(const Value &v) {
     return pass;
 }
 
-ITechniqueInfo parseTechnique(const Value &v) {
+ITechniqueInfo parseTechnique(const JsonValue &v) {
     ITechniqueInfo tech;
     if (v.HasMember("name") && v["name"].IsString()) tech.name = v["name"].GetString();
     if (v.HasMember("passes") && v["passes"].IsArray()) {
@@ -378,7 +379,7 @@ int loadBuiltinEffectsFromJson(const ccstd::string &jsonPath) {
         return -1;
     }
 
-    Document doc;
+    rapidjson::Document doc;
     doc.Parse(content.c_str());
     if (doc.HasParseError() || !doc.IsArray()) {
         CC_LOG_ERROR("loadBuiltinEffectsFromJson: JSON parse error in %s", jsonPath.c_str());
