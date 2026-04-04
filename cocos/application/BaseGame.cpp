@@ -121,6 +121,14 @@ int BaseGame::init() {
         root->setRenderPipeline(pipeline);
     }
 #endif
+    // Quick diagnostic: check JS globals before running main.js
+    {
+        auto *se = se::ScriptEngine::getInstance();
+        se::Value ret;
+        se->evalString("(typeof globalThis.cc !== 'undefined') ? 'cc exists, facade=' + !!globalThis.cc.__wasm32Facade : 'cc MISSING'", 0, &ret);
+        CC_LOG_INFO("BaseGame: JS diagnostic: %s", ret.isString() ? ret.toString().c_str() : "(not string)");
+        se->evalString("console.log('[BaseGame-JS] hello from evalString')", 0, nullptr);
+    }
     CC_LOG_INFO("BaseGame: about to runScript main.js");
     bool scriptOk = false;
     auto *fileUtils = FileUtils::getInstance();
