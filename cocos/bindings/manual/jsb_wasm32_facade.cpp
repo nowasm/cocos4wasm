@@ -598,7 +598,25 @@ constexpr char WASM32_CC_FACADE_SCRIPT[] = R"JS(
         scene._activate(true);
         console.log("[wasm32-cc-facade] scene._activate() done");
       }
-      ensureWasm32MainCamera(scene);
+
+      // Try to create camera synchronously first (Root+Pipeline created in C++)
+      var root = jsb.Root && typeof jsb.Root.getInstance === "function" ? jsb.Root.getInstance() : null;
+      console.log("[wasm32-cc-facade] root=" + !!root);
+      if (root) {
+        var win = pickMainRenderWindow(root);
+        console.log("[wasm32-cc-facade] mainWindow=" + !!win);
+        if (win) {
+          var ok = createWasm32MainCameraNow(scene, root, win);
+          console.log("[wasm32-cc-facade] camera created sync: " + ok);
+        } else {
+          console.log("[wasm32-cc-facade] no RenderWindow, falling back to retry");
+          ensureWasm32MainCamera(scene);
+        }
+      } else {
+        console.log("[wasm32-cc-facade] no Root, falling back to retry");
+        ensureWasm32MainCamera(scene);
+      }
+
       tryRegisterSharedMeshWithBatcher();
     },
   };
