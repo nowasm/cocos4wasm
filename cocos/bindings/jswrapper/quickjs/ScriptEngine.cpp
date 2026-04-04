@@ -24,7 +24,7 @@ enum class ConsoleLogLevel {
 void logConsoleMessage(ConsoleLogLevel level, const char *prefix, const std::string &msg) {
     switch (level) {
         case ConsoleLogLevel::DEBUG:
-            SE_LOGD("JS: %s%s\n", prefix, msg.c_str());
+            CC_LOG_INFO("JS: %s%s", prefix, msg.c_str());
             break;
         case ConsoleLogLevel::INFO:
             CC_LOG_INFO("JS: %s%s", prefix, msg.c_str());
