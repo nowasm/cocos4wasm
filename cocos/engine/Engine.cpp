@@ -281,7 +281,47 @@ void Engine::setPreferredFramesPerSecond(int fps) {
 }
 
 #if CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
+#include "2d/renderer/Batcher2d.h"
+
 namespace {
+
+static bool sBatcher2dRootSynced = false;
+
+// Sync all Scene children as root nodes for Batcher2D rendering.
+// Must be called after a scene has been activated and has children.
+void syncBatcher2DRootNodes(Root *root) {
+    auto *batcher = root->getBatcher2D();
+    if (!batcher) return;
+
+    for (auto &rs : root->getScenes()) {
+        if (!rs) continue;
+        // Find all activated scene Nodes by checking the node associated with the scene
+        // RenderScene doesn't track the Node directly, so we iterate Root's scenes
+    }
+
+    // Use the ScriptEngine to get __ccCurrentScene and its children from JS
+    auto *se = se::ScriptEngine::getInstance();
+    se::Value sceneVal;
+    se->getGlobalObject()->getProperty("__ccCurrentScene", &sceneVal);
+    if (!sceneVal.isObject()) return;
+
+    // Get the native Scene* from the JS object
+    auto *sceneNode = static_cast<Node *>(sceneVal.toObject()->getPrivateData());
+    if (!sceneNode) return;
+
+    auto &children = sceneNode->getChildren();
+    ccstd::vector<Node *> rootNodes;
+    for (auto &child : children) {
+        rootNodes.push_back(child);
+    }
+
+    if (!rootNodes.empty()) {
+        batcher->syncRootNodesToNative(std::move(rootNodes));
+        sBatcher2dRootSynced = true;
+        CC_LOG_INFO("Engine: synced %d root nodes to Batcher2D", static_cast<int>(rootNodes.size()));
+    }
+}
+
 // Automatically attach a default ortho camera to any RenderScene that
 // has no cameras.  Called once per scene (the flag is the camera itself).
 void ensureDefaultCameraOnScenes(Root *root) {
@@ -363,9 +403,11 @@ void Engine::tick() {
         if (auto *root = Root::getInstance()) {
 #if CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
             // Auto-attach a default camera to any RenderScene that has none.
-            // JS facade creates scenes via jsb.Scene._activate() but cannot
-            // access Root.mainWindow through JSB, so we do it from C++.
             ensureDefaultCameraOnScenes(root);
+            // Sync scene children to Batcher2D for 2D UI rendering.
+            if (!sBatcher2dRootSynced) {
+                syncBatcher2DRootNodes(root);
+            }
 #endif
             root->frameMove(dt, static_cast<int32_t>(_totalFrames));
         }
