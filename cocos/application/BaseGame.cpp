@@ -25,6 +25,7 @@
 #include "BaseGame.h"
 #include <string>
 #include "ApplicationManager.h"
+#include "bindings/jswrapper/SeApi.h"
 #include "platform/FileUtils.h"
 #include "platform/interfaces/modules/ISystemWindowManager.h"
 #include "renderer/pipeline/GlobalDescriptorSetManager.h"
