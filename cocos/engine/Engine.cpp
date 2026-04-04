@@ -286,57 +286,6 @@ void Engine::setPreferredFramesPerSecond(int fps) {
 #if CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
 namespace {
 
-static bool sBatcher2dRootSynced = false;
-
-// Sync all Scene children as root nodes for Batcher2D rendering.
-// Must be called after a scene has been activated and has children.
-void syncBatcher2DRootNodes(Root *root) {
-    auto *batcher = root->getBatcher2D();
-    if (!batcher) {
-        CC_LOG_WARNING("syncBatcher2D: batcher is null");
-        return;
-    }
-
-    // Use the ScriptEngine to get __ccCurrentScene and its children from JS
-    auto *seInst = se::ScriptEngine::getInstance();
-    se::Value sceneVal;
-    seInst->getGlobalObject()->getProperty("__ccCurrentScene", &sceneVal);
-    if (!sceneVal.isObject()) {
-        CC_LOG_WARNING("syncBatcher2D: __ccCurrentScene not set");
-        return;
-    }
-
-    auto *seObj = sceneVal.toObject();
-    void *rawPtr = seObj->getPrivateData();
-    if (!rawPtr) {
-        // Try getPrivateObject path
-        auto *privObj = seObj->getPrivateObject();
-        if (privObj) {
-            rawPtr = privObj->getRaw();
-        }
-    }
-    auto *sceneNode = static_cast<Node *>(rawPtr);
-    if (!sceneNode) {
-        CC_LOG_WARNING("syncBatcher2D: scene has no native Node (privateData=%p, privateObject=%p)",
-                       seObj->getPrivateData(), static_cast<void*>(seObj->getPrivateObject()));
-        return;
-    }
-
-    auto &children = sceneNode->getChildren();
-    ccstd::vector<Node *> rootNodes;
-    for (auto &child : children) {
-        rootNodes.push_back(child);
-    }
-
-    if (!rootNodes.empty()) {
-        batcher->syncRootNodesToNative(std::move(rootNodes));
-        sBatcher2dRootSynced = true;
-        CC_LOG_INFO("Engine: synced %d root nodes to Batcher2D", static_cast<int>(children.size()));
-    } else {
-        CC_LOG_WARNING("syncBatcher2D: scene has no children");
-    }
-}
-
 // Automatically attach a default ortho camera to any RenderScene that
 // has no cameras.  Called once per scene (the flag is the camera itself).
 void ensureDefaultCameraOnScenes(Root *root) {
@@ -419,10 +368,6 @@ void Engine::tick() {
 #if CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
             // Auto-attach a default camera to any RenderScene that has none.
             ensureDefaultCameraOnScenes(root);
-            // Sync scene children to Batcher2D for 2D UI rendering.
-            if (!sBatcher2dRootSynced) {
-                syncBatcher2DRootNodes(root);
-            }
 #endif
             root->frameMove(dt, static_cast<int32_t>(_totalFrames));
         }

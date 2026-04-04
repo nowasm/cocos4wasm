@@ -31,6 +31,7 @@
 #include "renderer/pipeline/GlobalDescriptorSetManager.h"
 
 #if CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
+    #include "2d/renderer/Batcher2d.h"
     #include "core/Root.h"
     #include "core/builtin/BuiltinResMgr.h"
     #include "core/builtin/BuiltinEffectLoader.h"
@@ -38,6 +39,39 @@
     #include "bindings/manual/jsb_conversions.h"
     #include "renderer/GFXDeviceManager.h"
     #include "renderer/pipeline/forward/ForwardPipeline.h"
+
+// JSB function: jsb.__syncBatcher2DRootNodes(node)
+// Called from the JS facade to sync root nodes for 2D rendering.
+// The node argument is passed directly so its se::Object has valid privateData.
+static bool js_syncBatcher2DRootNodes(se::State &s) {
+    const auto &args = s.args();
+    if (args.empty() || !args[0].isObject()) {
+        CC_LOG_WARNING("__syncBatcher2DRootNodes: expected a Node argument");
+        return false;
+    }
+    auto *node = static_cast<cc::Node *>(args[0].toObject()->getPrivateData());
+    if (!node) {
+        // Try PrivateObject path
+        auto *privObj = args[0].toObject()->getPrivateObject();
+        if (privObj) node = static_cast<cc::Node *>(privObj->getRaw());
+    }
+    if (!node) {
+        CC_LOG_WARNING("__syncBatcher2DRootNodes: node has no native pointer");
+        return false;
+    }
+    auto *root = cc::Root::getInstance();
+    if (!root || !root->getBatcher2D()) {
+        CC_LOG_WARNING("__syncBatcher2DRootNodes: Root or Batcher2D not available");
+        return false;
+    }
+    ccstd::vector<cc::Node *> rootNodes;
+    rootNodes.push_back(node);
+    root->getBatcher2D()->syncRootNodesToNative(std::move(rootNodes));
+    CC_LOG_INFO("__syncBatcher2DRootNodes: synced node '%s' to Batcher2D", node->getName().c_str());
+    return true;
+}
+SE_BIND_FUNC(js_syncBatcher2DRootNodes)
+
 #endif
 
 #if CC_PLATFORM == CC_PLATFORM_ANDROID
@@ -141,8 +175,10 @@ int BaseGame::init() {
             seEngine->getGlobalObject()->getProperty("jsb", &jsbVal);
             if (jsbVal.isObject()) {
                 jsbVal.toObject()->setProperty("__rt", rootVal);
+                // Register native function for syncing Batcher2D root nodes
+                jsbVal.toObject()->defineFunction("__syncBatcher2DRootNodes", _SE(js_syncBatcher2DRootNodes));
             }
-            CC_LOG_INFO("BaseGame: Root JS wrapper registered as jsb.__rt");
+            CC_LOG_INFO("BaseGame: Root JS wrapper + __syncBatcher2DRootNodes registered");
         }
     }
 #endif

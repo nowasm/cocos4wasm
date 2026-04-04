@@ -609,9 +609,16 @@ constexpr char WASM32_CC_FACADE_SCRIPT[] = R"JS(
   cc.__wasm32UI = {
     syncRootNode: function (node) {
       tryRegisterSharedMeshWithBatcher();
-      const batcher = getBatcher2D();
-      if (batcher && typeof batcher.syncRootNodesToNative === "function") {
-        batcher.syncRootNodesToNative([node]);
+      // Use the native C++ function registered by BaseGame — it can access
+      // Batcher2D directly without JSB wrapper issues.
+      if (typeof jsb.__syncBatcher2DRootNodes === "function") {
+        jsb.__syncBatcher2DRootNodes(node);
+      } else {
+        // Fallback: try JSB path
+        var batcher = getBatcher2D();
+        if (batcher && typeof batcher.syncRootNodesToNative === "function") {
+          batcher.syncRootNodesToNative([node]);
+        }
       }
     },
     /** Call after render pipeline is ready if pending UI could not schedule rAF/setTimeout. */
