@@ -464,6 +464,7 @@ constexpr char WASM32_CC_FACADE_SCRIPT[] = R"JS(
   }
 
   function createNativeRectRenderer(node, color, width, height) {
+    ensureBuiltinMaterials();
     const mesh = getOrCreateSharedMeshOnly();
     const entity = new n2d.RenderEntity(RENDER_ENTITY_TYPE_DYNAMIC);
     const render2dBuffer = new Float32Array(4 * DRAW_STRIDE);
@@ -506,7 +507,9 @@ constexpr char WASM32_CC_FACADE_SCRIPT[] = R"JS(
     drawU32[ATTR_U32_IB_COUNT] = 6;
     drawU32[ATTR_U32_DATA_HASH] = 1;
     drawInfo.setRender2dBufferToNative(render2dBuffer);
-    drawInfo.material = getBuiltinAsset("ui-base-material") || getBuiltinAsset("ui-sprite-material");
+    var mat = getBuiltinAsset("ui-base-material") || getBuiltinAsset("ui-sprite-material");
+    console.log("[facade] createNativeRectRenderer: mat=" + !!mat + " type=" + typeof mat);
+    drawInfo.material = mat;
     drawInfo.vbBuffer = mesh.vData;
     drawInfo.ibBuffer = localIb;
     drawInfo.vDataBuffer = mesh.vData;
