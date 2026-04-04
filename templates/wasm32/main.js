@@ -61,9 +61,28 @@
   // ---- Run the scene ----
   cc.director.runSceneImmediate(scene);
 
+  // Check button material
+  var rectRenderer = buttonNode.__ccRectRenderer;
+  console.log("[main] buttonNode.__ccRectRenderer = " + !!rectRenderer);
+  if (rectRenderer) {
+    console.log("[main]   entity = " + !!rectRenderer.entity);
+    console.log("[main]   drawInfo = " + !!rectRenderer.drawInfo);
+    console.log("[main]   drawInfo.material = " + !!(rectRenderer.drawInfo && rectRenderer.drawInfo.material));
+  }
+
+  // Check batcher2d
+  var root = jsb.Root && typeof jsb.Root.getInstance === "function" ? jsb.Root.getInstance() : null;
+  if (root) {
+    var batcher = typeof root.getBatcher2D === "function" ? root.getBatcher2D() : null;
+    console.log("[main] batcher2d = " + !!batcher);
+  }
+
   // Sync the UI root so the native 2D batcher can render it.
   if (cc.__wasm32UI) {
     cc.__wasm32UI.syncRootNode(canvasNode);
+    console.log("[main] syncRootNode called");
+  } else {
+    console.log("[main] __wasm32UI not available");
   }
 
   console.log("[main] scene ready");
