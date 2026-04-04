@@ -34,6 +34,8 @@
     #include "core/Root.h"
     #include "core/builtin/BuiltinResMgr.h"
     #include "core/builtin/BuiltinEffectLoader.h"
+    #include "bindings/manual/jsb_classtype.h"
+    #include "bindings/manual/jsb_conversions.h"
     #include "renderer/GFXDeviceManager.h"
     #include "renderer/pipeline/forward/ForwardPipeline.h"
 #endif
