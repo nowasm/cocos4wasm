@@ -362,10 +362,9 @@ constexpr char WASM32_CC_FACADE_SCRIPT[] = R"JS(
     camera.visibility = 0xffffffff;
     camera.clearFlag = CLEAR_FLAG_COLOR_DEPTH;
     if (gfx && gfx.Color) {
-      camera.clearColor = new gfx.Color(1.0, 0.0, 0.0, 1.0);
+      camera.clearColor = new gfx.Color(0.2, 0.2, 0.2, 1.0);
     }
     renderScene.addCamera(camera);
-    console.log("[wasm32-cc-facade] Camera created OK, clearColor=RED, orthoHeight=" + camera.orthoHeight);
     return true;
   }
 
@@ -588,35 +587,16 @@ constexpr char WASM32_CC_FACADE_SCRIPT[] = R"JS(
 
   cc.director = {
     runSceneImmediate: function (scene) {
-      console.log("[wasm32-cc-facade] runSceneImmediate called");
       global.__ccCurrentScene = scene;
       if (scene && typeof scene._load === "function") {
         scene._load();
-        console.log("[wasm32-cc-facade] scene._load() done");
       }
       if (scene && typeof scene._activate === "function") {
         scene._activate(true);
-        console.log("[wasm32-cc-facade] scene._activate() done");
       }
-
-      // Try to create camera synchronously first (Root+Pipeline created in C++)
-      var root = jsb.Root && typeof jsb.Root.getInstance === "function" ? jsb.Root.getInstance() : null;
-      console.log("[wasm32-cc-facade] root=" + !!root);
-      if (root) {
-        var win = pickMainRenderWindow(root);
-        console.log("[wasm32-cc-facade] mainWindow=" + !!win);
-        if (win) {
-          var ok = createWasm32MainCameraNow(scene, root, win);
-          console.log("[wasm32-cc-facade] camera created sync: " + ok);
-        } else {
-          console.log("[wasm32-cc-facade] no RenderWindow, falling back to retry");
-          ensureWasm32MainCamera(scene);
-        }
-      } else {
-        console.log("[wasm32-cc-facade] no Root, falling back to retry");
-        ensureWasm32MainCamera(scene);
-      }
-
+      // Camera + RenderScene are created from C++ (BaseGame::init).
+      // The JS scene's native RenderScene (from _activate) is separate;
+      // the C++ default camera renders regardless.
       tryRegisterSharedMeshWithBatcher();
     },
   };

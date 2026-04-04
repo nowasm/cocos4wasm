@@ -111,20 +111,17 @@ int BaseGame::init() {
         auto *device = gfx::Device::getInstance();
         CC_ASSERT(device);
         BuiltinResMgr::getInstance()->initBuiltinRes();
-        // Load precompiled builtin effects (shaders + materials) so materials
-        // can resolve their passes.  Must happen before pipeline activation.
         int effectCount = loadBuiltinEffectsFromJson("builtin-effects.json");
         CC_LOG_INFO("Loaded %d builtin effects for standalone WASM mode", effectCount);
         auto *root = ccnew Root(device);
         root->initialize(nullptr);
-        // Use the legacy ForwardPipeline — NativePipeline (nullptr) requires a
-        // fully populated program library which only Creator builds provide.
         auto *pipeline = ccnew pipeline::ForwardPipeline();
         pipeline->initialize({});
         root->setRenderPipeline(pipeline);
 
-        // Create a default RenderScene + Camera so something is visible even
-        // before main.js sets up its own scene graph.
+        // Create a default RenderScene + Camera. The JS scene created by main.js
+        // will get its own RenderScene via _activate(), but that native RenderScene
+        // has no camera. We create one here and the facade will move it.
         auto *mainWindow = root->getMainWindow();
         if (mainWindow) {
             scene::IRenderSceneInfo sceneInfo;
@@ -141,39 +138,22 @@ int BaseGame::init() {
             camInfo.projection = scene::CameraProjection::ORTHO;
             camInfo.window = mainWindow;
             camera->initialize(camInfo);
-            camera->setOrthoHeight(mainWindow->getHeight() * 0.5F > 0 ? mainWindow->getHeight() * 0.5F : 320.F);
+            float halfH = mainWindow->getHeight() * 0.5F;
+            camera->setOrthoHeight(halfH > 0 ? halfH : 320.F);
             camera->setNearClip(0.1F);
             camera->setFarClip(2000.F);
             camera->setVisibility(0xFFFFFFFF);
             camera->setClearFlag(gfx::ClearFlagBit::ALL);
-            camera->setClearColor(gfx::Color{1.0F, 0.0F, 0.0F, 1.0F}); // RED for debugging
+            camera->setClearColor(gfx::Color{0.2F, 0.2F, 0.2F, 1.0F});
             renderScene->addCamera(camera);
-            CC_LOG_INFO("BaseGame: default camera created, window %dx%d", mainWindow->getWidth(), mainWindow->getHeight());
+            CC_LOG_INFO("BaseGame: default camera+scene created, window %dx%d",
+                        mainWindow->getWidth(), mainWindow->getHeight());
         } else {
             CC_LOG_WARNING("BaseGame: no main RenderWindow, cannot create default camera");
         }
     }
 #endif
-    // Quick diagnostic: check JS globals before running main.js
-    {
-        auto *se = se::ScriptEngine::getInstance();
-        se::Value ret;
-        se->evalString("(typeof globalThis.cc !== 'undefined') ? 'cc exists, facade=' + !!globalThis.cc.__wasm32Facade : 'cc MISSING'", 0, &ret);
-        CC_LOG_INFO("BaseGame: JS diagnostic: %s", ret.isString() ? ret.toString().c_str() : "(not string)");
-        se->evalString("console.log('[BaseGame-JS] hello from evalString')", 0, nullptr);
-    }
-    CC_LOG_INFO("BaseGame: about to runScript main.js");
-    bool scriptOk = false;
-    auto *fileUtils = FileUtils::getInstance();
-    if (fileUtils) {
-        ccstd::string fullPath = fileUtils->fullPathForFilename("main.js");
-        CC_LOG_INFO("BaseGame: main.js resolved to: %s (exists=%d)", fullPath.c_str(), fileUtils->isFileExist(fullPath));
-        // Also check builtin-effects.json resolution
-        ccstd::string effectsPath = fileUtils->fullPathForFilename("builtin-effects.json");
-        CC_LOG_INFO("BaseGame: builtin-effects.json resolved to: %s (exists=%d)", effectsPath.c_str(), fileUtils->isFileExist(effectsPath));
-    }
     runScript("main.js");
-    CC_LOG_INFO("BaseGame: runScript main.js finished");
     return 0;
 }
 } // namespace cc
