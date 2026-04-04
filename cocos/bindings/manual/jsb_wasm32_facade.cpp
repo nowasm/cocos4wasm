@@ -362,9 +362,10 @@ constexpr char WASM32_CC_FACADE_SCRIPT[] = R"JS(
     camera.visibility = 0xffffffff;
     camera.clearFlag = CLEAR_FLAG_COLOR_DEPTH;
     if (gfx && gfx.Color) {
-      camera.clearColor = new gfx.Color(0.1, 0.11, 0.14, 1);
+      camera.clearColor = new gfx.Color(1.0, 0.0, 0.0, 1.0);
     }
     renderScene.addCamera(camera);
+    console.log("[wasm32-cc-facade] Camera created OK, clearColor=RED, orthoHeight=" + camera.orthoHeight);
     return true;
   }
 
@@ -587,12 +588,15 @@ constexpr char WASM32_CC_FACADE_SCRIPT[] = R"JS(
 
   cc.director = {
     runSceneImmediate: function (scene) {
+      console.log("[wasm32-cc-facade] runSceneImmediate called");
       global.__ccCurrentScene = scene;
       if (scene && typeof scene._load === "function") {
         scene._load();
+        console.log("[wasm32-cc-facade] scene._load() done");
       }
       if (scene && typeof scene._activate === "function") {
         scene._activate(true);
+        console.log("[wasm32-cc-facade] scene._activate() done");
       }
       ensureWasm32MainCamera(scene);
       tryRegisterSharedMeshWithBatcher();
