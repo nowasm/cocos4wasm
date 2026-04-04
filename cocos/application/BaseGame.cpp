@@ -36,6 +36,8 @@
     #include "core/builtin/BuiltinEffectLoader.h"
     #include "renderer/GFXDeviceManager.h"
     #include "renderer/pipeline/forward/ForwardPipeline.h"
+    #include "scene/Camera.h"
+    #include "scene/RenderScene.h"
 #endif
 
 #if CC_PLATFORM == CC_PLATFORM_ANDROID
@@ -120,6 +122,36 @@ int BaseGame::init() {
         auto *pipeline = ccnew pipeline::ForwardPipeline();
         pipeline->initialize({});
         root->setRenderPipeline(pipeline);
+
+        // Create a default RenderScene + Camera so something is visible even
+        // before main.js sets up its own scene graph.
+        auto *mainWindow = root->getMainWindow();
+        if (mainWindow) {
+            scene::IRenderSceneInfo sceneInfo;
+            sceneInfo.name = "DefaultScene";
+            auto *renderScene = root->createScene(sceneInfo);
+
+            auto *camNode = ccnew Node("DefaultCamera");
+            camNode->setPosition(cc::Vec3(0, 0, 1000));
+
+            auto *camera = root->createCamera();
+            scene::ICameraInfo camInfo;
+            camInfo.name = "DefaultCamera";
+            camInfo.node = camNode;
+            camInfo.projection = scene::CameraProjection::ORTHO;
+            camInfo.window = mainWindow;
+            camera->initialize(camInfo);
+            camera->setOrthoHeight(mainWindow->getHeight() * 0.5F > 0 ? mainWindow->getHeight() * 0.5F : 320.F);
+            camera->setNearClip(0.1F);
+            camera->setFarClip(2000.F);
+            camera->setVisibility(0xFFFFFFFF);
+            camera->setClearFlag(gfx::ClearFlagBit::ALL);
+            camera->setClearColor(gfx::Color{1.0F, 0.0F, 0.0F, 1.0F}); // RED for debugging
+            renderScene->addCamera(camera);
+            CC_LOG_INFO("BaseGame: default camera created, window %dx%d", mainWindow->getWidth(), mainWindow->getHeight());
+        } else {
+            CC_LOG_WARNING("BaseGame: no main RenderWindow, cannot create default camera");
+        }
     }
 #endif
     // Quick diagnostic: check JS globals before running main.js
