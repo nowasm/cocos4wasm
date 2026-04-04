@@ -113,8 +113,15 @@ int BaseGame::init() {
         int effectCount = loadBuiltinEffectsFromJson("builtin-effects.json");
         CC_LOG_INFO("Loaded %d builtin effects for standalone WASM mode", effectCount);
 
+        auto *root = ccnew Root(device);
+        root->initialize(nullptr);
+        auto *pipeline = ccnew pipeline::ForwardPipeline();
+        pipeline->initialize({});
+        root->setRenderPipeline(pipeline);
+        // Camera is auto-attached by C++ Engine::tick (ensureDefaultCameraOnScenes).
+
         // Create builtin materials that the UI rendering system expects.
-        // These must exist before any material lookup (e.g. facade Button).
+        // Must happen after setRenderPipeline so the GFX device is fully ready.
         auto *builtinMgr = BuiltinResMgr::getInstance();
         {
             auto *uiBaseMat = ccnew Material();
@@ -126,17 +133,10 @@ int BaseGame::init() {
 
             auto *uiSpriteMat = ccnew Material();
             uiSpriteMat->setUuid("ui-sprite-material");
-            uiSpriteMat->initialize(matInfo); // same effect
+            uiSpriteMat->initialize(matInfo);
             builtinMgr->addAsset("ui-sprite-material", uiSpriteMat);
             CC_LOG_INFO("BaseGame: registered ui-base-material and ui-sprite-material");
         }
-
-        auto *root = ccnew Root(device);
-        root->initialize(nullptr);
-        auto *pipeline = ccnew pipeline::ForwardPipeline();
-        pipeline->initialize({});
-        root->setRenderPipeline(pipeline);
-        // Camera is auto-attached by C++ Engine::tick (ensureDefaultCameraOnScenes).
     }
 #endif
     runScript("main.js");
