@@ -34,6 +34,9 @@
 #include "core/builtin/BuiltinResMgr.h"
 #include "scene/Camera.h"
 #include "scene/RenderScene.h"
+#if CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
+#include "2d/renderer/Batcher2d.h"
+#endif
 #include "engine/EngineEvents.h"
 #include "platform/BasePlatform.h"
 #include "platform/FileUtils.h"
@@ -279,9 +282,6 @@ void Engine::setPreferredFramesPerSecond(int fps) {
     platform->setFps(fps);
     _preferredNanosecondsPerFrame = static_cast<long>(1.0 / fps * NANOSECONDS_PER_SECOND); // NOLINT(google-runtime-int)
 }
-
-#if CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
-#include "2d/renderer/Batcher2d.h"
 
 namespace {
 
