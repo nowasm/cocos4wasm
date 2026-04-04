@@ -2287,6 +2287,8 @@ cocos_source_files(
     # builtin
     cocos/core/builtin/BuiltinResMgr.cpp
     cocos/core/builtin/BuiltinResMgr.h
+    cocos/core/builtin/BuiltinEffectLoader.cpp
+    cocos/core/builtin/BuiltinEffectLoader.h
 
     cocos/core/data/Object.cpp
     cocos/core/data/Object.h

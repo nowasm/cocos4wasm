@@ -31,6 +31,7 @@
 #if CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
     #include "core/Root.h"
     #include "core/builtin/BuiltinResMgr.h"
+    #include "core/builtin/BuiltinEffectLoader.h"
     #include "renderer/GFXDeviceManager.h"
     #include "renderer/pipeline/forward/ForwardPipeline.h"
 #endif
@@ -106,6 +107,10 @@ int BaseGame::init() {
         auto *device = gfx::Device::getInstance();
         CC_ASSERT(device);
         BuiltinResMgr::getInstance()->initBuiltinRes();
+        // Load precompiled builtin effects (shaders + materials) so materials
+        // can resolve their passes.  Must happen before pipeline activation.
+        int effectCount = loadBuiltinEffectsFromJson("builtin-effects.json");
+        CC_LOG_INFO("Loaded %d builtin effects for standalone WASM mode", effectCount);
         auto *root = ccnew Root(device);
         root->initialize(nullptr);
         // Use the legacy ForwardPipeline — NativePipeline (nullptr) requires a
