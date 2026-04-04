@@ -158,9 +158,6 @@ IBlockInfo parseBlock(const JsonValue &v) {
     b.name = getString(v, "name");
     b.stageFlags = static_cast<gfx::ShaderStageFlagBit>(getUint(v, "stageFlags", 1));
     b.defines = getStringArray(v, "defines");
-    if (v.HasMember("descriptorType") && v["descriptorType"].IsUint()) {
-        b.descriptorType = static_cast<gfx::DescriptorType>(v["descriptorType"].GetUint());
-    }
     if (v.HasMember("members") && v["members"].IsArray()) {
         for (auto &m : v["members"].GetArray()) {
             b.members.push_back(parseUniform(m));
@@ -186,7 +183,6 @@ ISamplerInfo parseSampler(const JsonValue &v) {
     s.name = getString(v, "name");
     s.count = getUint(v, "count", 1);
     s.stageFlags = static_cast<gfx::ShaderStageFlagBit>(getUint(v, "stageFlags", 16));
-    s.defines = getStringArray(v, "defines");
     return s;
 }
 
@@ -197,7 +193,6 @@ ITextureInfo parseTexture(const JsonValue &v) {
     t.type = static_cast<gfx::Type>(getUint(v, "type"));
     t.count = getUint(v, "count", 1);
     t.stageFlags = static_cast<gfx::ShaderStageFlagBit>(getUint(v, "stageFlags", 16));
-    t.defines = getStringArray(v, "defines");
     return t;
 }
 
@@ -206,7 +201,6 @@ IBufferInfo parseBuffer(const JsonValue &v) {
     b.binding = getUint(v, "binding");
     b.name = getString(v, "name");
     b.stageFlags = static_cast<gfx::ShaderStageFlagBit>(getUint(v, "stageFlags"));
-    b.defines = getStringArray(v, "defines");
     return b;
 }
 
@@ -218,7 +212,6 @@ IImageInfo parseImage(const JsonValue &v) {
     img.count = getUint(v, "count", 1);
     img.stageFlags = static_cast<gfx::ShaderStageFlagBit>(getUint(v, "stageFlags"));
     img.memoryAccess = static_cast<gfx::MemoryAccessBit>(getUint(v, "memoryAccess"));
-    img.defines = getStringArray(v, "defines");
     return img;
 }
 
@@ -228,7 +221,6 @@ IInputAttachmentInfo parseSubpassInput(const JsonValue &v) {
     si.name = getString(v, "name");
     si.count = getUint(v, "count", 1);
     si.stageFlags = static_cast<gfx::ShaderStageFlagBit>(getUint(v, "stageFlags"));
-    si.defines = getStringArray(v, "defines");
     return si;
 }
 
