@@ -111,6 +111,7 @@ void *eglwLoadProcAddress(const char *proc) {
     if (std::strcmp(proc, "eglBindAPI") == 0) return reinterpret_cast<void *>(&eglBindAPIWrapper);
     return nullptr;
 }
+#endif // defined(__EMSCRIPTEN__) - end of Emscripten wrapper section
 
 /**
  * ========================= !DO NOT CHANGE THE FOLLOWING SECTION MANUALLY! =========================
@@ -455,7 +456,6 @@ PFNEGLCREATEWAYLANDBUFFERFROMIMAGEWLPROC eglCreateWaylandBufferFromImageWL;
  * node tools/gles-wrangler-generator/generate.js
  * ========================= !DO NOT CHANGE THE ABOVE SECTION MANUALLY! =========================
  */
-#endif
 
 #if !defined(__EMSCRIPTEN__)
 void eglwLoadProcs(PFNEGLWLOADPROC eglwLoad) {
