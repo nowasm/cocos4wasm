@@ -2,6 +2,7 @@
 
 #include "bindings/jswrapper/SeApi.h"
 
+#if CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
 namespace {
 
 constexpr char WASM32_CC_FACADE_SCRIPT[] = R"JS(
@@ -718,6 +719,7 @@ constexpr char WASM32_CC_FACADE_SCRIPT[] = R"JS(
 )JS";
 
 } // namespace
+#endif
 
 bool register_all_wasm32_facade(se::Object * /*global*/) {
 #if CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
