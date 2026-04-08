@@ -430,7 +430,11 @@ if (typeof jsb !== 'undefined' && jsb.WebSocket) { window.WebSocket = jsb.WebSoc
 })();
 )JS", 0, nullptr, "diag-jsb.js");
 
-        CC_LOG_INFO("WASM full mode: web-adapter globals set up (bypassed browserify bundle)");
+        CC_LOG_INFO("WASM full mode: web-adapter globals set up (inline stubs)");
+        // NOTE: web-adapter.js (browserify bundle, 5800 lines, 40+ modules)
+        // cannot be evaluated in QuickJS/WASM — the bundle's module factory
+        // chain exceeds the browser's WASM call depth limit (~10K frames).
+        // The inline stubs above replicate its essential setup.
     }
 #endif
     runScript("main.js");
