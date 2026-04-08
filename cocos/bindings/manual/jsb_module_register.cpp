@@ -191,7 +191,12 @@ bool jsb_register_all_modules() {
     se->addRegisterCallback(register_all_render);
     se->addRegisterCallback(register_all_native2d);
 #if CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
+    // Always register QuickJS binding patches (UIMeshBuffer setters etc.)
+    se->addRegisterCallback(register_wasm32_binding_patches);
+    #if CC_WASM_STANDALONE_FACADE
+    // Standalone mode: register the minimal JS facade that replaces the full cc module
     se->addRegisterCallback(register_all_wasm32_facade);
+    #endif
 #endif
 #if CC_USE_BOX2D_JSB
     se->addRegisterCallback(register_all_box2d);

@@ -30,7 +30,7 @@
 #include "platform/interfaces/modules/ISystemWindowManager.h"
 #include "renderer/pipeline/GlobalDescriptorSetManager.h"
 
-#if CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
+#if CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN && CC_WASM_STANDALONE_FACADE
     #include "2d/renderer/Batcher2d.h"
     #include "core/Root.h"
     #include "core/builtin/BuiltinResMgr.h"
@@ -42,7 +42,6 @@
 
 // JSB function: jsb.__syncBatcher2DRootNodes(node)
 // Called from the JS facade to sync root nodes for 2D rendering.
-// The node argument is passed directly so its se::Object has valid privateData.
 static bool js_syncBatcher2DRootNodes(se::State &s) {
     const auto &args = s.args();
     if (args.empty() || !args[0].isObject()) {
@@ -51,7 +50,6 @@ static bool js_syncBatcher2DRootNodes(se::State &s) {
     }
     auto *node = static_cast<cc::Node *>(args[0].toObject()->getPrivateData());
     if (!node) {
-        // Try PrivateObject path
         auto *privObj = args[0].toObject()->getPrivateObject();
         if (privObj) node = static_cast<cc::Node *>(privObj->getRaw());
     }
@@ -136,17 +134,14 @@ int BaseGame::init() {
     }
 
     setXXTeaKey(_xxteaKey);
-#if CC_PLATFORM != CC_PLATFORM_EMSCRIPTEN
-    runScript("jsb-adapter/web-adapter.js");
-#else
-    // Standalone WASM mode: initialise Root + render pipeline.
+#if CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN && CC_WASM_STANDALONE_FACADE
+    // Standalone WASM mode: initialise Root + render pipeline from C++,
+    // then run a minimal test main.js via the wasm32 facade.
     {
-        // 1. Load builtin resources and effects (C++ only, no JSB needed)
         BuiltinResMgr::getInstance()->initBuiltinRes();
         int effectCount = loadBuiltinEffectsFromJson("builtin-effects.json");
         CC_LOG_INFO("Loaded %d builtin effects for standalone WASM mode", effectCount);
 
-        // 2. Create Root + Pipeline from C++ (needed for engine internals)
         auto *device = gfx::Device::getInstance();
         CC_ASSERT(device);
         auto *root = ccnew Root(device);
@@ -155,14 +150,10 @@ int BaseGame::init() {
         pipeline->initialize({});
         root->setRenderPipeline(pipeline);
 
-        // 3. Wrap the C++ Root in a JS object and expose as jsb.__rt so the
-        //    facade can access Root's JSB methods (getBatcher2D, mainWindow etc.)
-        //    This creates the NativePtrToObjectMap entry that nativevalue_to_se needs.
         auto *seEngine = se::ScriptEngine::getInstance();
         se::Value rootVal;
         nativevalue_to_se(root, rootVal);
         if (!rootVal.isObject()) {
-            // nativevalue_to_se failed (no class mapping).  Create wrapper manually.
             auto *rootCls = JSBClassType::findClass(root);
             if (rootCls) {
                 auto *rootSeObj = se::Object::createObjectWithClass(rootCls);
@@ -175,11 +166,211 @@ int BaseGame::init() {
             seEngine->getGlobalObject()->getProperty("jsb", &jsbVal);
             if (jsbVal.isObject()) {
                 jsbVal.toObject()->setProperty("__rt", rootVal);
-                // Register native function for syncing Batcher2D root nodes
                 jsbVal.toObject()->defineFunction("__syncBatcher2DRootNodes", _SE(js_syncBatcher2DRootNodes));
             }
             CC_LOG_INFO("BaseGame: Root JS wrapper + __syncBatcher2DRootNodes registered");
         }
+    }
+#else
+    // Full mode: set up the globals that jsb-adapter/web-adapter.js normally
+    // provides, then run main.js which boots the full cc engine via SystemJS.
+    //
+    // We CANNOT evaluate web-adapter.js directly because it is a large
+    // browserify bundle (~5800 lines, 40+ modules).  Each module factory
+    // is invoked via Function.prototype.call(), and QuickJS's recursive
+    // interpreter turns every .call() into ~4 C/WASM stack frames.
+    // Chrome hard-limits WASM call depth to ~10K frames, so the bundle
+    // overflows before it finishes initialising.
+    //
+    // Instead we replicate the essential setup with small eval snippets
+    // that each unwind the C stack between them.
+    {
+        auto *se = se::ScriptEngine::getInstance();
+        // Timer management (setTimeout, setInterval, requestAnimationFrame)
+        // and the gameTick dispatcher – replicated from web-adapter.js module 5.
+        se->evalString(R"JS(
+(function() {
+    var _requestAnimationFrameID = 0;
+    var _requestAnimationFrameCallbacks = {};
+    var _firstTick = true;
+    window.requestAnimationFrame = function(cb) {
+        var id = ++_requestAnimationFrameID;
+        _requestAnimationFrameCallbacks[id] = cb;
+        return id;
+    };
+    window.cancelAnimationFrame = function(id) {
+        delete _requestAnimationFrameCallbacks[id];
+    };
+    var _timeoutIDIndex = 0;
+    var _timeoutInfos = {};
+    function fireTimeout(now) {
+        for (var id in _timeoutInfos) {
+            var info = _timeoutInfos[id];
+            if (info && info.cb && now - info.start >= info.delay) {
+                if (info.isRepeat) { info.start = now; }
+                else { delete _timeoutInfos[id]; }
+                if (typeof info.cb === 'function') info.cb.apply(info.target, info.args);
+                else if (typeof info.cb === 'string') Function(info.cb)();
+            }
+        }
+    }
+    function createTimeoutInfo(args, isRepeat) {
+        var cb = args[0]; if (!cb) return 0;
+        var delay = args.length > 1 ? args[1] : 0;
+        var a = args.length > 2 ? Array.prototype.slice.call(args, 2) : undefined;
+        var id = ++_timeoutIDIndex;
+        _timeoutInfos[id] = { cb:cb, id:id, start:performance.now(), delay:delay, isRepeat:isRepeat, target:this, args:a };
+        return id;
+    }
+    window.setTimeout = function(cb) { return createTimeoutInfo(arguments, false); };
+    window.clearTimeout = function(id) { delete _timeoutInfos[id]; };
+    window.setInterval = function(cb) { return createTimeoutInfo(arguments, true); };
+    window.clearInterval = window.clearTimeout;
+    window.alert = console.error.bind(console);
+    window.gameTick = function(nowMilliSeconds) {
+        if (_firstTick) {
+            _firstTick = false;
+            if (window.onload) { var e = new Event('load'); window.onload(e); }
+        }
+        fireTimeout(nowMilliSeconds);
+        for (var id in _requestAnimationFrameCallbacks) {
+            var cb = _requestAnimationFrameCallbacks[id];
+            if (cb) { delete _requestAnimationFrameCallbacks[id]; cb(nowMilliSeconds); }
+        }
+    };
+})();
+)JS", 0, nullptr, "web-adapter-timers.js");
+
+        // jsb.window and jsb.device — used by cc engine for screen metrics
+        se->evalString(R"JS(
+(function() {
+    if (typeof jsb === 'undefined') return;
+    if (!jsb.window) jsb.window = {};
+    var win = jsb.window;
+    win.innerWidth = win.innerWidth || 800;
+    win.innerHeight = win.innerHeight || 600;
+    win.devicePixelRatio = 1;
+    // jsb.device — cc.js reads jsb.device.getDevicePixelRatio()
+    if (!jsb.device && jsb.Device) { jsb.device = jsb.Device; }
+    if (!jsb.device) {
+        jsb.device = { getDevicePixelRatio: function() { return 1; } };
+    }
+    // screen object expected by some engine code
+    if (typeof window.screen === 'undefined') {
+        window.screen = { width: win.innerWidth, height: win.innerHeight, availWidth: win.innerWidth, availHeight: win.innerHeight };
+    }
+    // navigator
+    if (typeof window.navigator === 'undefined') {
+        window.navigator = { userAgent: 'Mozilla/5.0 (wasm32; QuickJS) CocosCocosCreator', language: 'en', platform: 'wasm' };
+    }
+    // document stub — SystemJS calls document.querySelector, createElement, etc.
+    if (typeof window.document === 'undefined') {
+        window.document = {
+            createElement: function(tag) {
+                var el = { style: {}, tagName: tag ? tag.toUpperCase() : 'DIV',
+                    setAttribute: function(){}, getAttribute: function(){ return null; },
+                    appendChild: function(){}, addEventListener: function(){} };
+                return el;
+            },
+            createElementNS: function(ns, tag) { return window.document.createElement(tag); },
+            querySelector: function() { return null; },
+            querySelectorAll: function() { return []; },
+            getElementById: function() { return null; },
+            getElementsByTagName: function() { return []; },
+            head: { appendChild: function(){}, removeChild: function(){} },
+            body: { appendChild: function(){}, removeChild: function(){} },
+            documentElement: { style: {} },
+            addEventListener: function(){}
+        };
+    }
+    // location stub — SystemJS reads location.href for base URL resolution
+    if (typeof window.location === 'undefined') {
+        window.location = { href: '/data/', protocol: 'file:', hostname: '', pathname: '/data/', search: '', hash: '' };
+    }
+})();
+)JS", 0, nullptr, "web-adapter-jsb-window.js");
+
+        // jsb.fileUtils setup
+        se->evalString(R"JS(
+if (typeof jsb !== 'undefined' && typeof jsb.FileUtils !== 'undefined') {
+    jsb.fileUtils = jsb.FileUtils.getInstance();
+    delete jsb.FileUtils;
+}
+)JS", 0, nullptr, "web-adapter-fileutils.js");
+
+        // jsb.generateGetSet — creates JS property accessors from get/set methods
+        se->evalString(R"JS(
+if (typeof jsb !== 'undefined') {
+    jsb.generateGetSet = function(moduleObj) {
+        for (var classKey in moduleObj) {
+            var classProto = moduleObj[classKey] && moduleObj[classKey].prototype;
+            if (!classProto) continue;
+            for (var getName in classProto) {
+                if (getName.search(/^get/) === -1) continue;
+                var propName = getName.replace(/^get/, '');
+                var nameArr = propName.split('');
+                var lowerFirst = nameArr[0].toLowerCase();
+                var upperFirst = nameArr[0].toUpperCase();
+                nameArr.splice(0, 1);
+                var left = nameArr.join('');
+                propName = lowerFirst + left;
+                var setName = 'set' + upperFirst + left;
+                if (classProto.hasOwnProperty(propName)) continue;
+                var setFunc = classProto[setName];
+                if (typeof setFunc === 'function') {
+                    Object.defineProperty(classProto, propName, {
+                        get: (function(g) { return function() { return this[g](); }; })(getName),
+                        set: (function(s) { return function(v) { this[s](v); }; })(setName),
+                        configurable: true
+                    });
+                } else {
+                    Object.defineProperty(classProto, propName, {
+                        get: (function(g) { return function() { return this[g](); }; })(getName),
+                        configurable: true
+                    });
+                }
+            }
+        }
+    };
+}
+)JS", 0, nullptr, "web-adapter-generateGetSet.js");
+
+        // Minimal btoa/atob (used by some asset loaders)
+        se->evalString(R"JS(
+if (typeof window.btoa === 'undefined') {
+    var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
+    window.btoa = function(input) {
+        var str = String(input), o = '';
+        for (var b, c, h = 0, map = chars; str.charAt(h | 0) || (map = '=', h % 1);
+             o += map.charAt(63 & b >> 8 - h % 1 * 8)) {
+            c = str.charCodeAt(h += .75);
+            b = b << 8 | c;
+        }
+        return o;
+    };
+    window.atob = function(input) {
+        var str = String(input).replace(/[=]+$/, ''), o = '';
+        for (var b, c, h = 0; c = str.charAt(h++);
+             ~c && (b = h % 4 ? b * 64 + c : c, h++ % 4) ? o += String.fromCharCode(255 & b >> (-2 * h & 6)) : 0)
+            c = chars.indexOf(c);
+        return o;
+    };
+}
+)JS", 0, nullptr, "web-adapter-base64.js");
+
+        // XMLHttpRequest adapter
+        se->evalString(R"JS(
+if (typeof jsb !== 'undefined' && jsb.XMLHttpRequest) {
+    window.XMLHttpRequest = jsb.XMLHttpRequest;
+    if (window.XMLHttpRequest.prototype) {
+        window.XMLHttpRequest.prototype.addEventListener = function(name, fn) { this['on' + name] = fn; };
+        window.XMLHttpRequest.prototype.removeEventListener = function(name) { this['on' + name] = null; };
+    }
+}
+if (typeof jsb !== 'undefined' && jsb.WebSocket) { window.WebSocket = jsb.WebSocket; }
+)JS", 0, nullptr, "web-adapter-xhr.js");
+
+        CC_LOG_INFO("WASM full mode: web-adapter globals set up (bypassed browserify bundle)");
     }
 #endif
     runScript("main.js");

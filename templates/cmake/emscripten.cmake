@@ -1,6 +1,10 @@
 # OFF = skip --preload-file (useful when postRun/checkStackCookie aborts during package unpack).
 option(CC_WASM_PRELOAD_DATA "Pack RES_DIR/Resources/data with emcc --preload-file" ON)
 
+# ON = use minimal JS facade (test scene only, no full cc module).
+# OFF = use the full Cocos Creator runtime via jsb-adapter + SystemJS.
+option(CC_WASM_STANDALONE_FACADE "Use minimal JS facade instead of full cc module" OFF)
+
 macro(cc_emscripten_before_target _target_name)
     if((NOT DEFINED CC_EXECUTABLE_NAME) OR "${CC_EXECUTABLE_NAME}" STREQUAL "")
         if(${APP_NAME} MATCHES "^[_0-9a-zA-Z-]+$")
@@ -63,6 +67,13 @@ macro(cc_emscripten_after_target _target_name)
         --bind
         "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap']"
         "-sEXPORTED_FUNCTIONS=['_main','_wasmEditBoxOnInput','_wasmEditBoxOnConfirm','_wasmEditBoxOnComplete']"
+        # QuickJS is a recursive-descent interpreter: every JS function call
+        # becomes one or more C frames on the WASM stack.  Large JS bundles
+        # (web-adapter.js, system.bundle.js, cc.js) easily exceed Chrome's
+        # ~10 K WASM call-depth limit.  ASYNCIFY lets the runtime grow the
+        # call stack beyond that browser limit.
+        -sASYNCIFY
+        -sASYNCIFY_STACK_SIZE=65536
     )
 
     if(CC_WASM_DEV_DIAGNOSTICS)

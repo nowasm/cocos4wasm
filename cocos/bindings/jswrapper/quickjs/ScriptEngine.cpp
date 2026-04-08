@@ -178,6 +178,10 @@ bool ScriptEngine::init() {
     _beforeInitHookArray.clear();
 
     _rt = JS_NewRuntime();
+    // The default QuickJS stack limit (~256KB) is far too small for the full
+    // Cocos Creator runtime (deeply nested require / SystemJS / cc module init).
+    // Use 8MB which fits comfortably within the 32MB WASM stack.
+    JS_SetMaxStackSize(_rt, 8 * 1024 * 1024);
     _ctx = JS_NewContext(_rt);
 
     NativePtrToObjectMap::init();

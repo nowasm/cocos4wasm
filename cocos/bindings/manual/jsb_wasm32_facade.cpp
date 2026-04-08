@@ -766,14 +766,20 @@ constexpr char WASM32_CC_FACADE_SCRIPT[] = R"JS(
 } // namespace
 #endif
 
-bool register_all_wasm32_facade(se::Object * /*global*/) {
+bool register_wasm32_binding_patches(se::Object * /*global*/) {
 #if CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
-    // Register extra UIMeshBuffer methods before the facade script runs.
+    // Register extra UIMeshBuffer methods that are missing from SWIG bindings.
     extern se::Object *__jsb_cc_UIMeshBuffer_proto;
     if (__jsb_cc_UIMeshBuffer_proto) {
         __jsb_cc_UIMeshBuffer_proto->defineFunction("setByteOffset", _SE(js_UIMeshBuffer_setByteOffset));
         __jsb_cc_UIMeshBuffer_proto->defineFunction("setVertexOffset", _SE(js_UIMeshBuffer_setVertexOffset));
     }
+#endif
+    return true;
+}
+
+bool register_all_wasm32_facade(se::Object * /*global*/) {
+#if CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
     auto *se = se::ScriptEngine::getInstance();
     return se->evalString(WASM32_CC_FACADE_SCRIPT, static_cast<uint32_t>(sizeof(WASM32_CC_FACADE_SCRIPT) - 1), nullptr, "wasm32-cc-facade.js");
 #else
