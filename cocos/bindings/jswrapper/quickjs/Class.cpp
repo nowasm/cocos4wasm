@@ -111,15 +111,29 @@ JSValue qjsCallConstructor(JSContext *ctx, JSValueConst newTarget, int argc, JSV
         return JS_ThrowInternalError(ctx, "Native constructor metadata is missing");
     }
 
-    JSValue proto = JS_GetPropertyStr(ctx, newTarget, "prototype");
-    if (JS_IsException(proto)) {
-        return JS_EXCEPTION;
-    }
+    // When called WITHOUT `new` (e.g. via Parent.apply(this, args) from a
+    // _ctor chain), newTarget is the function itself but `this` (argv[-1]
+    // in QuickJS) is the existing object.  We detect this by checking if
+    // newTarget has a "prototype" — when called as a regular function via
+    // JS_CFUNC_constructor_or_func_magic, newTarget is `undefined`.
+    bool calledWithNew = !JS_IsUndefined(newTarget);
 
-    JSValue obj = JS_NewObjectProtoClass(ctx, proto, cls->getClassID());
-    JS_FreeValue(ctx, proto);
-    if (JS_IsException(obj)) {
-        return JS_EXCEPTION;
+    JSValue obj;
+    if (calledWithNew) {
+        JSValue proto = JS_GetPropertyStr(ctx, newTarget, "prototype");
+        if (JS_IsException(proto)) {
+            return JS_EXCEPTION;
+        }
+        obj = JS_NewObjectProtoClass(ctx, proto, cls->getClassID());
+        JS_FreeValue(ctx, proto);
+        if (JS_IsException(obj)) {
+            return JS_EXCEPTION;
+        }
+    } else {
+        // Called as regular function — `this` is the first hidden arg.
+        // The object already exists; just run the native constructor on it.
+        // Return undefined (the caller doesn't use the return value).
+        obj = JS_UNDEFINED;
     }
 
     se::ValueArray seArgs;
@@ -128,6 +142,13 @@ JSValue qjsCallConstructor(JSContext *ctx, JSValueConst newTarget, int argc, JSV
         se::Value v;
         internal::jsToSeValue(ctx, argv[i], &v);
         seArgs.push_back(std::move(v));
+    }
+
+    // When called without new, we don't create a new object or run the
+    // native C++ constructor again — _ctor only needs JS-side init.
+    // Return undefined to let the _ctor chain continue.
+    if (!calledWithNew) {
+        return JS_UNDEFINED;
     }
 
     se::Object *thisObj = Object::_createJSObject(cls, JS_DupValue(ctx, obj));
@@ -145,6 +166,30 @@ JSValue qjsCallConstructor(JSContext *ctx, JSValueConst newTarget, int argc, JSV
         thisObj->decRef();
         JS_FreeValue(ctx, obj);
         return internal::seToJsValue(ctx, retVal);
+    }
+
+    // Call _ctor if defined on the prototype — the Cocos Creator engine
+    // uses this pattern to initialise JS-side properties (e.g. _nativeData
+    // on ImageAsset) after the C++ constructor has run.  The V8 backend
+    // does this in HelperMacros.cpp; QuickJS needs it here.
+    //
+    // Always look up _ctor fresh (don't cache) because the CCClass
+    // decorator system may construct objects BEFORE cc.js defines _ctor
+    // on the prototype, which would poison the cache.
+    {
+        JSValue ctorFn = JS_GetPropertyStr(ctx, obj, "_ctor");
+        if (JS_IsFunction(ctx, ctorFn)) {
+            JSValue ctorRet = JS_Call(ctx, ctorFn, obj, argc, const_cast<JSValueConst *>(argv));
+            if (JS_IsException(ctorRet)) {
+                JSValue exc = JS_GetException(ctx);
+                const char *msg = JS_ToCString(ctx, exc);
+                CC_LOG_WARNING("qjsCallConstructor[%s]: _ctor failed: %s", cls->getName(), msg ? msg : "?");
+                if (msg) JS_FreeCString(ctx, msg);
+                JS_FreeValue(ctx, exc);
+            }
+            JS_FreeValue(ctx, ctorRet);
+        }
+        JS_FreeValue(ctx, ctorFn);
     }
 
     // Persist the se::Object in the JS object's opaque field so that
@@ -332,7 +377,7 @@ bool Class::install() {
 
     JSValue ctorFunc = JS_UNDEFINED;
     if (_constructor != nullptr) {
-        ctorFunc = JS_NewCFunctionMagic(ctx, qjsCallConstructor, _name.c_str(), 0, JS_CFUNC_constructor_magic, static_cast<int>(_classId));
+        ctorFunc = JS_NewCFunctionMagic(ctx, qjsCallConstructor, _name.c_str(), 0, JS_CFUNC_constructor_or_func_magic, static_cast<int>(_classId));
         JS_SetConstructor(ctx, ctorFunc, protoVal);
     } else {
         ctorFunc = JS_NewObject(ctx);

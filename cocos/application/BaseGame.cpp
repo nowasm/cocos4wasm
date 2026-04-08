@@ -283,6 +283,12 @@ int BaseGame::init() {
             addEventListener: function(){}
         };
     }
+    // DOM element stubs — cc.js checks `instanceof HTMLElement` etc.
+    if (!win.HTMLElement) { win.HTMLElement = function HTMLElement(){}; }
+    if (!win.HTMLImageElement) { win.HTMLImageElement = function HTMLImageElement(){}; win.HTMLImageElement.prototype = Object.create(win.HTMLElement.prototype); }
+    if (!win.HTMLCanvasElement) { win.HTMLCanvasElement = function HTMLCanvasElement(){}; win.HTMLCanvasElement.prototype = Object.create(win.HTMLElement.prototype); }
+    if (!win.ImageBitmap) { win.ImageBitmap = function ImageBitmap(){}; }
+    if (!win.Event) { win.Event = function Event(t){ this.type = t; }; }
     if (!win.navigator) {
         win.navigator = { userAgent: 'Mozilla/5.0 (wasm32; QuickJS) CocosCreator', language: 'en', platform: 'wasm' };
     }
