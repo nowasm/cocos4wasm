@@ -336,6 +336,13 @@ bool Class::install() {
         JS_SetConstructor(ctx, ctorFunc, protoVal);
     } else {
         ctorFunc = JS_NewObject(ctx);
+        // cc.js expects jsb.ClassName.prototype even for abstract classes
+        // (those without a JS-callable constructor).  Plain objects don't
+        // have .prototype, so set it explicitly.
+        JS_SetPropertyStr(ctx, ctorFunc, "prototype", JS_DupValue(ctx, protoVal));
+        // Manual bindings use proto.constructor to locate the class object
+        // and define static methods (e.g. getInstance) on it.
+        JS_SetPropertyStr(ctx, protoVal, "constructor", JS_DupValue(ctx, ctorFunc));
     }
 
     for (const auto &sf : _staticFuncs) {

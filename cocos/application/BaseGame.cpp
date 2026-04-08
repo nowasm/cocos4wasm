@@ -250,6 +250,45 @@ int BaseGame::init() {
     win.innerWidth = win.innerWidth || 800;
     win.innerHeight = win.innerHeight || 600;
     win.devicePixelRatio = 1;
+    // cc.js uses `l = jsb.window` then accesses l.document, l.navigator, etc.
+    // These must be on jsb.window, not just on globalThis.
+    if (!win.document) {
+        win.document = {
+            createElement: function(tag) {
+                var el = { style: {}, tagName: tag ? tag.toUpperCase() : 'DIV',
+                    setAttribute: function(){}, getAttribute: function(){ return null; },
+                    appendChild: function(){}, addEventListener: function(){},
+                    getContext: function(){ return null; },
+                    width: 0, height: 0 };
+                if (tag === 'canvas') {
+                    el.getContext = function(type) {
+                        return { fillRect:function(){}, clearRect:function(){}, getImageData:function(x,y,w,h){ return {data:new Uint8Array(w*h*4)}; },
+                            putImageData:function(){}, drawImage:function(){}, save:function(){}, restore:function(){},
+                            fillText:function(){}, measureText:function(t){ return {width:t.length*8}; }, scale:function(){},
+                            translate:function(){}, beginPath:function(){}, closePath:function(){}, arc:function(){}, fill:function(){},
+                            stroke:function(){}, moveTo:function(){}, lineTo:function(){}, setTransform:function(){},
+                            canvas:el, fillStyle:'', strokeStyle:'', lineWidth:1, font:'10px sans-serif', textAlign:'start', textBaseline:'alphabetic' };
+                    };
+                }
+                return el;
+            },
+            createElementNS: function(ns, tag) { return win.document.createElement(tag); },
+            querySelector: function() { return null; },
+            querySelectorAll: function() { return []; },
+            getElementById: function() { return null; },
+            getElementsByTagName: function() { return []; },
+            head: { appendChild: function(){}, removeChild: function(){} },
+            body: { appendChild: function(){}, removeChild: function(){} },
+            documentElement: { style: {} },
+            addEventListener: function(){}
+        };
+    }
+    if (!win.navigator) {
+        win.navigator = { userAgent: 'Mozilla/5.0 (wasm32; QuickJS) CocosCreator', language: 'en', platform: 'wasm' };
+    }
+    if (!win.location) {
+        win.location = { href: '/data/', protocol: 'file:', hostname: '', pathname: '/data/', search: '', hash: '' };
+    }
     // jsb.device — cc.js reads jsb.device.getDevicePixelRatio()
     if (!jsb.device && jsb.Device) { jsb.device = jsb.Device; }
     if (!jsb.device) {
@@ -369,6 +408,21 @@ if (typeof jsb !== 'undefined' && jsb.XMLHttpRequest) {
 }
 if (typeof jsb !== 'undefined' && jsb.WebSocket) { window.WebSocket = jsb.WebSocket; }
 )JS", 0, nullptr, "web-adapter-xhr.js");
+
+        // Diagnostic: check what jsb has before running main.js
+        se->evalString(R"JS(
+(function() {
+    var keys = [];
+    for (var k in jsb) keys.push(k);
+    console.log('[diag] jsb keys count: ' + keys.length);
+    console.log('[diag] jsb.SimpleTexture = ' + typeof jsb.SimpleTexture);
+    console.log('[diag] jsb.Node = ' + typeof jsb.Node);
+    console.log('[diag] jsb.Scene = ' + typeof jsb.Scene);
+    console.log('[diag] jsb.Material = ' + typeof jsb.Material);
+    console.log('[diag] jsb.Root = ' + typeof jsb.Root);
+    console.log('[diag] jsb.Device = ' + typeof jsb.Device);
+})();
+)JS", 0, nullptr, "diag-jsb.js");
 
         CC_LOG_INFO("WASM full mode: web-adapter globals set up (bypassed browserify bundle)");
     }
