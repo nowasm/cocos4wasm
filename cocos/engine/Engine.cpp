@@ -352,6 +352,12 @@ void Engine::tick() {
         }
 #endif
 
+        // Ensure a V8 HandleScope covers the entire frame so that any
+        // code path that touches the JS engine (scheduler callbacks,
+        // CCObject::deferredDestroy via Root::frameMove, async callbacks,
+        // etc.) has a valid scope for creating V8 Local<> handles.
+        se::AutoHandleScope hs;
+
         events::BeforeTick::broadcast();
 
         prevTime = std::chrono::steady_clock::now();
