@@ -1,8 +1,32 @@
 #include "jsb_wasm32_facade.h"
 
 #include "bindings/jswrapper/SeApi.h"
+#include "bindings/manual/jsb_conversions.h"
 
 #if CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
+#include "2d/renderer/UIMeshBuffer.h"
+
+// Manual JSB bindings for UIMeshBuffer layout setters (not SWIG-generated).
+static bool js_UIMeshBuffer_setByteOffset(se::State &s) {
+    auto *buf = static_cast<cc::UIMeshBuffer *>(s.thisObject()->getPrivateData());
+    if (!buf || s.args().empty()) return false;
+    uint32_t v = 0;
+    sevalue_to_native(s.args()[0], &v);
+    buf->setByteOffset(v);
+    return true;
+}
+SE_BIND_FUNC(js_UIMeshBuffer_setByteOffset)
+
+static bool js_UIMeshBuffer_setVertexOffset(se::State &s) {
+    auto *buf = static_cast<cc::UIMeshBuffer *>(s.thisObject()->getPrivateData());
+    if (!buf || s.args().empty()) return false;
+    uint32_t v = 0;
+    sevalue_to_native(s.args()[0], &v);
+    buf->setVertexOffset(v);
+    return true;
+}
+SE_BIND_FUNC(js_UIMeshBuffer_setVertexOffset)
+
 namespace {
 
 constexpr char WASM32_CC_FACADE_SCRIPT[] = R"JS(
@@ -15,9 +39,9 @@ constexpr char WASM32_CC_FACADE_SCRIPT[] = R"JS(
   const n2d = global.n2d || {};
   const gfx = global.gfx || {};
   const cc = {};
-  const FORMAT_RG32F = 149;
-  const FORMAT_RGB32F = 161;
-  const FORMAT_RGBA32F = 174;
+  const FORMAT_RG32F = 21;
+  const FORMAT_RGB32F = 32;
+  const FORMAT_RGBA32F = 44;
   const BUTTON_ACCESSOR_ID = 1;
   const BUTTON_BUFFER_ID = 0;
   const DRAW_INFO_TYPE_COMP = 0;
@@ -26,6 +50,26 @@ constexpr char WASM32_CC_FACADE_SCRIPT[] = R"JS(
   const ENTITY_BOOL_ENABLED = 0;
   const ATTR_BOOL_IS_MESH_BUFFER = 0;
   const ATTR_BOOL_IS_WORLD_POS = 1;
+
+  // DrawInfoAttrs C++ struct layout on wasm32 (clang, natural alignment):
+  //   offset  0: RenderDrawInfoType _drawInfoType (uint8, 1B)
+  //   offset  1: bool _vertDirty                  (1B)
+  //   offset  2: uint8 bitfield                   (1B) [isMeshBuffer:1, isWorldPos:1, pad:6]
+  //   offset  3: uint8 _stride                    (1B)
+  //   offset  4: uint16 _bufferId                 (2B)
+  //   offset  6: uint16 _accId                    (2B)
+  //   offset  8: uint32 _vertexOffset             (4B)
+  //   offset 12: uint32 _indexOffset              (4B)
+  //   offset 16: uint32 _vbCount                  (4B)
+  //   offset 20: uint32 _ibCount                  (4B)
+  //   offset 24: uint32 _dataHash                 (4B)
+  // Total: 28 bytes.  Typed-array views must match these offsets exactly.
+  const DRAW_ATTR_U8_OFFSET = 0;
+  const DRAW_ATTR_U8_COUNT  = 4;
+  const DRAW_ATTR_U16_OFFSET = 4;
+  const DRAW_ATTR_U16_COUNT  = 2;
+  const DRAW_ATTR_U32_OFFSET = 8;
+  const DRAW_ATTR_U32_COUNT  = 5;
   const ATTR_U8_DRAW_INFO_TYPE = 0;
   const ATTR_U8_VERT_DIRTY = 1;
   const ATTR_U8_BOOLS = 2;
@@ -159,20 +203,22 @@ constexpr char WASM32_CC_FACADE_SCRIPT[] = R"JS(
     const meshBuffer = new n2d.UIMeshBuffer();
     const vData = new Float32Array(SHARED_UI_MAX_QUADS * DRAW_STRIDE);
     const iData = new Uint16Array(SHARED_UI_MAX_QUADS * 6);
-    const layout = new Uint32Array(4);
     meshBuffer.vData = vData;
     meshBuffer.iData = iData;
+    // Pass needCreateLayout=true so the MeshBufferLayout is allocated in
+    // WASM heap (C++ side).  A JS-heap Uint32Array is NOT visible to C++
+    // in Emscripten because the linear memories are separate.
     meshBuffer.initialize([
       createAttribute("a_position", FORMAT_RGB32F),
       createAttribute("a_texCoord", FORMAT_RG32F),
       createAttribute("a_color", FORMAT_RGBA32F),
-    ]);
-    // byteOffset / vertexOffset reflect the quad we upload for the button (rest of the buffer is unused).
-    layout[0] = 4 * DRAW_STRIDE * 4;
-    layout[1] = 4;
-    layout[2] = 0;
-    layout[3] = 0;
-    meshBuffer.syncSharedBufferToNative(layout);
+    ], true);
+    // Set initial layout values through the native object (allocated in C++).
+    // byteOffset / vertexOffset reflect the quad we upload for the button.
+    if (typeof meshBuffer.setByteOffset === "function") {
+      meshBuffer.setByteOffset(4 * DRAW_STRIDE * 4);
+      meshBuffer.setVertexOffset(4);
+    }
     if (typeof meshBuffer.setSharedIndexCapacity === "function") {
       meshBuffer.setSharedIndexCapacity(SHARED_UI_MAX_QUADS * 6);
     }
@@ -180,7 +226,6 @@ constexpr char WASM32_CC_FACADE_SCRIPT[] = R"JS(
       native: meshBuffer,
       vData: vData,
       iData: iData,
-      layout: layout,
     };
   }
 
@@ -496,9 +541,9 @@ constexpr char WASM32_CC_FACADE_SCRIPT[] = R"JS(
     }
     entity.addDynamicRenderDrawInfo(drawInfo);
     const drawShared = drawInfo.getAttrSharedBufferForJS();
-    const drawU8 = new Uint8Array(drawShared, 0, 4);
-    const drawU16 = new Uint16Array(drawShared, 4, 2);
-    const drawU32 = new Uint32Array(drawShared, 8, 5);
+    const drawU8 = new Uint8Array(drawShared, DRAW_ATTR_U8_OFFSET, DRAW_ATTR_U8_COUNT);
+    const drawU16 = new Uint16Array(drawShared, DRAW_ATTR_U16_OFFSET, DRAW_ATTR_U16_COUNT);
+    const drawU32 = new Uint32Array(drawShared, DRAW_ATTR_U32_OFFSET, DRAW_ATTR_U32_COUNT);
     drawU8[ATTR_U8_DRAW_INFO_TYPE] = DRAW_INFO_TYPE_COMP;
     drawU8[ATTR_U8_VERT_DIRTY] = 0;
     drawU8[ATTR_U8_STRIDE] = DRAW_STRIDE;
@@ -723,6 +768,12 @@ constexpr char WASM32_CC_FACADE_SCRIPT[] = R"JS(
 
 bool register_all_wasm32_facade(se::Object * /*global*/) {
 #if CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
+    // Register extra UIMeshBuffer methods before the facade script runs.
+    extern se::Object *__jsb_cc_UIMeshBuffer_proto;
+    if (__jsb_cc_UIMeshBuffer_proto) {
+        __jsb_cc_UIMeshBuffer_proto->defineFunction("setByteOffset", _SE(js_UIMeshBuffer_setByteOffset));
+        __jsb_cc_UIMeshBuffer_proto->defineFunction("setVertexOffset", _SE(js_UIMeshBuffer_setVertexOffset));
+    }
     auto *se = se::ScriptEngine::getInstance();
     return se->evalString(WASM32_CC_FACADE_SCRIPT, static_cast<uint32_t>(sizeof(WASM32_CC_FACADE_SCRIPT) - 1), nullptr, "wasm32-cc-facade.js");
 #else

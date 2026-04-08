@@ -328,6 +328,14 @@ bool Object::defineProperty(const char *name, NativeFunctionPtr getter, NativeFu
         se::Object *thisObj = nullptr;
         if (!JS_IsUndefined(thisVal) && !JS_IsNull(thisVal)) {
             thisObj = Object::_createJSObject(nullptr, JS_DupValue(cx, thisVal));
+            // Borrow native pointer from the persistent se::Object stored in opaque
+            JSClassID thisClassId = JS_GetClassID(thisVal);
+            if (Class::isRegisteredClassID(thisClassId)) {
+                auto *existing = static_cast<se::Object *>(JS_GetOpaque(thisVal, thisClassId));
+                if (existing && existing->getPrivateData()) {
+                    thisObj->_borrowPrivateData(existing->getPrivateData());
+                }
+            }
         }
         se::State state(thisObj, seArgs);
         bool ok = fn(state);
@@ -378,6 +386,14 @@ bool Object::defineFunction(const char *funcName, NativeFunctionPtr func) {
         se::Object *thisObj = nullptr;
         if (!JS_IsUndefined(thisVal) && !JS_IsNull(thisVal)) {
             thisObj = Object::_createJSObject(nullptr, JS_DupValue(cx, thisVal));
+            // Borrow native pointer from the persistent se::Object stored in opaque
+            JSClassID thisClassId = JS_GetClassID(thisVal);
+            if (Class::isRegisteredClassID(thisClassId)) {
+                auto *existing = static_cast<se::Object *>(JS_GetOpaque(thisVal, thisClassId));
+                if (existing && existing->getPrivateData()) {
+                    thisObj->_borrowPrivateData(existing->getPrivateData());
+                }
+            }
         }
         se::State state(thisObj, seArgs);
         bool ok = fn(state);
@@ -776,6 +792,12 @@ void Object::setPrivateObject(PrivateObjectBase *data) {
     _privateData = data != nullptr ? data->getRaw() : nullptr;
     if (_privateData != nullptr) {
         NativePtrToObjectMap::emplace(_privateData, this);
+        // Store this se::Object in the JS object's opaque so that
+        // jsToSeValue / qjsCallNative can recover the native pointer
+        // when this JSValue is passed as an argument or used as 'this'.
+        if (!JS_IsUndefined(_jsVal)) {
+            JS_SetOpaque(_jsVal, this);
+        }
     }
 }
 
@@ -847,6 +869,14 @@ Object *Object::_createJSObject(Class *cls, JSValue jsVal) {
     o->_jsVal = jsVal;
     o->_cls = cls;
     return o;
+}
+
+void Object::_detachJSValue() {
+    auto *ctx = ScriptEngine::getInstance() ? ScriptEngine::getInstance()->getContext() : nullptr;
+    if (ctx && !JS_IsUndefined(_jsVal)) {
+        JS_FreeValue(ctx, _jsVal);
+    }
+    _jsVal = JS_UNDEFINED;
 }
 
 Class *Object::_getClass() const {

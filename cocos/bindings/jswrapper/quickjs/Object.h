@@ -193,6 +193,22 @@ public:
     void _setFinalizeCallback(V8FinalizeFunc finalizeCb);
     bool _isNativeFunction() const;
 
+    /**
+     * Release the internal JSValue reference without destroying this Object.
+     * Used by the QuickJS constructor path: the se::Object is kept alive
+     * via JS_SetOpaque, but we must drop the DupValue'd JSValue reference
+     * so that QuickJS GC can still collect the JS object.
+     */
+    void _detachJSValue();
+
+    /**
+     * Set _privateData without creating a PrivateObjectBase or adding
+     * to NativePtrToObjectMap.  Used by jsToSeValue to create temporary
+     * wrappers that borrow the native pointer from the persistent
+     * opaque-owned se::Object.
+     */
+    void _borrowPrivateData(void *ptr) { _privateData = ptr; }
+
 private:
     Object();
     ~Object() override;

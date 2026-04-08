@@ -1,4 +1,5 @@
 #include "Utils.h"
+#include "Class.h"
 #include "Object.h"
 #include "ScriptEngine.h"
 
@@ -30,6 +31,17 @@ void jsToSeValue(JSContext *ctx, JSValue jsVal, Value *v) {
         }
     } else if (JS_IsObject(jsVal)) {
         auto *obj = Object::_createJSObject(nullptr, JS_DupValue(ctx, jsVal));
+        // For JSB class instances the constructor stores the persistent
+        // se::Object (which carries the C++ native pointer) in the JS
+        // object's opaque field.  Borrow its _privateData so that
+        // native functions receiving this argument can call getPrivateData().
+        JSClassID classId = JS_GetClassID(jsVal);
+        if (Class::isRegisteredClassID(classId)) {
+            auto *existing = static_cast<Object *>(JS_GetOpaque(jsVal, classId));
+            if (existing && existing->getPrivateData()) {
+                obj->_borrowPrivateData(existing->getPrivateData());
+            }
+        }
         v->setObject(obj);
         obj->decRef();
     } else if (JS_IsBigInt(jsVal)) {

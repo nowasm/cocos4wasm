@@ -43,6 +43,10 @@ public:
     static Object *_createJSObjectWithClass(Class *cls);
     static void cleanup();
 
+    /** Returns true if classId was registered by the JSB Class system
+     *  (i.e. it is safe to interpret JS_GetOpaque as se::Object*). */
+    static bool isRegisteredClassID(JSClassID classId);
+
 private:
     Class();
     ~Class();

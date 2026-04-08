@@ -720,7 +720,24 @@ sevalue_to_native(const se::Value &from, T **to, se::Object * /*ctx*/) { // NOLI
         *to = nullptr;
         return true;
     }
-    *to = static_cast<T *>(from.toObject()->getPrivateData());
+    se::Object *obj = from.toObject();
+    // TypedArrays / ArrayBuffers carry their data pointer directly —
+    // they are not JSB class instances, so getPrivateData() would be null.
+    if (obj->isTypedArray()) {
+        uint8_t *ptr = nullptr;
+        size_t len = 0;
+        obj->getTypedArrayData(&ptr, &len);
+        *to = reinterpret_cast<T *>(ptr);
+        return true;
+    }
+    if (obj->isArrayBuffer()) {
+        uint8_t *ptr = nullptr;
+        size_t len = 0;
+        obj->getArrayBufferData(&ptr, &len);
+        *to = reinterpret_cast<T *>(ptr);
+        return true;
+    }
+    *to = static_cast<T *>(obj->getPrivateData());
     return true;
 }
 
@@ -732,11 +749,12 @@ template <typename T>
 typename std::enable_if_t<!std::is_pointer<T>::value && std::is_arithmetic<T>::value, bool>
 sevalue_to_native(const se::Value &from, T **to, se::Object * /*ctx*/) { // NOLINT(readability-identifier-naming)
     se::Object *data = from.toObject();
-    uint8_t *tmp;
+    uint8_t *tmp = nullptr;
+    size_t tmpLen = 0;
     if (data->isArrayBuffer()) {
-        data->getArrayBufferData(&tmp, nullptr);
+        data->getArrayBufferData(&tmp, &tmpLen);
     } else if (data->isTypedArray()) {
-        data->getTypedArrayData(&tmp, nullptr);
+        data->getTypedArrayData(&tmp, &tmpLen);
     } else {
         void *privateData = data->getPrivateData();
         if (privateData != nullptr && data->_getClass() == __jsb_cc_JSBNativeDataHolder_class) {

@@ -4,12 +4,14 @@
 #include "HelperMacros.h"
 #include "../State.h"
 #include "base/memory/Memory.h"
+#include "base/std/container/unordered_set.h"
 
 namespace se {
 
 namespace {
 ccstd::vector<Class *> __allClasses; // NOLINT
 ccstd::vector<NativeFunctionPtr> __nativeFunctions; // NOLINT
+ccstd::unordered_set<JSClassID> __registeredClassIDs; // NOLINT
 
 int registerNativeFunction(NativeFunctionPtr func) {
     CC_ASSERT(func != nullptr);
@@ -24,19 +26,19 @@ NativeFunctionPtr getRegisteredNativeFunction(int id) {
     return __nativeFunctions[id];
 }
 
-struct QJSClassOpaque {
-    Class *cls{nullptr};
-};
-
-void qjsFinalizer(JSRuntime *rt, JSValue val) {
-    auto *opaque = static_cast<QJSClassOpaque *>(JS_GetOpaque(val, 0));
-    if (opaque && opaque->cls) {
-        auto *fin = opaque->cls->_getFinalizeFunction();
-        auto *obj = static_cast<se::Object *>(JS_GetOpaque2(nullptr, val, opaque->cls->getClassID()));
-        CC_UNUSED_PARAM(obj);
-        CC_UNUSED_PARAM(fin);
-    }
-    delete opaque;
+// GC finalizer — releases the persistent se::Object stored in the JS
+// object's opaque field.  Called by QuickJS when the JS object's reference
+// count reaches zero (e.g. after the C++ side releases the DupValue).
+void qjsFinalizer(JSRuntime * /*rt*/, JSValue val) {
+    JSClassID classId = JS_GetClassID(val);
+    if (classId == 0) return;
+    auto *seObj = static_cast<se::Object *>(JS_GetOpaque(val, classId));
+    if (!seObj) return;
+    // The JS object is being collected — detach the JSValue first so the
+    // se::Object destructor won't try to JS_FreeValue during a GC cycle.
+    seObj->_detachJSValue();
+    seObj->clearPrivateData(true);
+    seObj->decRef();
 }
 
 JSValue qjsCallNative(JSContext *ctx, JSValueConst thisVal, int argc, JSValueConst *argv, int /*magic*/, JSValueConst *funcData) {
@@ -58,6 +60,14 @@ JSValue qjsCallNative(JSContext *ctx, JSValueConst thisVal, int argc, JSValueCon
     se::Object *thisObj = nullptr;
     if (!JS_IsUndefined(thisVal) && !JS_IsNull(thisVal)) {
         thisObj = Object::_createJSObject(nullptr, JS_DupValue(ctx, thisVal));
+        // Borrow native pointer from the persistent se::Object stored in opaque
+        JSClassID thisClassId = JS_GetClassID(thisVal);
+        if (Class::isRegisteredClassID(thisClassId)) {
+            auto *existing = static_cast<se::Object *>(JS_GetOpaque(thisVal, thisClassId));
+            if (existing && existing->getPrivateData()) {
+                thisObj->_borrowPrivateData(existing->getPrivateData());
+            }
+        }
     }
 
     se::State state(thisObj, seArgs);
@@ -123,18 +133,34 @@ JSValue qjsCallConstructor(JSContext *ctx, JSValueConst newTarget, int argc, JSV
     se::Object *thisObj = Object::_createJSObject(cls, JS_DupValue(ctx, obj));
     se::State state(thisObj, seArgs);
     const bool ok = constructor(state);
-    thisObj->decRef();
 
     if (!ok) {
+        thisObj->decRef();
         JS_FreeValue(ctx, obj);
         return JS_ThrowInternalError(ctx, "Native constructor failed");
     }
 
     const auto &retVal = state.rval();
     if (retVal.isObject()) {
+        thisObj->decRef();
         JS_FreeValue(ctx, obj);
         return internal::seToJsValue(ctx, retVal);
     }
+
+    // Persist the se::Object in the JS object's opaque field so that
+    // native function arguments can recover the C++ private data later.
+    // Without this, jsToSeValue would create fresh wrappers that lack
+    // the native pointer set by the constructor above.
+    JS_SetOpaque(obj, thisObj);
+
+    // Keep the DupValue'd JSValue alive in the se::Object.  This prevents
+    // QuickJS GC from collecting the JS object, but that is intentional:
+    // engine-managed objects (Node, Material, etc.) have their lifecycle
+    // controlled by the C++ side.  The DupValue also allows
+    // nativevalue_to_se / property getters to return a valid JSValue.
+    //
+    // Do NOT decRef — the opaque now owns thisObj (refCount stays 1).
+    // Cleanup happens when the C++ engine destroys the native object.
 
     return obj;
 }
@@ -207,6 +233,10 @@ void Class::destroy() {
     }
 }
 
+bool Class::isRegisteredClassID(JSClassID classId) {
+    return __registeredClassIDs.count(classId) != 0;
+}
+
 void Class::cleanup() {
     for (auto *cls : __allClasses) {
         cls->destroy();
@@ -217,6 +247,7 @@ void Class::cleanup() {
             delete cls;
         }
         __allClasses.clear();
+        __registeredClassIDs.clear();
     });
 }
 
@@ -263,8 +294,10 @@ bool Class::install() {
 
     JSClassDef classDef{};
     classDef.class_name = _name.c_str();
+    classDef.finalizer = qjsFinalizer;
 
     JS_NewClass(rt, _classId, &classDef);
+    __registeredClassIDs.insert(_classId);
 
     JSValue protoVal = JS_NewObject(ctx);
 
