@@ -11,6 +11,10 @@
 #if SCRIPT_ENGINE_TYPE == SCRIPT_ENGINE_BROWSER
 
 using emscripten::val;
+using emscripten::EM_VAL;
+
+// EM_JS function defined in Object.cpp (C linkage)
+extern "C" int browser_make_native_func(int funcId);
 
 namespace se {
 
@@ -129,11 +133,10 @@ bool Class::defineFinalizeFunction(V8FinalizeFunc func) {
     return true;
 }
 
-bool Class::install() {
-    // TODO: Full implementation with native function trampolines.
-    // For now, create a constructor function and prototype object
-    // using browser JS directly via EM_ASM.
+// Defined in Object.cpp (se namespace)
+extern ccstd::vector<NativeFunctionPtr> &browser_getNativeFunctions();
 
+bool Class::install() {
     val protoVal = val::object();
 
     // Set parent proto chain
@@ -141,19 +144,102 @@ bool Class::install() {
         val::global("Object").call<void>("setPrototypeOf", protoVal, _parentProto->_getJSObject());
     }
 
-    // For now, static values only (no native function trampolines yet)
-    val ctorFunc = val::object(); // placeholder
+    // Create constructor function
+    val ctorFunc = val::undefined();
     if (_constructor != nullptr) {
-        // TODO: Create a real constructor trampoline
-        ctorFunc = val::global("Object").call<val>("create", val::null());
+        // Register constructor in the native function table (shared with Object.cpp)
+        // We'll use Object::defineFunction's registry indirectly
+        // For now, create the constructor using EM_JS
+        EM_ASM({
+            // Create a named constructor function dynamically
+            var name = UTF8ToString($0);
+            var funcId = $1;
+            var ctor = function() {
+                Module.__nativeCallThis = this;
+                Module.__nativeCallArgs = Array.prototype.slice.call(arguments);
+                Module.__nativeCallRet = undefined;
+                Module._browser_do_native_call(funcId);
+                // Call _ctor if defined on prototype
+                if (this && this._ctor) {
+                    this._ctor.apply(this, arguments);
+                }
+            };
+            // Store for C++ to retrieve
+            Module.__lastCreatedCtor = ctor;
+        }, _name.c_str(), static_cast<int>(browser_getNativeFunctions().size()));
+        browser_getNativeFunctions().push_back(_constructor);
+        ctorFunc = val::module_property("__lastCreatedCtor");
+    } else {
+        // Abstract class - create a plain object as the "constructor"
+        ctorFunc = val::object();
     }
 
-    // Set static values
+    // Instance methods on prototype
+    for (const auto &f : _funcs) {
+        browser_getNativeFunctions().push_back(f.func);
+        int funcId = static_cast<int>(browser_getNativeFunctions().size() - 1);
+        val jsFunc = val::take_ownership(static_cast<EM_VAL>(
+            reinterpret_cast<void*>(static_cast<intptr_t>(browser_make_native_func(funcId)))));
+        protoVal.set(f.name, jsFunc);
+    }
+
+    // Instance properties on prototype
+    for (const auto &p : _props) {
+        val desc = val::object();
+        desc.set("configurable", true);
+        if (p.getter) {
+            browser_getNativeFunctions().push_back(p.getter);
+            int gid = static_cast<int>(browser_getNativeFunctions().size() - 1);
+            val gfn = val::take_ownership(static_cast<EM_VAL>(
+                reinterpret_cast<void*>(static_cast<intptr_t>(browser_make_native_func(gid)))));
+            desc.set("get", gfn);
+        }
+        if (p.setter) {
+            browser_getNativeFunctions().push_back(p.setter);
+            int sid = static_cast<int>(browser_getNativeFunctions().size() - 1);
+            val sfn = val::take_ownership(static_cast<EM_VAL>(
+                reinterpret_cast<void*>(static_cast<intptr_t>(browser_make_native_func(sid)))));
+            desc.set("set", sfn);
+        }
+        val::global("Object").call<void>("defineProperty", protoVal, val(p.name), desc);
+    }
+
+    // Static functions on constructor
+    for (const auto &sf : _staticFuncs) {
+        browser_getNativeFunctions().push_back(sf.func);
+        int funcId = static_cast<int>(browser_getNativeFunctions().size() - 1);
+        val jsFunc = val::take_ownership(static_cast<EM_VAL>(
+            reinterpret_cast<void*>(static_cast<intptr_t>(browser_make_native_func(funcId)))));
+        ctorFunc.set(sf.name, jsFunc);
+    }
+
+    // Static properties
+    for (const auto &sp : _staticProps) {
+        val desc = val::object();
+        desc.set("configurable", true);
+        if (sp.getter) {
+            browser_getNativeFunctions().push_back(sp.getter);
+            int gid = static_cast<int>(browser_getNativeFunctions().size() - 1);
+            val gfn = val::take_ownership(static_cast<EM_VAL>(
+                reinterpret_cast<void*>(static_cast<intptr_t>(browser_make_native_func(gid)))));
+            desc.set("get", gfn);
+        }
+        if (sp.setter) {
+            browser_getNativeFunctions().push_back(sp.setter);
+            int sid = static_cast<int>(browser_getNativeFunctions().size() - 1);
+            val sfn = val::take_ownership(static_cast<EM_VAL>(
+                reinterpret_cast<void*>(static_cast<intptr_t>(browser_make_native_func(sid)))));
+            desc.set("set", sfn);
+        }
+        val::global("Object").call<void>("defineProperty", ctorFunc, val(sp.name), desc);
+    }
+
+    // Static values
     for (const auto &sv : _staticValues) {
         ctorFunc.set(sv.first, internal::seToJsValue(sv.second));
     }
 
-    // Set prototype and constructor
+    // Set prototype ↔ constructor link
     ctorFunc.set("prototype", protoVal);
     protoVal.set("constructor", ctorFunc);
 
@@ -162,13 +248,12 @@ bool Class::install() {
         _parent->_getJSObject().set(_name, ctorFunc);
     }
 
-    // Create proto se::Object
+    // Create proto se::Object wrapper
     if (_createProto) {
         _proto = Object::_createJSObject(this, protoVal);
         _proto->root();
     }
 
-    CC_LOG_INFO("Class::install('%s') - stub (no native trampolines yet)", _name.c_str());
     return true;
 }
 

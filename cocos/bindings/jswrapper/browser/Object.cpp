@@ -14,22 +14,128 @@
 #if SCRIPT_ENGINE_TYPE == SCRIPT_ENGINE_BROWSER
 
 using emscripten::val;
+using emscripten::EM_VAL;
 
-// Global registry: funcId → NativeFunctionPtr
-namespace {
-ccstd::vector<se::NativeFunctionPtr> __nativeFunctions; // NOLINT
-int registerNativeFunction(se::NativeFunctionPtr func) {
-    __nativeFunctions.push_back(func);
-    return static_cast<int>(__nativeFunctions.size() - 1);
+namespace se {
+// Global registry: funcId → NativeFunctionPtr (shared with Class.cpp via extern)
+ccstd::vector<NativeFunctionPtr> g_nativeFunctions; // NOLINT
+
+ccstd::vector<NativeFunctionPtr> &browser_getNativeFunctions() {
+    return g_nativeFunctions;
+}
+} // namespace se
+
+static int registerNativeFunction(se::NativeFunctionPtr func) {
+    se::g_nativeFunctions.push_back(func);
+    return static_cast<int>(se::g_nativeFunctions.size() - 1);
 }
 
-// Per-object native function registry (for defineFunction on instances)
-ccstd::vector<se::NativeFunctionPtr> __objectNativeFunctions; // NOLINT
-int registerObjectNativeFunction(se::NativeFunctionPtr func) {
-    __objectNativeFunctions.push_back(func);
-    return static_cast<int>(__objectNativeFunctions.size() - 1);
+// ---- Native function trampoline ----
+// This C++ function is called from browser JS when a native-registered
+// function is invoked.  It receives the funcId, `this` object, and
+// arguments array as emscripten::val handles.
+//
+// The JS side creates wrapper functions via EM_JS that call this.
+extern "C" {
+
+EMSCRIPTEN_KEEPALIVE
+void browser_native_call(int funcId, EM_VAL thisHandle, EM_VAL argsHandle, EM_VAL retHandle) {
+    if (funcId < 0 || funcId >= static_cast<int>(se::g_nativeFunctions.size())) {
+        return;
+    }
+
+    auto thisVal = val::global("Emval").call<val>("toValue", static_cast<int>(reinterpret_cast<intptr_t>(thisHandle)));
+    auto argsVal = val::global("Emval").call<val>("toValue", static_cast<int>(reinterpret_cast<intptr_t>(argsHandle)));
+
+    // Actually, use take_ownership for proper handle management
+    // emscripten::val::take_ownership is not available in all versions.
+    // Use a different approach: pass via Module global.
+    // This function is called from JS, so we can read args from Module globals.
+    (void)thisHandle;
+    (void)argsHandle;
+    (void)retHandle;
 }
-} // namespace
+
+} // extern "C"
+
+// Simpler approach: use EM_JS + Module properties for argument passing
+EM_JS(int, browser_make_native_func, (int funcId), {
+    // Create a JS function that calls the C++ native function via Module globals
+    var func = function() {
+        // Store this and args in Module globals for C++ to read
+        Module.__nativeCallThis = this;
+        Module.__nativeCallArgs = Array.prototype.slice.call(arguments);
+        Module.__nativeCallRet = undefined;
+        Module.__nativeCallOk = false;
+        // Call C++ trampoline
+        Module._browser_do_native_call(funcId);
+        return Module.__nativeCallRet;
+    };
+    return Emval.toHandle(func);
+});
+
+EM_JS(int, browser_make_native_ctor, (int funcId), {
+    // Create a constructor function
+    var ctor = function() {
+        Module.__nativeCallThis = this;
+        Module.__nativeCallArgs = Array.prototype.slice.call(arguments);
+        Module.__nativeCallRet = undefined;
+        Module.__nativeCallOk = false;
+        Module._browser_do_native_call(funcId);
+        // For constructors, also call _ctor if defined
+        if (this._ctor) {
+            this._ctor.apply(this, arguments);
+        }
+        return Module.__nativeCallRet !== undefined ? Module.__nativeCallRet : this;
+    };
+    return Emval.toHandle(ctor);
+});
+
+extern "C" {
+EMSCRIPTEN_KEEPALIVE
+void browser_do_native_call(int funcId) {
+    if (funcId < 0 || funcId >= static_cast<int>(se::g_nativeFunctions.size())) {
+        return;
+    }
+
+    // Read this and args from Module globals
+    val module = val::global("Module");
+    val thisJsVal = module["__nativeCallThis"];
+    val argsJsVal = module["__nativeCallArgs"];
+
+    // Convert to se types
+    se::ValueArray seArgs;
+    uint32_t argc = argsJsVal["length"].as<uint32_t>();
+    seArgs.reserve(argc);
+    for (uint32_t i = 0; i < argc; ++i) {
+        se::Value v;
+        se::internal::jsToSeValue(argsJsVal[i], &v);
+        seArgs.push_back(std::move(v));
+    }
+
+    se::Object *thisObj = nullptr;
+    if (!thisJsVal.isUndefined() && !thisJsVal.isNull()) {
+        thisObj = se::Object::_createJSObject(nullptr, thisJsVal);
+        // Borrow private data if available (via hidden property)
+        // TODO: implement native pointer recovery
+    }
+
+    se::State state(thisObj, seArgs);
+    bool ok = se::g_nativeFunctions[funcId](state);
+
+    if (thisObj) {
+        thisObj->decRef();
+    }
+
+    if (ok) {
+        const auto &rval = state.rval();
+        if (!rval.isUndefined()) {
+            module.set("__nativeCallRet", se::internal::seToJsValue(rval));
+        }
+    }
+    module.set("__nativeCallOk", ok);
+}
+} // extern "C"
 
 namespace se {
 
@@ -192,15 +298,30 @@ bool Object::defineOwnProperty(const char *name, const Value &value, bool writab
 }
 
 bool Object::defineProperty(const char *name, NativeFunctionPtr getter, NativeFunctionPtr setter) {
-    // TODO: implement with native function trampolines
-    return false;
+    val desc = val::object();
+    desc.set("configurable", true);
+    if (getter) {
+        int getterId = registerNativeFunction(getter);
+        val getterFunc = val::take_ownership(static_cast<EM_VAL>(
+            reinterpret_cast<void*>(static_cast<intptr_t>(browser_make_native_func(getterId)))));
+        desc.set("get", getterFunc);
+    }
+    if (setter) {
+        int setterId = registerNativeFunction(setter);
+        val setterFunc = val::take_ownership(static_cast<EM_VAL>(
+            reinterpret_cast<void*>(static_cast<intptr_t>(browser_make_native_func(setterId)))));
+        desc.set("set", setterFunc);
+    }
+    val::global("Object").call<void>("defineProperty", _jsVal, val(name), desc);
+    return true;
 }
 
 bool Object::defineFunction(const char *funcName, NativeFunctionPtr func) {
-    // TODO: implement with native function trampolines
-    // For now, create a no-op function
-    CC_LOG_WARNING("Object::defineFunction('%s') - native trampoline not yet implemented", funcName);
-    return false;
+    int funcId = registerNativeFunction(func);
+    val jsFunc = val::take_ownership(static_cast<EM_VAL>(
+        reinterpret_cast<void*>(static_cast<intptr_t>(browser_make_native_func(funcId)))));
+    _jsVal.set(funcName, jsFunc);
+    return true;
 }
 
 // --- Function ---
