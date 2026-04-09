@@ -799,6 +799,24 @@ static void js_readFile_invokeCallback(bool doJobSucceed, const typename ReadFil
     }
 }
 
+#if CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
+// WASM/Emscripten: file I/O is synchronous (MEMFS), and the thread pool
+// + performFunctionInCocosThread scheduler don't work in single-threaded
+// WASM.  Run the read and invoke the callback immediately on the calling
+// thread so that Promises resolve without waiting for a tick.
+#define JSB_READ_FILE(funcName, type, isJson)                                                             \
+    static bool funcName(se::State &s) {                                                                  \
+        ccstd::string fullPath;                                                                           \
+        std::shared_ptr<se::Value> callbackPtr;                                                           \
+        bool ok = js_readFile_getParameters(s, fullPath, callbackPtr);                                    \
+        if (!ok) return false;                                                                            \
+        ReadFileDoJobReturnType<type, isJson>::value content;                                             \
+        bool doJobSucceed = js_readFile_doJob<type, isJson>(fullPath, content);                           \
+        js_readFile_invokeCallback<type, isJson>(doJobSucceed, content, callbackPtr);                     \
+        return true;                                                                                      \
+    }                                                                                                     \
+    SE_BIND_FUNC(funcName)
+#else
 #define JSB_READ_FILE(funcName, type, isJson)                                                             \
     static bool funcName(se::State &s) {                                                                  \
         ccstd::string fullPath;                                                                           \
@@ -825,6 +843,7 @@ static void js_readFile_invokeCallback(bool doJobSucceed, const typename ReadFil
         return true;                                                                                      \
     }                                                                                                     \
     SE_BIND_FUNC(funcName)
+#endif
 
 JSB_READ_FILE(js_readTextFile, ccstd::string, false)
 JSB_READ_FILE(js_readJsonFile, ccstd::string, true)
