@@ -842,6 +842,41 @@ bool register_all_scene_manual(se::Object *obj) // NOLINT(readability-identifier
     __jsb_cc_scene_Camera_proto->defineFunction("getMatViewProj", _SE(js_scene_Camera_getMatViewProj));
     __jsb_cc_scene_Camera_proto->defineFunction("getMatViewProjInv", _SE(js_scene_Camera_getMatViewProjInv));
 
+#if SCRIPT_ENGINE_TYPE == SCRIPT_ENGINE_BROWSER
+    // Browser SE: cc.js synchronises _active via a shared TypedArray backed by
+    // C++ memory.  In WASM this buffer can't map real C++ memory, so _active is
+    // never updated in JS.  Add JSB accessors so that reading `this._active`
+    // returns the C++ value (Node::isActive) directly.
+    {
+        static auto activeGetter = [](se::State &s) -> bool {
+            auto *node = static_cast<cc::Node *>(s.nativeThisObject());
+            if (!node) return true;
+            s.rval().setBoolean(node->isActive());
+            return true;
+        };
+        static auto activeSetter = [](se::State &s) -> bool {
+            auto *node = static_cast<cc::Node *>(s.nativeThisObject());
+            if (!node) return true;
+            node->setActive(s.args().empty() ? false : s.args()[0].toBoolean());
+            return true;
+        };
+        static auto activeInHGetter = [](se::State &s) -> bool {
+            auto *node = static_cast<cc::Node *>(s.nativeThisObject());
+            if (!node) return true;
+            s.rval().setBoolean(node->isActiveInHierarchy());
+            return true;
+        };
+        static auto activeInHSetter = [](se::State &s) -> bool {
+            auto *node = static_cast<cc::Node *>(s.nativeThisObject());
+            if (!node) return true;
+            node->setActiveInHierarchy(s.args().empty() ? false : s.args()[0].toBoolean());
+            return true;
+        };
+        __jsb_cc_Node_proto->defineProperty("_active", activeGetter, activeSetter);
+        __jsb_cc_Node_proto->defineProperty("_activeInHierarchy", activeInHGetter, activeInHSetter);
+    }
+#endif
+
     // Node TS wrapper will invoke this function to let native object listen some events.
     __jsb_cc_Node_proto->defineFunction("_initAndReturnSharedBuffer", _SE(js_cc_Node_initAndReturnSharedBuffer));
 
