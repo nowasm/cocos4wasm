@@ -302,8 +302,9 @@ Object *Object::createExternalArrayBufferObject(void *contents, size_t byteLengt
     // accessible from JS as wasmMemory.buffer.  Create a JS Uint8Array view
     // that maps directly to the C++ struct — writes on either side are
     // immediately visible to the other.
-    val wasmMem = val::module_property("HEAPU8");
-    val wasmBuf = wasmMem["buffer"];
+    // Access WASM heap via wasmMemory.buffer (always available, unlike HEAPU8
+    // which requires EXPORTED_RUNTIME_METHODS).
+    val wasmBuf = val::global("wasmMemory")["buffer"];
     auto offset = reinterpret_cast<uintptr_t>(contents);
     val view = val::global("Uint8Array").new_(wasmBuf,
         static_cast<unsigned>(offset), static_cast<unsigned>(byteLength));
