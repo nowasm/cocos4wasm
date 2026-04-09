@@ -91,7 +91,8 @@ elseif(EMSCRIPTEN)
     set(USE_SE_SM OFF)
     set(USE_SE_NAPI OFF)
     set(USE_SE_JSVM OFF)
-    set(USE_SE_QJS ON)
+    set(USE_SE_QJS OFF)
+    set(USE_SE_BROWSER ON)
 elseif(MACOSX OR IOS)
     cc_set_if_undefined(CC_USE_METAL ON)
     cc_set_if_undefined(CC_USE_VULKAN OFF)
@@ -3185,7 +3186,23 @@ if(USE_SE_QJS)
     )
 endif()
 
-if(EMSCRIPTEN AND NOT USE_SE_V8 AND NOT USE_SE_SM AND NOT USE_SE_NAPI AND NOT USE_SE_JSVM AND NOT USE_SE_QJS)
+if(USE_SE_BROWSER)
+    cocos_source_files(MODULE ccbindings
+        cocos/bindings/jswrapper/browser/Base.h
+        cocos/bindings/jswrapper/browser/Class.cpp
+        cocos/bindings/jswrapper/browser/Class.h
+        cocos/bindings/jswrapper/browser/HelperMacros.h
+        cocos/bindings/jswrapper/browser/Object.cpp
+        cocos/bindings/jswrapper/browser/Object.h
+        cocos/bindings/jswrapper/browser/ScriptEngine.cpp
+        cocos/bindings/jswrapper/browser/ScriptEngine.h
+        cocos/bindings/jswrapper/browser/SeApi.h
+        cocos/bindings/jswrapper/browser/Utils.h
+        cocos/bindings/jswrapper/browser/Utils.cpp
+    )
+endif()
+
+if(EMSCRIPTEN AND NOT USE_SE_V8 AND NOT USE_SE_SM AND NOT USE_SE_NAPI AND NOT USE_SE_JSVM AND NOT USE_SE_QJS AND NOT USE_SE_BROWSER)
     cocos_source_files(MODULE ccbindings
         cocos/bindings/jswrapper/none/Base.h
         cocos/bindings/jswrapper/none/Class.cpp
@@ -3589,6 +3606,7 @@ function(cc_apply_definations target)
         $<$<BOOL:${USE_SE_NAPI}>:SCRIPT_ENGINE_TYPE=5>
         $<$<BOOL:${USE_SE_JSVM}>:SCRIPT_ENGINE_TYPE=6>
         $<$<BOOL:${USE_SE_QJS}>:SCRIPT_ENGINE_TYPE=7>
+        $<$<BOOL:${USE_SE_BROWSER}>:SCRIPT_ENGINE_TYPE=8>
         $<$<AND:$<BOOL:${EMSCRIPTEN}>,$<NOT:$<OR:$<BOOL:${USE_SE_V8}>,$<BOOL:${USE_SE_SM}>,$<BOOL:${USE_SE_NAPI}>,$<BOOL:${USE_SE_JSVM}>,$<BOOL:${USE_SE_QJS}>>>>:SCRIPT_ENGINE_TYPE=0>
         $<$<OR:$<CONFIG:Debug>,$<BOOL:${CC_DEBUG_FORCE}>>:CC_DEBUG=1>
         $<IF:$<BOOL:${USE_ADPF}>,CC_USE_ADPF=1,CC_USE_ADPF=0>

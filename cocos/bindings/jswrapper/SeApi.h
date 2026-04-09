@@ -55,6 +55,10 @@
     #include "quickjs/SeApi.h"
 #endif
 
+#if SCRIPT_ENGINE_TYPE == SCRIPT_ENGINE_BROWSER
+    #include "browser/SeApi.h"
+#endif
+
 #if SCRIPT_ENGINE_TYPE == SCRIPT_ENGINE_NONE
     #include "none/SeApi.h"
 #endif
