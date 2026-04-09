@@ -147,7 +147,7 @@ namespace se {
 Object::Object() = default;
 
 Object::~Object() {
-    clearPrivateData(true);
+    clearPrivateData(_clearMappingInFinalizer);
     _jsVal = val::undefined();
 }
 

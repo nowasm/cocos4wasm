@@ -34,6 +34,8 @@ void jsToSeValue(emscripten::val jsVal, Value *v) {
                 static_cast<uintptr_t>(ptrVal.as<double>()));
             if (persistent && persistent->getPrivateData()) {
                 obj->_borrowPrivateData(persistent->getPrivateData());
+                // Don't erase NativePtrToObjectMap on temp destruction
+                obj->setClearMappingInFinalizer(false);
             }
         }
         v->setObject(obj);
