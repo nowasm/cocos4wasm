@@ -248,11 +248,10 @@ bool Class::install() {
         _parent->_getJSObject().set(_name, ctorFunc);
     }
 
-    // Create proto se::Object wrapper
-    if (_createProto) {
-        _proto = Object::_createJSObject(this, protoVal);
-        _proto->root();
-    }
+    // Always create the proto wrapper — auto-generated bindings access
+    // cls->getProto() unconditionally to register manual methods on it.
+    _proto = Object::_createJSObject(this, protoVal);
+    _proto->root();
 
     return true;
 }
