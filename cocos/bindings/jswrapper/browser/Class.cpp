@@ -261,7 +261,10 @@ V8FinalizeFunc Class::_getFinalizeFunction() const { return _finalizeFunc; }
 
 Object *Class::_createJSObjectWithClass(Class *cls) {
     if (!cls) return nullptr;
-    val obj = val::object();
+    // Create object that inherits from the class prototype so that
+    // methods registered via defineFunction are accessible on instances.
+    val proto = cls->getProto() ? cls->getProto()->_getJSObject() : val::object();
+    val obj = val::global("Object").call<val>("create", proto);
     return Object::_createJSObject(cls, obj);
 }
 

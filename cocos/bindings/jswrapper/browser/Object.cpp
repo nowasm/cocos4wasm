@@ -115,9 +115,16 @@ void browser_do_native_call(int funcId) {
 
     se::Object *thisObj = nullptr;
     if (!thisJsVal.isUndefined() && !thisJsVal.isNull()) {
-        thisObj = se::Object::_createJSObject(nullptr, thisJsVal);
-        // Borrow private data if available (via hidden property)
-        // TODO: implement native pointer recovery
+        // Check if this JS object has a persistent se::Object (set by setPrivateObject)
+        val ptrVal = thisJsVal["__cc_se_ptr"];
+        if (!ptrVal.isUndefined() && ptrVal.isNumber()) {
+            // Recover the persistent se::Object
+            thisObj = reinterpret_cast<se::Object *>(static_cast<uintptr_t>(ptrVal.as<double>()));
+            if (thisObj) thisObj->incRef();
+        } else {
+            // Create a temporary wrapper
+            thisObj = se::Object::_createJSObject(nullptr, thisJsVal);
+        }
     }
 
     se::State state(thisObj, seArgs);
@@ -461,6 +468,12 @@ void Object::setPrivateObject(PrivateObjectBase *data) {
     _privateData = data != nullptr ? data->getRaw() : nullptr;
     if (_privateData != nullptr) {
         NativePtrToObjectMap::emplace(_privateData, this);
+        // Store this se::Object* on the JS object as a hidden property
+        // so that the native trampoline can recover it when the object
+        // is used as 'this' in a native method call.
+        if (!_jsVal.isUndefined() && !_jsVal.isNull()) {
+            _jsVal.set("__cc_se_ptr", val(static_cast<double>(reinterpret_cast<uintptr_t>(this))));
+        }
     }
 }
 
