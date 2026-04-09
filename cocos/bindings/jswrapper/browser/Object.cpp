@@ -74,6 +74,33 @@ EM_JS(int, browser_make_native_func, (int funcId), {
     return Emval.toHandle(func);
 });
 
+// Create a guarded property setter: skips the native setter call when the
+// new value is null/undefined but the getter returns a non-null object.
+// This prevents JS class field initializers (e.g. `_device = null`) from
+// wiping C++ pointer members that were set by the native constructor.
+EM_JS(int, browser_make_guarded_setter, (int setterFuncId, int getterFuncId), {
+    var setter = function(newVal) {
+        if (newVal == null) {
+            // Read current value via the getter
+            Module.__nativeCallThis = this;
+            Module.__nativeCallArgs = [];
+            Module.__nativeCallRet = undefined;
+            Module._browser_do_native_call(getterFuncId);
+            var cur = Module.__nativeCallRet;
+            if (cur != null && typeof cur === 'object') {
+                // Current value is a non-null object — skip null assignment
+                return;
+            }
+        }
+        Module.__nativeCallThis = this;
+        Module.__nativeCallArgs = [newVal];
+        Module.__nativeCallRet = undefined;
+        Module.__nativeCallOk = false;
+        Module._browser_do_native_call(setterFuncId);
+    };
+    return Emval.toHandle(setter);
+});
+
 EM_JS(int, browser_make_native_ctor, (int funcId), {
     // Create a constructor function
     var ctor = function() {
@@ -308,8 +335,9 @@ bool Object::defineOwnProperty(const char *name, const Value &value, bool writab
 bool Object::defineProperty(const char *name, NativeFunctionPtr getter, NativeFunctionPtr setter) {
     val desc = val::object();
     desc.set("configurable", true);
+    int getterId = -1;
     if (getter) {
-        int getterId = registerNativeFunction(getter);
+        getterId = registerNativeFunction(getter);
         val getterFunc = val::take_ownership(static_cast<EM_VAL>(
             reinterpret_cast<void*>(static_cast<intptr_t>(browser_make_native_func(getterId)))));
         desc.set("get", getterFunc);
@@ -317,7 +345,9 @@ bool Object::defineProperty(const char *name, NativeFunctionPtr getter, NativeFu
     if (setter) {
         int setterId = registerNativeFunction(setter);
         val setterFunc = val::take_ownership(static_cast<EM_VAL>(
-            reinterpret_cast<void*>(static_cast<intptr_t>(browser_make_native_func(setterId)))));
+            reinterpret_cast<void*>(static_cast<intptr_t>(
+                getterId >= 0 ? browser_make_guarded_setter(setterId, getterId)
+                              : browser_make_native_func(setterId)))));
         desc.set("set", setterFunc);
     }
     val::global("Object").call<void>("defineProperty", _jsVal, val(name), desc);
@@ -445,7 +475,16 @@ uint32_t Object::getMapSize() const { return _jsVal["size"].as<uint32_t>(); }
 
 ccstd::vector<std::pair<Value, Value>> Object::getAllElementsInMap() const {
     ccstd::vector<std::pair<Value, Value>> result;
-    // TODO: iterate map entries
+    val entries = val::global("Array").call<val>("from", _jsVal);
+    uint32_t len = entries["length"].as<uint32_t>();
+    result.reserve(len);
+    for (uint32_t i = 0; i < len; ++i) {
+        val entry = entries[i];
+        Value k, v;
+        internal::jsToSeValue(entry[0], &k);
+        internal::jsToSeValue(entry[1], &v);
+        result.emplace_back(std::move(k), std::move(v));
+    }
     return result;
 }
 
@@ -455,7 +494,18 @@ bool Object::removeSetElement(const Value &value) { return _jsVal.call<bool>("de
 bool Object::addSetElement(const Value &value) { _jsVal.call<val>("add", internal::seToJsValue(value)); return true; }
 bool Object::isElementInSet(const Value &value) const { return _jsVal.call<bool>("has", internal::seToJsValue(value)); }
 uint32_t Object::getSetSize() const { return _jsVal["size"].as<uint32_t>(); }
-ValueArray Object::getAllElementsInSet() const { return {}; /* TODO */ }
+ValueArray Object::getAllElementsInSet() const {
+    ValueArray result;
+    val arr = val::global("Array").call<val>("from", _jsVal);
+    uint32_t len = arr["length"].as<uint32_t>();
+    result.reserve(len);
+    for (uint32_t i = 0; i < len; ++i) {
+        Value v;
+        internal::jsToSeValue(arr[i], &v);
+        result.push_back(std::move(v));
+    }
+    return result;
+}
 
 // --- Private data ---
 

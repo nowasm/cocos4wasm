@@ -13,8 +13,9 @@
 using emscripten::val;
 using emscripten::EM_VAL;
 
-// EM_JS function defined in Object.cpp (C linkage)
+// EM_JS functions defined in Object.cpp (C linkage)
 extern "C" int browser_make_native_func(int funcId);
+extern "C" int browser_make_guarded_setter(int setterFuncId, int getterFuncId);
 
 namespace se {
 
@@ -187,9 +188,10 @@ bool Class::install() {
     for (const auto &p : _props) {
         val desc = val::object();
         desc.set("configurable", true);
+        int gid = -1;
         if (p.getter) {
             browser_getNativeFunctions().push_back(p.getter);
-            int gid = static_cast<int>(browser_getNativeFunctions().size() - 1);
+            gid = static_cast<int>(browser_getNativeFunctions().size() - 1);
             val gfn = val::take_ownership(static_cast<EM_VAL>(
                 reinterpret_cast<void*>(static_cast<intptr_t>(browser_make_native_func(gid)))));
             desc.set("get", gfn);
@@ -197,8 +199,12 @@ bool Class::install() {
         if (p.setter) {
             browser_getNativeFunctions().push_back(p.setter);
             int sid = static_cast<int>(browser_getNativeFunctions().size() - 1);
+            // When both getter and setter exist, use a guarded setter that
+            // prevents JS class field initializers from nullifying C++ pointers.
             val sfn = val::take_ownership(static_cast<EM_VAL>(
-                reinterpret_cast<void*>(static_cast<intptr_t>(browser_make_native_func(sid)))));
+                reinterpret_cast<void*>(static_cast<intptr_t>(
+                    gid >= 0 ? browser_make_guarded_setter(sid, gid)
+                             : browser_make_native_func(sid)))));
             desc.set("set", sfn);
         }
         val::global("Object").call<void>("defineProperty", protoVal, val(p.name), desc);
