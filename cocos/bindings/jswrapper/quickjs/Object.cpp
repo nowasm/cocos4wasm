@@ -6,6 +6,7 @@
 #include "../State.h"
 #include "../MappingUtils.h"
 #include "base/memory/Memory.h"
+#include "base/UTF8.h"
 
 namespace se {
 
@@ -215,14 +216,26 @@ Object *Object::createJSONObject(const ccstd::string &jsonStr) {
     auto *ctx = ScriptEngine::getInstance()->getContext();
     JSValue val = JS_ParseJSON(ctx, jsonStr.c_str(), jsonStr.size(), "<json>");
     if (JS_IsException(val)) {
+        JSValue exc = JS_GetException(ctx);
+        const char *msg = JS_ToCString(ctx, exc);
+        CC_LOG_WARNING("createJSONObject: JS_ParseJSON failed: %s (input len=%zu first 50: %.50s)",
+                       msg ? msg : "?", jsonStr.size(), jsonStr.c_str());
+        if (msg) JS_FreeCString(ctx, msg);
+        JS_FreeValue(ctx, exc);
         JS_FreeValue(ctx, val);
         return nullptr;
     }
     return _createJSObject(nullptr, val);
 }
 
-Object *Object::createJSONObject(std::u16string && /*jsonStr*/) {
-    return nullptr;
+Object *Object::createJSONObject(std::u16string &&jsonStr) {
+    // QuickJS's JS_ParseJSON expects UTF-8.  Convert back from UTF-16.
+    ccstd::string utf8;
+    bool ok = cc::StringUtils::UTF16ToUTF8(jsonStr, utf8);
+    if (!ok || utf8.empty()) {
+        return nullptr;
+    }
+    return createJSONObject(utf8);
 }
 
 Object *Object::createObjectWithClass(Class *cls) {
