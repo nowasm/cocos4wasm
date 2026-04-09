@@ -800,19 +800,36 @@ static void js_readFile_invokeCallback(bool doJobSucceed, const typename ReadFil
 }
 
 #if CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
-// WASM/Emscripten: file I/O is synchronous (MEMFS), and the thread pool
-// + performFunctionInCocosThread scheduler don't work in single-threaded
-// WASM.  Run the read and invoke the callback immediately on the calling
-// thread so that Promises resolve without waiting for a tick.
+// WASM/Emscripten: file I/O is synchronous (MEMFS) but the callback
+// MUST be deferred to avoid stack overflow.  Use emscripten_async_call
+// which schedules a C callback on the browser event loop (via
+// setTimeout(0)).  This keeps the WASM call stack shallow.
+#include <emscripten.h>
+namespace {
+template <typename T, bool isJson>
+struct DeferredReadFileData {
+    bool doJobSucceed;
+    typename ReadFileDoJobReturnType<T, isJson>::value content;
+    std::shared_ptr<se::Value> callbackPtr;
+};
+template <typename T, bool isJson>
+void deferredReadFileCallback(void *userData) {
+    auto *data = static_cast<DeferredReadFileData<T, isJson> *>(userData);
+    js_readFile_invokeCallback<T, isJson>(data->doJobSucceed, data->content, data->callbackPtr);
+    delete data;
+}
+} // namespace
+
 #define JSB_READ_FILE(funcName, type, isJson)                                                             \
     static bool funcName(se::State &s) {                                                                  \
         ccstd::string fullPath;                                                                           \
         std::shared_ptr<se::Value> callbackPtr;                                                           \
         bool ok = js_readFile_getParameters(s, fullPath, callbackPtr);                                    \
         if (!ok) return false;                                                                            \
-        ReadFileDoJobReturnType<type, isJson>::value content;                                             \
-        bool doJobSucceed = js_readFile_doJob<type, isJson>(fullPath, content);                           \
-        js_readFile_invokeCallback<type, isJson>(doJobSucceed, content, callbackPtr);                     \
+        auto *data = new DeferredReadFileData<type, isJson>();                                            \
+        data->callbackPtr = callbackPtr;                                                                  \
+        data->doJobSucceed = js_readFile_doJob<type, isJson>(fullPath, data->content);                   \
+        emscripten_async_call(deferredReadFileCallback<type, isJson>, data, 0);                           \
         return true;                                                                                      \
     }                                                                                                     \
     SE_BIND_FUNC(funcName)

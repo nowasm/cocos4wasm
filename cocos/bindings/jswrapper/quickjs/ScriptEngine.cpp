@@ -403,7 +403,23 @@ bool ScriptEngine::isDebuggerEnabled() const {
 void ScriptEngine::mainLoopUpdate() {
     if (_ctx) {
         JSContext *ctx1 = nullptr;
+#if CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
+        // On WASM, sync file I/O causes readJsonFile callbacks to instantly
+        // resolve Promises, creating new microtasks in an unbounded chain.
+        // Limit per-call to prevent the loop from running forever.
+        int jobCount = 0;
+        for (int i = 0; i < 100000; ++i) {
+            if (JS_ExecutePendingJob(_rt, &ctx1) <= 0) break;
+            jobCount++;
+        }
+        static int logCount = 0;
+        if (jobCount > 0 && logCount < 20) {
+            CC_LOG_INFO("mainLoopUpdate: processed %d jobs", jobCount);
+            logCount++;
+        }
+#else
         while (JS_ExecutePendingJob(_rt, &ctx1) > 0) {}
+#endif
     }
 }
 

@@ -305,8 +305,11 @@ SE_BIND_FUNC(moduleRequire)
 } // namespace
 
 bool jsb_run_script(const ccstd::string &filePath, se::Value *rval /* = nullptr */) { // NOLINT
+    CC_LOG_INFO("jsb_run_script: %s", filePath.c_str());
     se::AutoHandleScope hs;
-    return se::ScriptEngine::getInstance()->runScript(filePath, rval);
+    bool ok = se::ScriptEngine::getInstance()->runScript(filePath, rval);
+    CC_LOG_INFO("jsb_run_script: %s → %s", filePath.c_str(), ok ? "OK" : "FAIL");
+    return ok;
 }
 
 bool jsb_run_script_module(const ccstd::string &filePath, se::Value *rval /* = nullptr */) { // NOLINT
