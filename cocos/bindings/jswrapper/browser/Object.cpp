@@ -236,7 +236,7 @@ Object *Object::createTypedArray(TypedArrayType /*type*/, const void *data, size
     val u8view = val::global("Uint8Array").new_(buffer);
     if (data && byteLength > 0) {
         // Copy data from WASM heap to JS
-        val heapView = val::module_property("HEAPU8");
+        val heapView = val(val::global("Uint8Array").new_(val::module_property("wasmMemory")["buffer"]));
         val src = heapView.call<val>("subarray",
             reinterpret_cast<uintptr_t>(data),
             reinterpret_cast<uintptr_t>(data) + byteLength);
@@ -259,7 +259,7 @@ Object *Object::createArrayBufferObject(const void *data, size_t byteLength) {
     val buffer = val::global("ArrayBuffer").new_(static_cast<unsigned>(byteLength));
     if (data && byteLength > 0) {
         val u8 = val::global("Uint8Array").new_(buffer);
-        val heapView = val::module_property("HEAPU8");
+        val heapView = val(val::global("Uint8Array").new_(val::module_property("wasmMemory")["buffer"]));
         val src = heapView.call<val>("subarray",
             reinterpret_cast<uintptr_t>(data),
             reinterpret_cast<uintptr_t>(data) + byteLength);
@@ -381,7 +381,7 @@ bool Object::getTypedArrayData(uint8_t **ptr, size_t *length) const {
     tempBuf.resize(byteLen);
     // Copy from JS TypedArray to WASM
     val u8view = val::global("Uint8Array").new_(_jsVal["buffer"], _jsVal["byteOffset"], byteLen);
-    val heapView = val::module_property("HEAPU8");
+    val heapView = val(val::global("Uint8Array").new_(val::module_property("wasmMemory")["buffer"]));
     heapView.call<void>("set", u8view, reinterpret_cast<uintptr_t>(tempBuf.data()));
     *ptr = tempBuf.data();
     *length = byteLen;
@@ -394,7 +394,7 @@ bool Object::getArrayBufferData(uint8_t **ptr, size_t *length) const {
     static thread_local std::vector<uint8_t> tempBuf;
     tempBuf.resize(byteLen);
     val u8view = val::global("Uint8Array").new_(_jsVal);
-    val heapView = val::module_property("HEAPU8");
+    val heapView = val(val::global("Uint8Array").new_(val::module_property("wasmMemory")["buffer"]));
     heapView.call<void>("set", u8view, reinterpret_cast<uintptr_t>(tempBuf.data()));
     *ptr = tempBuf.data();
     *length = byteLen;
