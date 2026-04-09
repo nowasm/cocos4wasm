@@ -458,6 +458,11 @@ void Object::setPrivateObject(PrivateObjectBase *data) {
     _privateData = data != nullptr ? data->getRaw() : nullptr;
     if (_privateData != nullptr) {
         NativePtrToObjectMap::emplace(_privateData, this);
+        // Keep this se::Object alive so that __cc_se_ptr doesn't become
+        // a dangling pointer when the se::Value goes out of scope.
+        // TODO: replace with FinalizationRegistry for proper GC cleanup.
+        incRef();
+        root();
         // Store this se::Object* on the JS object as a hidden property
         // so that the native trampoline can recover it when the object
         // is used as 'this' in a native method call.
