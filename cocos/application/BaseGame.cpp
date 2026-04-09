@@ -176,6 +176,8 @@ int BaseGame::init() {
     // No inline stubs, no unbundled adapters — just run the original scripts.
     runScript("jsb-adapter/web-adapter.js");
     CC_LOG_INFO("WASM browser mode: web-adapter.js loaded");
+
+
 #else
     // QuickJS full mode: set up the globals that jsb-adapter/web-adapter.js
     // normally provides via inline stubs (QuickJS can't run the browserify bundle).

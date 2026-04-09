@@ -1326,6 +1326,7 @@ void buildRenderPipeline() {
             buildRPVal.setUndefined();
         });
     }
+    if (buildRPVal.isUndefined() || !buildRPVal.isObject()) return;
     se::ValueArray args;
     buildRPVal.toObject()->call(args, nullptr);
 }
