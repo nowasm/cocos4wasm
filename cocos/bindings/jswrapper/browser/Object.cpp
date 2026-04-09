@@ -231,15 +231,11 @@ Object *Object::createUint8TypedArray(uint8_t *bytes, size_t byteLength) {
 }
 
 Object *Object::createTypedArray(TypedArrayType /*type*/, const void *data, size_t byteLength) {
-    // Create an ArrayBuffer in WASM heap, then create a TypedArray view
     val buffer = val::global("ArrayBuffer").new_(static_cast<unsigned>(byteLength));
     val u8view = val::global("Uint8Array").new_(buffer);
     if (data && byteLength > 0) {
-        // Copy data from WASM heap to JS
-        val heapView = val(val::global("Uint8Array").new_(val::module_property("wasmMemory")["buffer"]));
-        val src = heapView.call<val>("subarray",
-            reinterpret_cast<uintptr_t>(data),
-            reinterpret_cast<uintptr_t>(data) + byteLength);
+        // Use emscripten::typed_memory_view to create a JS view of WASM memory
+        auto src = emscripten::typed_memory_view(byteLength, static_cast<const uint8_t*>(data));
         u8view.call<void>("set", src);
     }
     return _createJSObject(nullptr, u8view);
@@ -259,10 +255,7 @@ Object *Object::createArrayBufferObject(const void *data, size_t byteLength) {
     val buffer = val::global("ArrayBuffer").new_(static_cast<unsigned>(byteLength));
     if (data && byteLength > 0) {
         val u8 = val::global("Uint8Array").new_(buffer);
-        val heapView = val(val::global("Uint8Array").new_(val::module_property("wasmMemory")["buffer"]));
-        val src = heapView.call<val>("subarray",
-            reinterpret_cast<uintptr_t>(data),
-            reinterpret_cast<uintptr_t>(data) + byteLength);
+        auto src = emscripten::typed_memory_view(byteLength, static_cast<const uint8_t*>(data));
         u8.call<void>("set", src);
     }
     return _createJSObject(nullptr, buffer);
@@ -374,15 +367,14 @@ Object::TypedArrayType Object::getTypedArrayType() const {
 
 bool Object::getTypedArrayData(uint8_t **ptr, size_t *length) const {
     if (!ptr || !length) return false;
-    // Get byteLength and copy to WASM heap
     uint32_t byteLen = _jsVal["byteLength"].as<uint32_t>();
-    // Allocate temp buffer in WASM heap
+    // Allocate temp buffer in WASM heap and copy from JS TypedArray
     static thread_local std::vector<uint8_t> tempBuf;
     tempBuf.resize(byteLen);
-    // Copy from JS TypedArray to WASM
     val u8view = val::global("Uint8Array").new_(_jsVal["buffer"], _jsVal["byteOffset"], byteLen);
-    val heapView = val(val::global("Uint8Array").new_(val::module_property("wasmMemory")["buffer"]));
-    heapView.call<void>("set", u8view, reinterpret_cast<uintptr_t>(tempBuf.data()));
+    // Create a WASM heap view at our temp buffer and copy into it
+    auto destView = emscripten::typed_memory_view(byteLen, tempBuf.data());
+    val(destView).call<void>("set", u8view);
     *ptr = tempBuf.data();
     *length = byteLen;
     return true;
@@ -394,8 +386,8 @@ bool Object::getArrayBufferData(uint8_t **ptr, size_t *length) const {
     static thread_local std::vector<uint8_t> tempBuf;
     tempBuf.resize(byteLen);
     val u8view = val::global("Uint8Array").new_(_jsVal);
-    val heapView = val(val::global("Uint8Array").new_(val::module_property("wasmMemory")["buffer"]));
-    heapView.call<void>("set", u8view, reinterpret_cast<uintptr_t>(tempBuf.data()));
+    auto destView = emscripten::typed_memory_view(byteLen, tempBuf.data());
+    val(destView).call<void>("set", u8view);
     *ptr = tempBuf.data();
     *length = byteLen;
     return true;
