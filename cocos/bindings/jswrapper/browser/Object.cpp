@@ -294,10 +294,24 @@ Object *Object::createArrayBufferObject(const void *data, size_t byteLength) {
     return _createJSObject(nullptr, buffer);
 }
 
-Object *Object::createExternalArrayBufferObject(void * /*contents*/, size_t byteLength, BufferContentsFreeFunc /*freeFunc*/, void * /*freeUserData*/) {
-    // Browser can't create external array buffers pointing to WASM heap directly.
-    // Just create a regular one for now.
-    return createArrayBufferObject(nullptr, byteLength);
+Object *Object::createExternalArrayBufferObject(void *contents, size_t byteLength, BufferContentsFreeFunc /*freeFunc*/, void * /*freeUserData*/) {
+    if (contents == nullptr || byteLength == 0) {
+        return createArrayBufferObject(nullptr, byteLength);
+    }
+    // On Emscripten, C++ memory lives in the WASM linear memory which is
+    // accessible from JS as wasmMemory.buffer.  Create a JS Uint8Array view
+    // that maps directly to the C++ struct — writes on either side are
+    // immediately visible to the other.
+    val wasmMem = val::module_property("HEAPU8");
+    val wasmBuf = wasmMem["buffer"];
+    auto offset = reinterpret_cast<uintptr_t>(contents);
+    val view = val::global("Uint8Array").new_(wasmBuf,
+        static_cast<unsigned>(offset), static_cast<unsigned>(byteLength));
+    // Return the underlying ArrayBuffer? No — cc.js expects to create
+    // TypedArray views from this object.  A sub-view of the WASM heap
+    // is itself a Uint8Array whose .buffer is the entire WASM heap.
+    // Return the Uint8Array directly so cc.js can read/write the bytes.
+    return _createJSObject(nullptr, view);
 }
 
 // --- Property access ---
