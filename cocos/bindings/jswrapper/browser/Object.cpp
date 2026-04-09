@@ -273,6 +273,10 @@ Object *Object::createExternalArrayBufferObject(void * /*contents*/, size_t byte
 
 bool Object::getProperty(const char *name, Value *data, bool /*cachePropertyName*/) {
     val prop = _jsVal[name];
+    if (prop.isUndefined()) {
+        if (data) data->setUndefined();
+        return false;
+    }
     internal::jsToSeValue(prop, data);
     return true;
 }
