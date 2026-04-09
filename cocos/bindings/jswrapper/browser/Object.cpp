@@ -129,10 +129,8 @@ void browser_do_native_call(int funcId) {
 
     se::State state(thisObj, seArgs);
     bool ok = se::g_nativeFunctions[funcId](state);
-
-    if (thisObj) {
-        thisObj->decRef();
-    }
+    // Note: do NOT manually decRef thisObj — State::~State() handles it
+    // via SAFE_DEC_REF(_thisObject).
 
     if (ok) {
         const auto &rval = state.rval();
