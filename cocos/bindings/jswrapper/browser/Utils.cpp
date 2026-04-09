@@ -2,6 +2,8 @@
 #include "Object.h"
 #include "ScriptEngine.h"
 
+#include <emscripten.h>
+
 #if SCRIPT_ENGINE_TYPE == SCRIPT_ENGINE_BROWSER
 
 namespace se {
@@ -25,19 +27,22 @@ void jsToSeValue(emscripten::val jsVal, Value *v) {
         v->setInt64(jsVal.as<int64_t>());
     } else {
         // Object (including arrays, functions, etc.)
-        auto *obj = Object::_createJSObject(nullptr, jsVal);
-        // Recover native private data if this JS object was created by a JSB
-        // constructor (setPrivateObject stores __cc_se_ptr on the JS object).
+        // First check if there's a persistent se::Object via __cc_se_ptr.
+        // If so, reuse it directly instead of creating a temporary wrapper.
         emscripten::val ptrVal = jsVal["__cc_se_ptr"];
         if (!ptrVal.isUndefined() && ptrVal.isNumber()) {
             auto *persistent = reinterpret_cast<Object *>(
                 static_cast<uintptr_t>(ptrVal.as<double>()));
             if (persistent && persistent->getPrivateData()) {
-                obj->_borrowPrivateData(persistent->getPrivateData());
-                // Don't erase NativePtrToObjectMap on temp destruction
-                obj->setClearMappingInFinalizer(false);
+                // Reuse the persistent se::Object directly — this ensures
+                // the correct native pointer is available via getPrivateData()
+                // without creating a temporary that might lose context.
+                v->setObject(persistent);
+                return;
             }
         }
+        // No persistent se::Object with native data — create a temporary wrapper.
+        auto *obj = Object::_createJSObject(nullptr, jsVal);
         v->setObject(obj);
         obj->decRef();
     }

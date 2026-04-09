@@ -122,23 +122,29 @@ void browser_do_native_call(int funcId) {
             thisObj = reinterpret_cast<se::Object *>(static_cast<uintptr_t>(ptrVal.as<double>()));
             if (thisObj) thisObj->incRef();
         } else {
-            // Create a temporary wrapper
+            // No __cc_se_ptr — create a temporary wrapper (no native pointer).
+            // This is normal for: global functions (this=Window), utility calls
+            // on plain objects, and JSB constructors (before setPrivateObject).
             thisObj = se::Object::_createJSObject(nullptr, thisJsVal);
         }
     }
 
-    se::State state(thisObj, seArgs);
-    bool ok = se::g_nativeFunctions[funcId](state);
-    // Note: do NOT manually decRef thisObj — State::~State() handles it
-    // via SAFE_DEC_REF(_thisObject).
+    {
+        se::State state(thisObj, seArgs);
+        bool ok = se::g_nativeFunctions[funcId](state);
 
-    if (ok) {
-        const auto &rval = state.rval();
-        if (!rval.isUndefined()) {
-            module.set("__nativeCallRet", se::internal::seToJsValue(rval));
+        if (ok) {
+            const auto &rval = state.rval();
+            if (!rval.isUndefined()) {
+                module.set("__nativeCallRet", se::internal::seToJsValue(rval));
+            }
         }
+        module.set("__nativeCallOk", ok);
     }
-    module.set("__nativeCallOk", ok);
+    // State::~State() does its own balanced incRef/decRef.
+    // We must also balance the incRef we did above (or release the
+    // _createJSObject object we created).
+    SAFE_DEC_REF(thisObj);
 }
 } // extern "C"
 

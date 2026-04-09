@@ -186,7 +186,15 @@ public:
      * GFX 设备
      */
     inline gfx::Device *getDevice() const { return _device; }
-    inline void setDevice(gfx::Device *device) { _device = device; }
+    inline void setDevice(gfx::Device *device) {
+        // Guard: on Emscripten browser SE, JS class field initializers run
+        // after the native constructor and may assign null/undefined through
+        // the JSB property setter, wiping out the valid pointer that the C++
+        // constructor already stored.  Ignore null when we already have a
+        // device — the C++ constructor is the authority.
+        if (device == nullptr && _device != nullptr) return;
+        _device = device;
+    }
 
     /**
      * @zh
