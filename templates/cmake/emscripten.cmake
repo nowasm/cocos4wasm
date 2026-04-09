@@ -66,7 +66,7 @@ macro(cc_emscripten_after_target _target_name)
         -sENVIRONMENT=web
         --bind
         "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPU8']"
-        "-sEXPORTED_FUNCTIONS=['_main','_wasmEditBoxOnInput','_wasmEditBoxOnConfirm','_wasmEditBoxOnComplete']"
+        "-sEXPORTED_FUNCTIONS=['_main','_wasmEditBoxOnInput','_wasmEditBoxOnConfirm','_wasmEditBoxOnComplete','_browser_Release_prevent_leak']"
         # QuickJS is a recursive-descent interpreter: every JS function call
         # becomes one or more C frames on the WASM stack.  Large JS bundles
         # (web-adapter.js, system.bundle.js, cc.js) easily exceed Chrome's

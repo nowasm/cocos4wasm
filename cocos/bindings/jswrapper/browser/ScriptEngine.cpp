@@ -10,6 +10,20 @@
 
 #if SCRIPT_ENGINE_TYPE == SCRIPT_ENGINE_BROWSER
 
+// C++ callback invoked by the FinalizationRegistry when a JS object is GC'd.
+// The held value is the se::Object* (encoded as double).
+extern "C" {
+EMSCRIPTEN_KEEPALIVE
+void browser_Release_prevent_leak(double ptrAsDouble) {
+    auto *seObj = reinterpret_cast<se::Object *>(
+        static_cast<uintptr_t>(ptrAsDouble));
+    if (seObj == nullptr) return;
+    // Mirror the incRef()+root() from setPrivateObject
+    seObj->unroot();
+    seObj->decRef();
+}
+} // extern "C"
+
 namespace se {
 
 ScriptEngine *ScriptEngine::_instance = nullptr;
@@ -49,6 +63,14 @@ bool ScriptEngine::init() {
         // Ensure window === globalThis
         _globalObj->setProperty("window", se::Value(_globalObj));
     }
+
+    // Set up FinalizationRegistry so that when a JS object wrapping a native
+    // C++ object is garbage-collected, the C++ side releases the se::Object.
+    EM_ASM({
+        Module.__poRelease = new FinalizationRegistry(function(ptrAsDouble) {
+            Module._browser_Release_prevent_leak(ptrAsDouble);
+        });
+    });
 
     _isValid = true;
 
@@ -200,9 +222,18 @@ bool ScriptEngine::callFunction(Object *targetObj, const char *funcName, uint32_
 }
 
 ccstd::string ScriptEngine::getCurrentStackTrace() {
-    return EM_ASM_INT({
-        try { throw new Error(); } catch(e) { return e.stack || ''; }
-    }) ? "" : "";
+    char *stackPtr = static_cast<char *>(EM_ASM_PTR({
+        var stack = '';
+        try { throw new Error(); } catch(e) { stack = e.stack || ''; }
+        var len = lengthBytesUTF8(stack) + 1;
+        var buf = _malloc(len);
+        stringToUTF8(stack, buf, len);
+        return buf;
+    }));
+    if (stackPtr == nullptr) return {};
+    ccstd::string result(stackPtr);
+    free(stackPtr);
+    return result;
 }
 
 bool ScriptEngine::saveByteCodeToFile(const ccstd::string & /*path*/, const ccstd::string & /*pathBc*/) {

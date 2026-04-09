@@ -516,14 +516,21 @@ void Object::setPrivateObject(PrivateObjectBase *data) {
         NativePtrToObjectMap::emplace(_privateData, this);
         // Keep this se::Object alive so that __cc_se_ptr doesn't become
         // a dangling pointer when the se::Value goes out of scope.
-        // TODO: replace with FinalizationRegistry for proper GC cleanup.
         incRef();
         root();
         // Store this se::Object* on the JS object as a hidden property
         // so that the native trampoline can recover it when the object
         // is used as 'this' in a native method call.
         if (!_jsVal.isUndefined() && !_jsVal.isNull()) {
-            _jsVal.set("__cc_se_ptr", val(static_cast<double>(reinterpret_cast<uintptr_t>(this))));
+            double ptrDouble = static_cast<double>(reinterpret_cast<uintptr_t>(this));
+            _jsVal.set("__cc_se_ptr", val(ptrDouble));
+            // Register with FinalizationRegistry: when the JS object is
+            // GC'd, browser_Release_prevent_leak is called to unroot+decRef
+            // the se::Object, balancing the incRef+root above.
+            val registry = val::module_property("__poRelease");
+            if (!registry.isUndefined()) {
+                registry.call<void>("register", _jsVal, val(ptrDouble));
+            }
         }
     }
 }
