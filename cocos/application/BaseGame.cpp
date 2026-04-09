@@ -441,6 +441,49 @@ if (typeof jsb !== 'undefined' && jsb.WebSocket) { window.WebSocket = jsb.WebSoc
     CC_LOG_INFO("WASM full mode: web-adapter.js loaded");
 #endif
     runScript("main.js");
+
+#if CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN && !CC_WASM_STANDALONE_FACADE
+    // In full mode, main.js starts async Promise chains (SystemJS imports,
+    // cc.game.init, loadBuiltinAssets, etc.).  QuickJS does NOT auto-drain
+    // Promise microtasks — JS_ExecutePendingJob must be called explicitly.
+    // Also, some init steps use setTimeout which needs gameTick dispatch.
+    //
+    // Run a mini event loop: alternate between draining Promise jobs and
+    // dispatching timers until the game finishes initializing.
+    {
+        auto *seEngine = se::ScriptEngine::getInstance();
+        // QuickJS processes Promise microtasks ONLY via JS_ExecutePendingJob
+        // (called from mainLoopUpdate), NOT during JS execution.  So we must
+        // alternate: C++ drains microtasks → JS dispatches timers → repeat.
+        CC_LOG_INFO("WASM: starting init-tick loop...");
+        for (int i = 0; i < 500; ++i) {
+            // 1. Drain ALL pending Promise microtasks from C++
+            seEngine->mainLoopUpdate();
+
+            // 2. Dispatch timer callbacks from JS
+            char tickBuf[128];
+            snprintf(tickBuf, sizeof(tickBuf),
+                     "if(typeof gameTick==='function')gameTick(%d);", 1000 + i * 20);
+            seEngine->evalString(tickBuf, 0, nullptr, "<init-tick>");
+
+            // 3. Drain microtasks produced by timer callbacks
+            seEngine->mainLoopUpdate();
+
+            // 4. Check if game finished initializing
+            se::Value inited;
+            seEngine->evalString("!!(typeof cc!=='undefined'&&cc.game&&cc.game._inited)",
+                                 0, &inited, "<chk>");
+            if (inited.isBoolean() && inited.toBoolean()) {
+                CC_LOG_INFO("WASM: cc.game initialized after %d init-ticks", i + 1);
+                break;
+            }
+            if (i == 499) {
+                CC_LOG_WARNING("WASM: cc.game NOT initialized after 500 ticks");
+            }
+        }
+    }
+#endif
+
     return 0;
 }
 } // namespace cc

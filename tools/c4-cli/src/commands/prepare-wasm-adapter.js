@@ -188,13 +188,61 @@ __modules['../jsbWindow'] = jsbWindow;
     fs.writeFileSync(outFile, output, 'utf-8');
     console.log(`\nWritten: ${outFile} (${(output.length / 1024).toFixed(1)} KB)`);
 
-    // Copy engine-adapter.js as-is
-    const eaSrc = path.join(engineDir, 'bin/adapter/native/engine-adapter.js');
-    if (fs.existsSync(eaSrc)) {
-        const eaDest = path.join(outputDir, 'engine-adapter.js');
-        fs.copyFileSync(eaSrc, eaDest);
-        console.log(`Copied:  ${eaDest}`);
+    // Unbundle engine-adapter.js (also a browserify bundle that overflows WASM call stack)
+    const ENGINE_ADAPTER_SRC = 'platforms/native/engine';
+    const eaDir = path.join(engineDir, ENGINE_ADAPTER_SRC);
+    const eaFiles = [
+        'jsb-fs-utils.js',       // must be first (exports getUserDataPath etc.)
+        'jsb-cache-manager.js',   // depends on jsb-fs-utils
+        'jsb-assets-manager.js',
+        'jsb-game.js',
+        'jsb-gfx.js',
+        'jsb-loader.js',
+        'jsb-videoplayer.js',
+        'jsb-webview.js',
+        'jsb-editbox.js',
+        'jsb-editor-support.js',
+        'jsb-spine-skeleton.js',
+        'jsb-dragonbones.js',
+        'jsb-physics.js',
+    ];
+
+    let eaOutput = `// Auto-generated engine-adapter for WASM32 (unbundled).\n"use strict";\n`;
+    for (const f of eaFiles) {
+        const fPath = path.join(eaDir, f);
+        if (!fs.existsSync(fPath)) {
+            console.log(`  EA skip: ${f}`);
+            eaOutput += `// SKIPPED: ${f}\n`;
+            continue;
+        }
+        const src = fs.readFileSync(fPath, 'utf-8');
+        const name = f.replace(/\.js$/, '');
+        console.log(`  EA+ ${name}`);
+        // Wrap each file in an IIFE; replace require('./xxx') with inline
+        // (engine-adapter modules don't export, they modify globals)
+        let transformed = src.replace(
+            /require\s*\(\s*['"](?:\.\/|\.\.\/)*([^'"]+)['"]\s*\)/g,
+            (match, modPath) => {
+                // These modules reference each other or the web-adapter's modules
+                const mname = modPath.replace(/\.js$/, '').replace(/.*\//, '');
+                return `(__modules['${mname}'] || {})`;
+            }
+        );
+        // Provide module/exports locals and capture exports in __modules
+        eaOutput += `// --- ${name} ---\n(function() {\nvar exports = __modules['${name}'] = __modules['${name}'] || {};\nvar module = { exports: exports };\ntry {\n${transformed}\n__modules['${name}'] = module.exports;\n} catch(e) { console.warn('engine-adapter ${name}:', e.message); }\n})();\n\n`;
     }
+
+    // Append the entry (index.js) - processes require calls
+    const eaIndexSrc = fs.readFileSync(path.join(eaDir, 'index.js'), 'utf-8');
+    let eaIndexTransformed = eaIndexSrc.replace(
+        /require\s*\(\s*['"](?:\.\/|\.\.\/)*([^'"]+)['"]\s*\)/g,
+        (match, modPath) => `/* ${match} - already loaded */`
+    );
+    eaOutput += `// --- engine-adapter index ---\n(function() {\n${eaIndexTransformed}\n})();\n`;
+
+    const eaDest = path.join(outputDir, 'engine-adapter.js');
+    fs.writeFileSync(eaDest, eaOutput, 'utf-8');
+    console.log(`Written: ${eaDest} (${(eaOutput.length / 1024).toFixed(1)} KB)`);
 
     return outFile;
 }
