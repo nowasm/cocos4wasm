@@ -26,6 +26,16 @@ void jsToSeValue(emscripten::val jsVal, Value *v) {
     } else {
         // Object (including arrays, functions, etc.)
         auto *obj = Object::_createJSObject(nullptr, jsVal);
+        // Recover native private data if this JS object was created by a JSB
+        // constructor (setPrivateObject stores __cc_se_ptr on the JS object).
+        emscripten::val ptrVal = jsVal["__cc_se_ptr"];
+        if (!ptrVal.isUndefined() && ptrVal.isNumber()) {
+            auto *persistent = reinterpret_cast<Object *>(
+                static_cast<uintptr_t>(ptrVal.as<double>()));
+            if (persistent && persistent->getPrivateData()) {
+                obj->_borrowPrivateData(persistent->getPrivateData());
+            }
+        }
         v->setObject(obj);
         obj->decRef();
     }

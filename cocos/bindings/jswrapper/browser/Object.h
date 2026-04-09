@@ -174,6 +174,8 @@ public:
     Class *_getClass() const;
     void _setFinalizeCallback(V8FinalizeFunc finalizeCb);
     bool _isNativeFunction() const;
+    /// Set _privateData without ownership (for temporary wrappers borrowing from persistent objects)
+    void _borrowPrivateData(void *ptr) { _privateData = ptr; }
 
 private:
     Object();
