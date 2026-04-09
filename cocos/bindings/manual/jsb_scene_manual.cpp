@@ -23,9 +23,6 @@
 ****************************************************************************/
 
 #include "jsb_scene_manual.h"
-#if CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
-    #include <emscripten.h>
-#endif
 #include "bindings/auto/jsb_gfx_auto.h"
 #include "bindings/auto/jsb_scene_auto.h"
 #include "core/Root.h"

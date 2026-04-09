@@ -298,21 +298,22 @@ Object *Object::createExternalArrayBufferObject(void *contents, size_t byteLengt
     if (contents == nullptr || byteLength == 0) {
         return createArrayBufferObject(nullptr, byteLength);
     }
-    // On Emscripten, C++ memory lives in the WASM linear memory which is
-    // accessible from JS as wasmMemory.buffer.  Create a JS Uint8Array view
-    // that maps directly to the C++ struct — writes on either side are
-    // immediately visible to the other.
-    // Access WASM heap via wasmMemory.buffer (always available, unlike HEAPU8
-    // which requires EXPORTED_RUNTIME_METHODS).
-    val wasmBuf = val::global("wasmMemory")["buffer"];
-    auto offset = reinterpret_cast<uintptr_t>(contents);
-    val view = val::global("Uint8Array").new_(wasmBuf,
-        static_cast<unsigned>(offset), static_cast<unsigned>(byteLength));
-    // Return the underlying ArrayBuffer? No — cc.js expects to create
-    // TypedArray views from this object.  A sub-view of the WASM heap
-    // is itself a Uint8Array whose .buffer is the entire WASM heap.
-    // Return the Uint8Array directly so cc.js can read/write the bytes.
-    return _createJSObject(nullptr, view);
+    // On Emscripten, C++ memory lives in the WASM linear memory.  cc.js
+    // expects _initAndReturnSharedBuffer to return an ArrayBuffer so it
+    // can create TypedArray views at specific byte offsets:
+    //   new Uint8Array(buf, 16, 4)  — for bit-field members
+    //
+    // We can't slice wasmMemory.buffer (that copies).  Instead, copy the
+    // C++ bytes into a fresh ArrayBuffer.  Changes in C++ are NOT visible
+    // automatically, but for the shared-buffer pattern cc.js also writes
+    // BACK through the shared buffer, so both sides read/write the JS copy.
+    //
+    // TODO: explore SAB or grow-aware proxying for zero-copy.
+    val buffer = val::global("ArrayBuffer").new_(static_cast<unsigned>(byteLength));
+    val u8 = val::global("Uint8Array").new_(buffer);
+    auto src = emscripten::typed_memory_view(byteLength, static_cast<const uint8_t*>(contents));
+    u8.call<void>("set", src);
+    return _createJSObject(nullptr, buffer);
 }
 
 // --- Property access ---

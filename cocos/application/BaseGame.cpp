@@ -177,29 +177,7 @@ int BaseGame::init() {
     runScript("jsb-adapter/web-adapter.js");
     CC_LOG_INFO("WASM browser mode: web-adapter.js loaded");
 
-    se::ScriptEngine::getInstance()->evalString(R"JS(
-        var _d = setInterval(function() {
-            var s = cc.director && cc.director.getScene && cc.director.getScene();
-            if (!s) return;
-            clearInterval(_d);
-            // Check if _active is own property or prototype accessor
-            var desc = Object.getOwnPropertyDescriptor(s, '_active');
-            var protoDesc = null;
-            var p = Object.getPrototypeOf(s);
-            while (p && !protoDesc) {
-                protoDesc = Object.getOwnPropertyDescriptor(p, '_active');
-                if (protoDesc) break;
-                p = Object.getPrototypeOf(p);
-            }
-            console.warn('[diag-active] scene._active=' + s._active +
-                ' ownDesc=' + JSON.stringify(desc && {value:desc.value,get:!!desc.get,set:!!desc.set}) +
-                ' protoDesc=' + JSON.stringify(protoDesc && {get:!!protoDesc.get,set:!!protoDesc.set}) +
-                ' protoName=' + (p && p.constructor && p.constructor.name));
-            // Check screens
-            var b2d = cc.director.root && cc.director.root.batcher2D;
-            console.warn('[diag-active] screens=' + (b2d ? b2d._screens.length : 'N/A'));
-        }, 500);
-    )JS", 0, nullptr, "diag-active.js");
+
 #else
     // QuickJS full mode: set up the globals that jsb-adapter/web-adapter.js
     // normally provides via inline stubs (QuickJS can't run the browserify bundle).
