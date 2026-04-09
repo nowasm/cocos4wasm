@@ -1660,9 +1660,13 @@ bool jsb_register_global_variables(se::Object *global) { // NOLINT
     global->defineFunction("__isObjectValid", _SE(JSB_isObjectValid));
     global->defineFunction("__exit", _SE(JSB_exit));
 
+#if SCRIPT_ENGINE_TYPE != SCRIPT_ENGINE_BROWSER
+    // On non-browser backends, provide a performance.now() implementation.
+    // On the browser backend, the native performance API already exists.
     se::HandleObject performanceObj(se::Object::createPlainObject());
     performanceObj->defineFunction("now", _SE(js_performance_now));
     global->setProperty("performance", se::Value(performanceObj));
+#endif
 
 #if CC_PLATFORM == CC_PLATFORM_OPENHARMONY
     se::HandleObject ohObj(se::Object::createPlainObject());

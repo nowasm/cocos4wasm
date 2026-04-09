@@ -171,9 +171,14 @@ int BaseGame::init() {
             CC_LOG_INFO("BaseGame: Root JS wrapper + __syncBatcher2DRootNodes registered");
         }
     }
+#elif SCRIPT_ENGINE_TYPE == SCRIPT_ENGINE_BROWSER
+    // Browser SE backend: the browser's V8 engine handles everything natively.
+    // No inline stubs, no unbundled adapters — just run the original scripts.
+    runScript("jsb-adapter/web-adapter.js");
+    CC_LOG_INFO("WASM browser mode: web-adapter.js loaded");
 #else
-    // Full mode: set up the globals that jsb-adapter/web-adapter.js normally
-    // provides, then run main.js which boots the full cc engine via SystemJS.
+    // QuickJS full mode: set up the globals that jsb-adapter/web-adapter.js
+    // normally provides via inline stubs (QuickJS can't run the browserify bundle).
     //
     // We CANNOT evaluate web-adapter.js directly because it is a large
     // browserify bundle (~5800 lines, 40+ modules).  Each module factory
