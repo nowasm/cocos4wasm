@@ -177,7 +177,44 @@ int BaseGame::init() {
     runScript("jsb-adapter/web-adapter.js");
     CC_LOG_INFO("WASM browser mode: web-adapter.js loaded");
 
-
+    // After cc.js's _ctor runs and creates TypedArray views from the copy
+    // ArrayBuffer, re-map them to live WASM memory using _sharedBufferOffset.
+    // We do this by overriding _initAndReturnSharedBuffer on the Node prototype
+    // to also stash the WASM offset, then patching the prototype's _ctor wrapper.
+    se::ScriptEngine::getInstance()->evalString(R"JS(
+        (function() {
+            // Intercept _ctor assignment on Node prototype.  When cc.js sets
+            // Node.prototype._ctor = function(...), wrap it to fix TypedArrays.
+            var nodeProto = jsb.Node.prototype;
+            var realCtor = null;
+            var ctorKey = '_ctor';
+            // Wait for cc.js to define _ctor, then wrap it once.
+            var origDefProp = Object.defineProperty;
+            origDefProp.call(Object, nodeProto, ctorKey, {
+                configurable: true,
+                set: function(fn) {
+                    // Remove this trap and install the wrapped _ctor permanently
+                    realCtor = fn;
+                    origDefProp.call(Object, nodeProto, ctorKey, {
+                        configurable: true,
+                        writable: true,
+                        value: function wrappedCtor() {
+                            realCtor.apply(this, arguments);
+                            var base = this._sharedBufferOffset;
+                            if (typeof base === 'number' && base > 0) {
+                                var wbuf = wasmMemory.buffer;
+                                this._sharedUint32Arr = new Uint32Array(wbuf, base + 0, 3);
+                                this._sharedInt32Arr  = new Int32Array(wbuf, base + 12, 1);
+                                this._sharedUint8Arr  = new Uint8Array(wbuf, base + 16, 4);
+                                this._sharedFloat32Arr = new Float32Array(wbuf, base + 20, 4);
+                            }
+                        }
+                    });
+                },
+                get: function() { return realCtor; }
+            });
+        })();
+    )JS", 0, nullptr, "node-ctor-patch.js");
 #else
     // QuickJS full mode: set up the globals that jsb-adapter/web-adapter.js
     // normally provides via inline stubs (QuickJS can't run the browserify bundle).
