@@ -31,6 +31,9 @@
 #include "editor-support/MiddlewareManager.h"
 #include "renderer/pipeline/Define.h"
 #include "scene/Pass.h"
+#if CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
+    #include <emscripten.h>
+#endif
 
 namespace cc {
 
@@ -682,6 +685,13 @@ void Batcher2d::update() {
         }
     }
     fillBuffersAndMergeBatches();
+#if CC_PLATFORM == CC_PLATFORM_EMSCRIPTEN
+    {static int frame = 0; ++frame;
+    if (frame >= 60 && frame < 63) {
+        emscripten_log(EM_LOG_WARN, "[Batcher2d@f%d] rootNodes=%zu batches=%zu meshBufMaps=%zu",
+            frame, _rootNodeArr.size(), _batches.size(), _meshBuffersMap.size());
+    }}
+#endif
     resetRenderStates();
 }
 

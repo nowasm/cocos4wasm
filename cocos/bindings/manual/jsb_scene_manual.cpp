@@ -374,20 +374,7 @@ static bool js_cc_Node_initAndReturnSharedBuffer(se::State &s) // NOLINT(readabi
     auto *cobj = SE_THIS_OBJECT<cc::Node>(s);
     SE_PRECONDITION2(cobj, false, "Invalid Native Object");
 
-#if SCRIPT_ENGINE_TYPE == SCRIPT_ENGINE_BROWSER
-    // Browser SE: return wasmMemory.buffer directly so TypedArray views
-    // created by cc.js's _ctor point into live C++ memory.  Store the
-    // WASM address of the struct on the JS object so _ctor (patched below)
-    // can add it as a base offset.
-    js_scene_Node_registerListeners(cobj);
-    auto wasmBuf = emscripten::val::global("wasmMemory")["buffer"];
-    auto *bufObj = se::Object::_createJSObject(nullptr, wasmBuf);
-    auto wasmAddr = reinterpret_cast<uintptr_t>(&cobj->_getEventMask());
-    s.thisObject()->setProperty("_sharedBufferOffset",
-        se::Value(static_cast<double>(wasmAddr)));
-    s.rval().setObject(bufObj);
-    bufObj->decRef();
-    return true;
+#if 0 // SCRIPT_ENGINE_TYPE == SCRIPT_ENGINE_BROWSER — disabled; using default path with copy ArrayBuffer
 #else
     auto *result = cobj->_getSharedArrayBufferObject();
     js_scene_Node_registerListeners(cobj);
