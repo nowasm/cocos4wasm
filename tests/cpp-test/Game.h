@@ -1,6 +1,5 @@
 #pragma once
-#include "cocos/cocos.h"
-#include "engine/EngineEvents.h"
+#include "TestScene.h"
 
 class Game : public cc::BaseGame {
 public:
@@ -10,7 +9,29 @@ public:
     void onClose() override { BaseGame::onClose(); }
 
 private:
-    cc::events::Touch::Listener _touchListener;
+    bool initEngine();
+    void switchTest(int index);
+    void updateTitle();
+
+    cc::events::Tick::Listener _tickListener;
     cc::events::Mouse::Listener _mouseListener;
     cc::events::Keyboard::Listener _keyboardListener;
+
+    // orbit camera
+    cc::Node *_camNode{nullptr};
+    cc::scene::Camera *_camera{nullptr};
+    cc::scene::RenderScene *_renderScene{nullptr};
+    float _orbitYaw{45.0f};
+    float _orbitPitch{-25.0f};
+    float _orbitDist{15.0f};
+    bool _dragging{false};
+    float _lastMX{0}, _lastMY{0};
+
+    // test management
+    int _currentTest{-1};
+    TestScene *_activeTest{nullptr};
+
+    // directional light (shared across tests)
+    cc::Node *_defaultLightNode{nullptr};
+    cc::scene::DirectionalLight *_defaultLight{nullptr};
 };

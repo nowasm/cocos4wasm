@@ -30,9 +30,6 @@
 #include "base/RefCounted.h"
 #include "base/TypeDef.h"
 
-namespace se {
-class Object;
-}
 
 namespace cc {
 
@@ -220,8 +217,6 @@ public:
 
     virtual ccstd::string toString() const { return ""; };
 
-    inline void setScriptObject(se::Object* seObj) { _scriptObject = seObj; }
-    inline se::Object* getScriptObject() const { return _scriptObject; }
 
 protected:
     virtual bool onPreDestroy() {
@@ -233,7 +228,6 @@ public:
     Flags _objFlags{Flags::ZERO};
     ccstd::string _name;
 protected:
-    se::Object* _scriptObject{nullptr}; // weak reference
 };
 
 CC_ENUM_BITWISE_OPERATORS(CCObject::Flags);

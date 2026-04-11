@@ -26,7 +26,6 @@
 
 #include "base/Ptr.h"
 #include "base/std/any.h"
-#include "bindings/utils/BindingUtils.h"
 // #include "core/components/Component.h"
 // #include "core/event/Event.h"
 #include "core/data/Object.h"
@@ -600,7 +599,6 @@ public:
     //    uint32_t _getChildrenSize();
     void _setChildren(ccstd::vector<IntrusivePtr<Node>> &&children); // NOLINT
 
-    inline se::Object *_getSharedArrayBufferObject() const { return _sharedMemoryActor.getSharedArrayBufferObject(); } // NOLINT
     inline const uint32_t &_getEventMask() const { return _eventMask; } // NOLINT
 
     inline float _getLocalOpacity() const { return _localOpacity; } // NOLINT
@@ -687,7 +685,6 @@ private:
     IntrusivePtr<UserData> _userData;
 
     ccstd::vector<IntrusivePtr<Node>> _children;
-    bindings::NativeMemorySharedToScriptActor _sharedMemoryActor;
     // local transform
     Vec3 _localPosition{Vec3::ZERO};
     Vec3 _localScale{Vec3::ONE};

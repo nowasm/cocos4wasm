@@ -40,7 +40,6 @@ RenderDrawInfo::RenderDrawInfo() {
     _drawInfoAttrs._isMeshBuffer = 0;
     _drawInfoAttrs._isVertexPositionInWorld = 0;
     _drawInfoAttrs._padding = 0;
-    _attrSharedBufferActor.initialize(&_drawInfoAttrs, sizeof(_drawInfoAttrs));
 }
 
 RenderDrawInfo::~RenderDrawInfo() {

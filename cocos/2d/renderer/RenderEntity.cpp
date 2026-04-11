@@ -24,7 +24,6 @@
 
 #include "2d/renderer/RenderEntity.h"
 #include "2d/renderer/Batcher2d.h"
-#include "bindings/utils/BindingUtils.h"
 
 namespace cc {
 RenderEntity::RenderEntity(RenderEntityType type) : _renderEntityType(type) {
@@ -38,7 +37,6 @@ RenderEntity::RenderEntity(RenderEntityType type) : _renderEntityType(type) {
     _entityAttrLayout.useLocal = 0;
     _entityAttrLayout.paddings = 0;
     
-    _entitySharedBufferActor.initialize(&_entityAttrLayout, sizeof(EntityAttrLayout));
 }
 
 RenderEntity::~RenderEntity() {

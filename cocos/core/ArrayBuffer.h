@@ -28,7 +28,6 @@
 #include "base/Ptr.h"
 #include "base/RefCounted.h"
 #include "base/memory/Memory.h"
-#include "bindings/jswrapper/Object.h"
 
 namespace cc {
 
@@ -41,9 +40,6 @@ public:
 
     ArrayBuffer();
     ~ArrayBuffer() override;
-
-    void setJSArrayBuffer(se::Object *arrayBuffer);
-    inline se::Object *getJSArrayBuffer() const { return _jsArrayBuffer; }
 
     inline uint32_t byteLength() const { return _byteLength; }
 
@@ -60,7 +56,6 @@ public:
     void reset(const uint8_t *data, uint32_t length);
 
 private:
-    se::Object *_jsArrayBuffer{nullptr};
     uint8_t *_data{nullptr};
     uint32_t _byteLength{0};
 

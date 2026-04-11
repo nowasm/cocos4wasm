@@ -26,6 +26,11 @@ set(TEST_SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/main.cpp
     ${CMAKE_CURRENT_LIST_DIR}/Game.h
     ${CMAKE_CURRENT_LIST_DIR}/Game.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/TestScene.h
+    ${CMAKE_CURRENT_LIST_DIR}/tests/TestShapes.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/tests/TestMaterials.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/tests/TestLighting.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/tests/TestTransform.cpp
 )
 
 add_executable(CocosCppTest ${TEST_SOURCES})
@@ -66,4 +71,26 @@ if(MSVC)
             COMMAND ${CMAKE_COMMAND} -E copy_if_different ${abs} $<TARGET_FILE_DIR:CocosCppTest>/${filename}
         )
     endforeach()
+
+    # Copy builtin resources to output directory
+    add_custom_command(TARGET CocosCppTest POST_BUILD
+        # builtin-effects.json (shaders)
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${COCOS_X_PATH}/templates/wasm32/builtin-effects.json
+            $<TARGET_FILE_DIR:CocosCppTest>/builtin-effects.json
+        # builtin fonts
+        COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:CocosCppTest>/fonts
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${COCOS_X_PATH}/editor/assets/default_fonts/builtin-freetype/OpenSans-Regular.ttf
+            $<TARGET_FILE_DIR:CocosCppTest>/fonts/OpenSans-Regular.ttf
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${COCOS_X_PATH}/editor/assets/default_fonts/builtin-freetype/OpenSans-Bold.ttf
+            $<TARGET_FILE_DIR:CocosCppTest>/fonts/OpenSans-Bold.ttf
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${COCOS_X_PATH}/editor/assets/default_fonts/builtin-freetype/OpenSans-Italic.ttf
+            $<TARGET_FILE_DIR:CocosCppTest>/fonts/OpenSans-Italic.ttf
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${COCOS_X_PATH}/editor/assets/default_fonts/builtin-freetype/OpenSans-BoldItalic.ttf
+            $<TARGET_FILE_DIR:CocosCppTest>/fonts/OpenSans-BoldItalic.ttf
+    )
 endif()

@@ -28,7 +28,6 @@
 #include "2d/renderer/StencilManager.h"
 #include "base/Macros.h"
 #include "base/TypeDef.h"
-#include "bindings/utils/BindingUtils.h"
 #include "core/ArrayBuffer.h"
 #include "core/scene-graph/Node.h"
 
@@ -127,8 +126,6 @@ public:
     RenderDrawInfo* getDynamicRenderDrawInfo(uint32_t index);
     ccstd::vector<RenderDrawInfo*>& getDynamicRenderDrawInfos();
 
-    inline se::Object* getEntitySharedBufferForJS() const { return _entitySharedBufferActor.getSharedArrayBufferObject(); }
-
     inline bool getVBColorDirty() const { return _vbColorDirty; }
     inline void setVBColorDirty(bool vbColorDirty) { _vbColorDirty = vbColorDirty; }
     inline Color getColor() const { return Color(_entityAttrLayout.colorR, _entityAttrLayout.colorG, _entityAttrLayout.colorB, _entityAttrLayout.colorA); }
@@ -152,8 +149,6 @@ private:
 
     // weak reference
     Node* _renderTransform{nullptr};
-    
-    bindings::NativeMemorySharedToScriptActor _entitySharedBufferActor;
 
     union {
         std::array<RenderDrawInfo, RenderEntity::STATIC_DRAW_INFO_CAPACITY> _staticDrawInfos;

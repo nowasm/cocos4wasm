@@ -23,6 +23,7 @@
 ****************************************************************************/
 
 #include "3d/misc/Buffer.h"
+#include "base/Log.h"
 #include "base/std/variant.h"
 
 namespace cc {

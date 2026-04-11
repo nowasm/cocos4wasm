@@ -23,13 +23,13 @@
 ****************************************************************************/
 
 #include "ArrayBuffer.h"
+#include <cstdlib>
+#include <cstring>
 
 namespace cc {
 
 ArrayBuffer::ArrayBuffer(uint32_t length) : _byteLength{length} {
-    _jsArrayBuffer = se::Object::createArrayBufferObject(nullptr, length);
-    _jsArrayBuffer->root();
-    _jsArrayBuffer->getArrayBufferData(static_cast<uint8_t **>(&_data), nullptr);
+    _data = static_cast<uint8_t *>(malloc(length));
     memset(_data, 0x00, _byteLength);
 }
 
@@ -40,24 +40,10 @@ ArrayBuffer::ArrayBuffer(const uint8_t *data, uint32_t length) {
 ArrayBuffer::ArrayBuffer() = default;
 
 ArrayBuffer::~ArrayBuffer() {
-    if (_jsArrayBuffer) {
-        _jsArrayBuffer->unroot();
-        _jsArrayBuffer->decRef();
+    if (_data) {
+        free(_data);
+        _data = nullptr;
     }
-}
-
-void ArrayBuffer::setJSArrayBuffer(se::Object *arrayBuffer) {
-    if (_jsArrayBuffer) {
-        _jsArrayBuffer->unroot();
-        _jsArrayBuffer->decRef();
-    }
-    
-    _jsArrayBuffer = arrayBuffer;
-    _jsArrayBuffer->incRef();
-    _jsArrayBuffer->root();
-    size_t length{0};
-    _jsArrayBuffer->getArrayBufferData(static_cast<uint8_t **>(&_data), &length);
-    _byteLength = static_cast<uint32_t>(length);
 }
 
 ArrayBuffer::Ptr ArrayBuffer::slice(uint32_t begin, uint32_t end) {
@@ -71,13 +57,16 @@ ArrayBuffer::Ptr ArrayBuffer::slice(uint32_t begin, uint32_t end) {
 }
 
 void ArrayBuffer::reset(const uint8_t *data, uint32_t length) {
-    if (_jsArrayBuffer != nullptr) {
-        _jsArrayBuffer->unroot();
-        _jsArrayBuffer->decRef();
+    if (_data != nullptr) {
+        free(_data);
     }
-    _jsArrayBuffer = se::Object::createArrayBufferObject(data, length);
-    _jsArrayBuffer->getArrayBufferData(static_cast<uint8_t **>(&_data), nullptr);
     _byteLength = length;
+    _data = static_cast<uint8_t *>(malloc(length));
+    if (data) {
+        memcpy(_data, data, length);
+    } else {
+        memset(_data, 0x00, length);
+    }
 }
 
 } // namespace cc

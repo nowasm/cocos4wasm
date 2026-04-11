@@ -2387,11 +2387,19 @@ cocos_source_files(MODULE ccgeometry
     cocos/core/geometry/Triangle.h
 )
 
-######## utils (needed by core engine code - Node, RenderEntity, etc.)
+##### game API (pure C++ game development layer)
 cocos_source_files(
-    cocos/bindings/utils/BindingUtils.cpp
-    cocos/bindings/utils/BindingUtils.h
+    cocos/game/CocosGame.h
+    cocos/game/PrimitiveFactory.h
+    cocos/game/PrimitiveFactory.cpp
+    cocos/game/TextureLoader.h
+    cocos/game/TextureLoader.cpp
+    cocos/game/MaterialFactory.h
+    cocos/game/MaterialFactory.cpp
+    cocos/game/MeshRenderer.h
+    cocos/game/MeshRenderer.cpp
 )
+
 
 ##### script bindings
 if(NOT USE_SE_NONE)

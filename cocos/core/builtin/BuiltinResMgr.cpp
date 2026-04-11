@@ -29,6 +29,7 @@
 #include "core/assets/Texture2D.h"
 #include "core/assets/TextureCube.h"
 #include "math/Color.h"
+#include "platform/FileUtils.h"
 #include "platform/Image.h"
 #include "rapidjson/document.h"
 #include "renderer/core/ProgramLib.h"
@@ -218,7 +219,50 @@ bool BuiltinResMgr::initBuiltinRes() {
 
     // initMaterials();
 
+    // Register builtin font assets for DebugRenderer
+    initFontAssets();
+
     return true;
+}
+
+void BuiltinResMgr::initFontAssets() {
+    static const char *FONT_NAMES[] = {
+        "OpenSans-Regular",
+        "OpenSans-Bold",
+        "OpenSans-Italic",
+        "OpenSans-BoldItalic",
+    };
+
+    auto *fileUtils = FileUtils::getInstance();
+    if (!fileUtils) return;
+
+    for (const auto *fontName : FONT_NAMES) {
+        ccstd::string ttfFile = ccstd::string(fontName) + ".ttf";
+        // Search in multiple locations
+        ccstd::vector<ccstd::string> searchPaths = {
+            "fonts/" + ttfFile,
+            ttfFile,
+        };
+
+        ccstd::string fullPath;
+        for (const auto &p : searchPaths) {
+            fullPath = fileUtils->fullPathForFilename(p);
+            if (!fullPath.empty() && fileUtils->isFileExist(fullPath)) {
+                break;
+            }
+            fullPath.clear();
+        }
+
+        if (fullPath.empty()) {
+            CC_LOG_WARNING("BuiltinResMgr: font '%s' not found", fontName);
+            continue;
+        }
+
+        auto *fontAsset = ccnew Asset();
+        fontAsset->setUuid(fontName);
+        fontAsset->_nativeUrl = fullPath;
+        addAsset(fontName, fontAsset);
+    }
 }
 
 void BuiltinResMgr::initTexture2DWithUuid(const ccstd::string &uuid, const uint8_t *data, size_t dataBytes, uint32_t width, uint32_t height) {

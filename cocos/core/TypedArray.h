@@ -25,59 +25,16 @@
 #pragma once
 
 #include <cstdint>
+#include <cstring>
 #include <memory>
 #include <type_traits>
 #include "base/TypeDef.h"
+#include "base/std/container/string.h"
+#include "base/std/container/vector.h"
 #include "base/std/variant.h"
-#include "bindings/jswrapper/Object.h"
 #include "core/ArrayBuffer.h"
 
 namespace cc {
-
-template <typename T>
-se::Object::TypedArrayType toTypedArrayType() {
-    return se::Object::TypedArrayType::NONE;
-}
-
-template <>
-inline se::Object::TypedArrayType toTypedArrayType<int8_t>() {
-    return se::Object::TypedArrayType::INT8;
-}
-
-template <>
-inline se::Object::TypedArrayType toTypedArrayType<int16_t>() {
-    return se::Object::TypedArrayType::INT16;
-}
-
-template <>
-inline se::Object::TypedArrayType toTypedArrayType<int32_t>() {
-    return se::Object::TypedArrayType::INT32;
-}
-
-template <>
-inline se::Object::TypedArrayType toTypedArrayType<uint8_t>() {
-    return se::Object::TypedArrayType::UINT8;
-}
-
-template <>
-inline se::Object::TypedArrayType toTypedArrayType<uint16_t>() {
-    return se::Object::TypedArrayType::UINT16;
-}
-
-template <>
-inline se::Object::TypedArrayType toTypedArrayType<uint32_t>() {
-    return se::Object::TypedArrayType::UINT32;
-}
-
-template <>
-inline se::Object::TypedArrayType toTypedArrayType<float>() {
-    return se::Object::TypedArrayType::FLOAT32;
-}
-
-template <>
-inline se::Object::TypedArrayType toTypedArrayType<double>() {
-    return se::Object::TypedArrayType::FLOAT64;
-}
 
 template <typename T>
 class TypedArrayTemp {
@@ -103,8 +60,6 @@ public:
       _byteLength(length * BYTES_PER_ELEMENT),
       _byteEndPos(byteOffset + length * BYTES_PER_ELEMENT) {
         CC_ASSERT(_byteEndPos <= _buffer->byteLength());
-        _jsTypedArray = se::Object::createTypedArrayWithBuffer(toTypedArrayType<T>(), buffer->getJSArrayBuffer(), byteOffset, _byteLength);
-        _jsTypedArray->root();
     }
 
     TypedArrayTemp(const TypedArrayTemp &o) {
@@ -115,16 +70,14 @@ public:
         *this = std::move(o);
     }
 
-    ~TypedArrayTemp() {
-        if (_jsTypedArray != nullptr) {
-            _jsTypedArray->unroot();
-            _jsTypedArray->decRef();
-        }
-    }
+    ~TypedArrayTemp() = default;
 
     TypedArrayTemp &operator=(const TypedArrayTemp &o) {
         if (this != &o) {
-            setJSTypedArray(o._jsTypedArray);
+            _buffer = o._buffer;
+            _byteOffset = o._byteOffset;
+            _byteLength = o._byteLength;
+            _byteEndPos = o._byteEndPos;
         }
         return *this;
     }
@@ -136,17 +89,10 @@ public:
             _byteLength = o._byteLength;
             _byteEndPos = o._byteEndPos;
 
-            if (_jsTypedArray != nullptr) {
-                _jsTypedArray->unroot();
-                _jsTypedArray->decRef();
-            }
-            _jsTypedArray = o._jsTypedArray;
-
             o._buffer = nullptr;
             o._byteOffset = 0;
             o._byteLength = 0;
             o._byteEndPos = 0;
-            o._jsTypedArray = nullptr;
         }
         return *this;
     }
@@ -211,26 +157,14 @@ public:
     set(const TypedArrayTemp<SrcType> &array, uint32_t offset);
 
     void reset(uint32_t length) {
-        if (_jsTypedArray != nullptr) {
-            _jsTypedArray->unroot();
-            _jsTypedArray->decRef();
-            _jsTypedArray = nullptr;
-        }
         const uint32_t byteLength = length * BYTES_PER_ELEMENT;
         _buffer = ccnew ArrayBuffer(byteLength);
         _byteLength = _buffer->byteLength();
         _byteOffset = 0;
         _byteEndPos = byteLength;
-        _jsTypedArray = se::Object::createTypedArrayWithBuffer(toTypedArrayType<T>(), _buffer->getJSArrayBuffer(), 0, byteLength);
-        _jsTypedArray->root();
     }
 
     void clear() {
-        if (_jsTypedArray != nullptr) {
-            _jsTypedArray->unroot();
-            _jsTypedArray->decRef();
-            _jsTypedArray = nullptr;
-        }
         _buffer = nullptr;
         _byteLength = 0;
         _byteOffset = 0;
@@ -242,49 +176,11 @@ public:
     inline uint32_t length() const { return _byteLength / BYTES_PER_ELEMENT; }
     inline uint32_t byteOffset() const { return _byteOffset; }
     inline bool empty() const { return _byteLength == 0; }
-    inline se::Object *getJSTypedArray() const { return _jsTypedArray; }
-    inline void setJSTypedArray(se::Object *typedArray) {
-        if (_jsTypedArray != nullptr) {
-            _jsTypedArray->unroot();
-            _jsTypedArray->decRef();
-        }
-        _jsTypedArray = typedArray;
-
-        if (_jsTypedArray != nullptr) {
-            _jsTypedArray->root();
-            _jsTypedArray->incRef();
-
-            se::Value tmpVal;
-            _jsTypedArray->getProperty("buffer", &tmpVal, true);
-            CC_ASSERT(tmpVal.isObject());
-            CC_ASSERT(tmpVal.toObject()->isArrayBuffer());
-
-            _buffer = ccnew ArrayBuffer();
-            _buffer->setJSArrayBuffer(tmpVal.toObject());
-
-            _jsTypedArray->getProperty("byteOffset", &tmpVal, true);
-            CC_ASSERT(tmpVal.isNumber());
-            _byteOffset = tmpVal.toUint32();
-
-            _jsTypedArray->getProperty("byteLength", &tmpVal, true);
-            CC_ASSERT(tmpVal.isNumber());
-            _byteLength = tmpVal.toUint32();
-
-            _byteEndPos = _buffer->byteLength();
-        } else {
-            _buffer = nullptr;
-            _byteOffset = 0;
-            _byteLength = 0;
-            _byteEndPos = 0;
-        }
-    }
-
 private:
     ArrayBuffer::Ptr _buffer;
     uint32_t _byteOffset{0};
     uint32_t _byteLength{0};
     uint32_t _byteEndPos{0};
-    se::Object *_jsTypedArray{nullptr};
 };
 
 template <typename T>

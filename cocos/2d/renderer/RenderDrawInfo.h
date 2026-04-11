@@ -27,7 +27,6 @@
 #include "base/Ptr.h"
 #include "base/Macros.h"
 #include "base/TypeDef.h"
-#include "bindings/utils/BindingUtils.h"
 #include "core/ArrayBuffer.h"
 #include "core/assets/Material.h"
 #include "core/scene-graph/Node.h"
@@ -218,8 +217,6 @@ public:
         return reinterpret_cast<Render2dLayout*>(_sharedBuffer + dataOffset * sizeof(float));
     }
 
-    inline se::Object* getAttrSharedBufferForJS() const { return _attrSharedBufferActor.getSharedArrayBufferObject(); }
-
     gfx::InputAssembler* requestIA(gfx::Device* device);
     void uploadBuffers();
     void resetMeshIA();
@@ -276,7 +273,6 @@ private:
     } _drawInfoAttrs{};
     static_assert(sizeof(DrawInfoAttrs) == 28, "DrawInfoAttrs layout changed — update jsb_wasm32_facade.cpp shared buffer offsets");
 
-    bindings::NativeMemorySharedToScriptActor _attrSharedBufferActor;
     // weak reference
     Material* _material{nullptr};
     // weak reference

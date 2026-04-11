@@ -65,7 +65,6 @@ Node::Node(const ccstd::string &name) {
 #ifdef __clang__
 #pragma clang diagnostic pop
 #endif
-    _sharedMemoryActor.initialize(&_eventMask, NODE_SHARED_MEMORY_BYTE_LENGTH);
 #undef NODE_SHARED_MEMORY_BYTE_LENGTH
 
     _id = idGenerator.getNewId();
