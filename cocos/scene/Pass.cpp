@@ -24,7 +24,6 @@
 
 #include "scene/Pass.h"
 #include "base/std/hash/hash.h"
-#include "cocos/bindings/jswrapper/SeApi.h"
 #include "cocos/renderer/pipeline/custom/RenderingModule.h"
 #include "core/Root.h"
 #include "core/assets/EffectAsset.h"
@@ -206,8 +205,7 @@ void Pass::setUniform(uint32_t handle, const MaterialProperty &value) {
     auto validatorIt = type2validator.find(type);
     if (validatorIt != type2validator.end()) {
         if (!validatorIt->second(value)) {
-            const ccstd::string stack = se::ScriptEngine::getInstance()->getCurrentStackTrace();
-            debug::errorID(12011, binding, stack.c_str());
+            debug::errorID(12011, binding, "");
         }
     }
 #endif

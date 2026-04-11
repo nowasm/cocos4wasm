@@ -20,7 +20,7 @@ endif()
 ################################# options ############################################
 # default fallback options
 cc_set_if_undefined(CC_DEBUG_FORCE           OFF)
-cc_set_if_undefined(USE_SE_V8                ON)
+cc_set_if_undefined(USE_SE_V8                OFF)
 cc_set_if_undefined(USE_SE_SM                OFF)
 cc_set_if_undefined(USE_SE_NAPI              OFF)
 cc_set_if_undefined(USE_SE_JSVM              OFF)
@@ -104,6 +104,14 @@ set(CC_USE_GLES3 ${CC_USE_GLES3} CACHE INTERNAL "")
 set(CC_USE_GLES2 ${CC_USE_GLES2} CACHE INTERNAL "")
 set(CC_USE_VULKAN ${CC_USE_VULKAN} CACHE INTERNAL "")
 set(CC_USE_METAL ${CC_USE_METAL}  CACHE INTERNAL "")
+
+# Determine if no real script engine is enabled (pure C++ mode)
+if(NOT USE_SE_V8 AND NOT USE_SE_SM AND NOT USE_SE_NAPI AND NOT USE_SE_JSVM AND NOT USE_SE_QJS AND NOT USE_SE_BROWSER)
+    set(USE_SE_NONE ON)
+    message(STATUS "No script engine enabled, using SCRIPT_ENGINE_NONE (pure C++ mode)")
+else()
+    set(USE_SE_NONE OFF)
+endif()
 
 if(USE_SERVER_MODE)
     set(CC_USE_VULKAN OFF)
@@ -1241,20 +1249,24 @@ endif()
 
 set(SWIG_OUTPUT_ROOT ${CMAKE_CURRENT_BINARY_DIR}/generated)
 set(SWIG_OUTPUT ${SWIG_OUTPUT_ROOT}/cocos/bindings/auto)
-cc_gen_swig_files(${CMAKE_CURRENT_LIST_DIR}/tools/swig-config ${SWIG_OUTPUT})
+if(NOT USE_SE_NONE)
+    cc_gen_swig_files(${CMAKE_CURRENT_LIST_DIR}/tools/swig-config ${SWIG_OUTPUT})
 
-if(USE_GOOGLE_BILLING)
-    cc_gen_swig_files(${CMAKE_CURRENT_LIST_DIR}/tools/swig-config/android/google/billing ${SWIG_OUTPUT})
-endif()
+    if(USE_GOOGLE_BILLING)
+        cc_gen_swig_files(${CMAKE_CURRENT_LIST_DIR}/tools/swig-config/android/google/billing ${SWIG_OUTPUT})
+    endif()
 
-if(USE_GOOGLE_PLAY_GAMES)
-    cc_gen_swig_files(${CMAKE_CURRENT_LIST_DIR}/tools/swig-config/android/google/play ${SWIG_OUTPUT})
+    if(USE_GOOGLE_PLAY_GAMES)
+        cc_gen_swig_files(${CMAKE_CURRENT_LIST_DIR}/tools/swig-config/android/google/play ${SWIG_OUTPUT})
+    endif()
 endif()
 ##### platform
 cocos_source_files(
     cocos/platform/Image.cpp
     cocos/platform/Image.h
     cocos/platform/StdC.h
+    cocos/platform/FontFamilyNameMap.h
+    cocos/platform/FontFamilyNameMap.cpp
 )
 
 ########## module utils
@@ -1670,8 +1682,6 @@ cocos_source_files(
                  cocos/renderer/pipeline/custom/PrivateTypes.cpp
                  cocos/renderer/pipeline/custom/PrivateTypes.h
                  cocos/renderer/pipeline/custom/RenderCommonFwd.h
-                 cocos/renderer/pipeline/custom/RenderCommonJsb.cpp
-                 cocos/renderer/pipeline/custom/RenderCommonJsb.h
                  cocos/renderer/pipeline/custom/RenderCommonNames.h
                  cocos/renderer/pipeline/custom/RenderCommonSerialization.cpp
                  cocos/renderer/pipeline/custom/RenderCommonSerialization.h
@@ -1690,7 +1700,6 @@ cocos_source_files(
                  cocos/renderer/pipeline/custom/details/GraphTypes.h
                  cocos/renderer/pipeline/custom/details/GraphView.h
                  cocos/renderer/pipeline/custom/details/GslUtils.h
-                 cocos/renderer/pipeline/custom/details/JsbConversion.h
                  cocos/renderer/pipeline/custom/details/Map.h
                  cocos/renderer/pipeline/custom/details/Overload.h
                  cocos/renderer/pipeline/custom/details/PathUtils.h
@@ -1700,6 +1709,14 @@ cocos_source_files(
                  cocos/renderer/pipeline/custom/details/Set.h
                  cocos/renderer/pipeline/custom/details/Utility.h
 )
+
+if(NOT USE_SE_NONE)
+    cocos_source_files(
+        cocos/renderer/pipeline/custom/RenderCommonJsb.cpp
+        cocos/renderer/pipeline/custom/RenderCommonJsb.h
+        cocos/renderer/pipeline/custom/details/JsbConversion.h
+    )
+endif()
 
 if (USE_GEOMETRY_RENDERER)
     cocos_source_files(
@@ -2173,10 +2190,12 @@ if(USE_PHYSICS_PHYSX)
         cocos/physics/physx/character-controllers/PhysXBoxCharacterController.h
         cocos/physics/physx/character-controllers/PhysXBoxCharacterController.cpp
     )
-    cocos_source_files(
-        NO_WERROR NO_UBUILD ${SWIG_OUTPUT}/jsb_physics_auto.cpp
-                            ${SWIG_OUTPUT}/jsb_physics_auto.h
-    )
+    if(NOT USE_SE_NONE)
+        cocos_source_files(
+            NO_WERROR NO_UBUILD ${SWIG_OUTPUT}/jsb_physics_auto.cpp
+                                ${SWIG_OUTPUT}/jsb_physics_auto.h
+        )
+    endif()
 endif()
 
 ##### 2d
@@ -2196,7 +2215,7 @@ cocos_source_files(
 )
 
 ##### box2d
-if(USE_BOX2D_JSB)
+if(USE_BOX2D_JSB AND NOT USE_SE_NONE)
 cocos_source_files(
     NO_WERROR NO_UBUILD ${SWIG_OUTPUT}/jsb_box2d_auto.cpp
                         ${SWIG_OUTPUT}/jsb_box2d_auto.h
@@ -2368,13 +2387,14 @@ cocos_source_files(MODULE ccgeometry
     cocos/core/geometry/Triangle.h
 )
 
-##### script bindings
-
-######## utils
+######## utils (needed by core engine code - Node, RenderEntity, etc.)
 cocos_source_files(
     cocos/bindings/utils/BindingUtils.cpp
     cocos/bindings/utils/BindingUtils.h
 )
+
+##### script bindings
+if(NOT USE_SE_NONE)
 
 ######## dop
 cocos_source_files(
@@ -2449,6 +2469,8 @@ if(USE_GOOGLE_PLAY_GAMES)
     )
 endif()
 
+endif() # NOT USE_SE_NONE - end of script bindings
+
 if(USE_XR_REMOTE_PREVIEW)
     cocos_source_files(
             NO_WERROR    cocos/xr/XRRemotePreviewManager.h
@@ -2475,10 +2497,12 @@ if(USE_MIDDLEWARE)
                      cocos/editor-support/TypedArrayPool.h
     )
 
-    cocos_source_files(
-        NO_WERROR   NO_UBUILD   ${SWIG_OUTPUT}/jsb_editor_support_auto.cpp
-                                ${SWIG_OUTPUT}/jsb_editor_support_auto.h
-    )
+    if(NOT USE_SE_NONE)
+        cocos_source_files(
+            NO_WERROR   NO_UBUILD   ${SWIG_OUTPUT}/jsb_editor_support_auto.cpp
+                                    ${SWIG_OUTPUT}/jsb_editor_support_auto.h
+        )
+    endif()
 
     if(USE_SPINE_3_8)
     include_directories(${CWD}/cocos/editor-support/spine/3.8)
@@ -2632,12 +2656,14 @@ if(USE_MIDDLEWARE)
                                      cocos/editor-support/spine-creator-support/VertexEffectDelegate.h
 
         )
-        cocos_source_files(
-        NO_WERROR       ${SWIG_OUTPUT}/jsb_spine_3_8_auto.cpp
-                        ${SWIG_OUTPUT}/jsb_spine_3_8_auto.h
-        NO_WERROR       cocos/bindings/manual/jsb_spine_manual.cpp
-                        cocos/bindings/manual/jsb_spine_manual.h
-        )
+        if(NOT USE_SE_NONE)
+            cocos_source_files(
+            NO_WERROR       ${SWIG_OUTPUT}/jsb_spine_3_8_auto.cpp
+                            ${SWIG_OUTPUT}/jsb_spine_3_8_auto.h
+            NO_WERROR       cocos/bindings/manual/jsb_spine_manual.cpp
+                            cocos/bindings/manual/jsb_spine_manual.h
+            )
+        endif()
     endif()
 
     if(USE_SPINE_4_2)
@@ -2804,12 +2830,14 @@ if(USE_MIDDLEWARE)
                                      cocos/editor-support/spine/4.2/spine/Vertices.h
 
         )
-        cocos_source_files(
-        NO_WERROR       ${SWIG_OUTPUT}/jsb_spine_4_2_auto.cpp
-                        ${SWIG_OUTPUT}/jsb_spine_4_2_auto.h
-        NO_WERROR       cocos/bindings/manual/jsb_spine_manual.cpp
-                        cocos/bindings/manual/jsb_spine_manual.h
-        )
+        if(NOT USE_SE_NONE)
+            cocos_source_files(
+            NO_WERROR       ${SWIG_OUTPUT}/jsb_spine_4_2_auto.cpp
+                            ${SWIG_OUTPUT}/jsb_spine_4_2_auto.h
+            NO_WERROR       cocos/bindings/manual/jsb_spine_manual.cpp
+                            cocos/bindings/manual/jsb_spine_manual.h
+            )
+        endif()
     endif()
 
     if(USE_SPINE)
@@ -2923,16 +2951,19 @@ if(USE_MIDDLEWARE)
                                      cocos/editor-support/dragonbones-creator-support/CCTextureAtlasData.h
 
         )
-        cocos_source_files(
-            NO_WERROR    ${SWIG_OUTPUT}/jsb_dragonbones_auto.cpp
-                         ${SWIG_OUTPUT}/jsb_dragonbones_auto.h
-            NO_WERROR    cocos/bindings/manual/jsb_dragonbones_manual.cpp
-                         cocos/bindings/manual/jsb_dragonbones_manual.h
-        )
+        if(NOT USE_SE_NONE)
+            cocos_source_files(
+                NO_WERROR    ${SWIG_OUTPUT}/jsb_dragonbones_auto.cpp
+                             ${SWIG_OUTPUT}/jsb_dragonbones_auto.h
+                NO_WERROR    cocos/bindings/manual/jsb_dragonbones_manual.cpp
+                             cocos/bindings/manual/jsb_dragonbones_manual.h
+            )
+        endif()
     endif()
 endif()
 
 ######## manual
+if(NOT USE_SE_NONE)
 cocos_source_files(
     NO_WERROR    cocos/bindings/manual/jsb_network_manual.cpp
                 cocos/bindings/manual/jsb_network_manual.h
@@ -3042,6 +3073,7 @@ elseif(EMSCRIPTEN)
         NO_WERROR    cocos/bindings/manual/jsb_platform_linux.cpp
     )
 endif()
+endif() # NOT USE_SE_NONE - end of manual bindings
 
 ############# module bindings
 if(USE_SE_V8)
@@ -3202,7 +3234,7 @@ if(USE_SE_BROWSER)
     )
 endif()
 
-if(EMSCRIPTEN AND NOT USE_SE_V8 AND NOT USE_SE_SM AND NOT USE_SE_NAPI AND NOT USE_SE_JSVM AND NOT USE_SE_QJS AND NOT USE_SE_BROWSER)
+if(USE_SE_NONE)
     cocos_source_files(MODULE ccbindings
         cocos/bindings/jswrapper/none/Base.h
         cocos/bindings/jswrapper/none/Class.cpp
@@ -3239,6 +3271,8 @@ cocos_source_files(MODULE ccbindings
 cocos_source_files(
                  cocos/bindings/manual/jsb_global_init.cpp
                  cocos/bindings/manual/jsb_global_init.h
+                 cocos/bindings/manual/jsb_classtype.cpp
+                 cocos/bindings/manual/jsb_classtype.h
 )
 
 cocos_source_files(
@@ -3476,8 +3510,10 @@ if(USE_MODULES)
         ccfilesystem
         cclog
         ${se_libs_name}
-        uv
     )
+    if(NOT USE_SE_NONE)
+        target_link_libraries(ccbindings PUBLIC uv)
+    endif()
     target_link_libraries(ccgeometry PUBLIC
         ccmath
     )
@@ -3607,7 +3643,7 @@ function(cc_apply_definations target)
         $<$<BOOL:${USE_SE_JSVM}>:SCRIPT_ENGINE_TYPE=6>
         $<$<BOOL:${USE_SE_QJS}>:SCRIPT_ENGINE_TYPE=7>
         $<$<BOOL:${USE_SE_BROWSER}>:SCRIPT_ENGINE_TYPE=8>
-        $<$<AND:$<BOOL:${EMSCRIPTEN}>,$<NOT:$<OR:$<BOOL:${USE_SE_V8}>,$<BOOL:${USE_SE_SM}>,$<BOOL:${USE_SE_NAPI}>,$<BOOL:${USE_SE_JSVM}>,$<BOOL:${USE_SE_QJS}>,$<BOOL:${USE_SE_BROWSER}>>>>:SCRIPT_ENGINE_TYPE=0>
+        $<$<BOOL:${USE_SE_NONE}>:SCRIPT_ENGINE_TYPE=0>
         $<$<OR:$<CONFIG:Debug>,$<BOOL:${CC_DEBUG_FORCE}>>:CC_DEBUG=1>
         $<IF:$<BOOL:${USE_ADPF}>,CC_USE_ADPF=1,CC_USE_ADPF=0>
         $<IF:$<BOOL:${USE_GOOGLE_BILLING}>,CC_USE_GOOGLE_BILLING=1,CC_USE_GOOGLE_BILLING=0>

@@ -24,7 +24,6 @@
 
 #include "platform/win32/modules/Screen.h"
 #include "base/Macros.h"
-#include "cocos/bindings/jswrapper/SeApi.h"
 
 #include <Windows.h>
 
@@ -59,18 +58,11 @@ Vec4 Screen::getSafeAreaEdge() const {
 }
 
 bool Screen::isDisplayStats() {
-    se::AutoHandleScope hs;
-    se::Value ret;
-    char commandBuf[100] = "cc.profiler.isShowingStats();";
-    se::ScriptEngine::getInstance()->evalString(commandBuf, 100, &ret);
-    return ret.toBoolean();
+    return false;
 }
 
 void Screen::setDisplayStats(bool isShow) {
-    se::AutoHandleScope hs;
-    char commandBuf[100] = {0};
-    sprintf(commandBuf, isShow ? "cc.profiler.showStats();" : "cc.profiler.hideStats();");
-    se::ScriptEngine::getInstance()->evalString(commandBuf);
+    CC_UNUSED_PARAM(isShow);
 }
 
 } // namespace cc

@@ -33,10 +33,6 @@
 #include <map>
 #include <memory>
 
-namespace se {
-class ScriptEngine;
-}
-
 namespace cc {
 
 namespace gfx {
@@ -124,7 +120,6 @@ private:
     Profiler *_profiler{nullptr};
 #endif
     DebugRenderer *_debugRenderer{nullptr};
-    se::ScriptEngine *_scriptEngine{nullptr};
     // Should move to renderer system in future.
     gfx::Device *_gfxDevice{nullptr};
 

@@ -29,7 +29,6 @@
 #include <sstream>
 #include "base/DeferredReleasePool.h"
 #include "base/Macros.h"
-#include "bindings/jswrapper/SeApi.h"
 #include "core/Root.h"
 #include "core/builtin/BuiltinResMgr.h"
 #include "scene/Camera.h"
@@ -64,7 +63,6 @@
 #include "application/ApplicationManager.h"
 #include "application/BaseApplication.h"
 #include "base/Scheduler.h"
-#include "bindings/event/EventDispatcher.h"
 #include "network/HttpClient.h"
 #include "platform/UniversalPlatform.h"
 #include "platform/interfaces/modules/IScreen.h"
@@ -76,69 +74,20 @@
 #endif
 #include "profiler/Profiler.h"
 
-namespace {
-
-bool setCanvasCallback(se::Object *global) {
-    const se::AutoHandleScope scope;
-    se::ScriptEngine *se = se::ScriptEngine::getInstance();
-    auto *window = CC_GET_MAIN_SYSTEM_WINDOW();
-    auto handler = window->getWindowHandle();
-    auto viewSize = window->getViewSize();
-    auto dpr = cc::BasePlatform::getPlatform()->getInterface<cc::IScreen>()->getDevicePixelRatio();
-
-    se::Value jsbVal;
-    const bool ok = global->getProperty("jsb", &jsbVal);
-    if (!jsbVal.isObject()) {
-        const se::HandleObject jsbObj(se::Object::createPlainObject());
-        global->setProperty("jsb", se::Value(jsbObj));
-        jsbVal.setObject(jsbObj, true);
-    }
-
-    se::Value windowVal;
-    jsbVal.toObject()->getProperty("window", &windowVal);
-    if (!windowVal.isObject()) {
-        const se::HandleObject windowObj(se::Object::createPlainObject());
-        jsbVal.toObject()->setProperty("window", se::Value(windowObj));
-        windowVal.setObject(windowObj, true);
-    }
-
-    const int width = static_cast<int>(viewSize.width / dpr);
-    const int height = static_cast<int>(viewSize.height / dpr);
-    windowVal.toObject()->setProperty("innerWidth", se::Value(width));
-    windowVal.toObject()->setProperty("innerHeight", se::Value(height));
-
-    if (sizeof(handler) == 8) { // use bigint
-        windowVal.toObject()->setProperty("windowHandle", se::Value(static_cast<uint64_t>(handler)));
-    } else {
-        windowVal.toObject()->setProperty("windowHandle", se::Value(static_cast<uint32_t>(handler)));
-    }
-
-    return true;
-}
-
-} // namespace
-
 namespace cc {
 
 /** static */
 bool Engine::isValid() {
-    return CC_CURRENT_APPLICATION() 
-        && CC_CURRENT_ENGINE() 
-        && se::ScriptEngine::getInstance()
-        && se::ScriptEngine::getInstance()->isValid();
+    return CC_CURRENT_APPLICATION()
+        && CC_CURRENT_ENGINE();
 }
 
 Engine::Engine() {
-    _scriptEngine = ccnew se::ScriptEngine();
-
     _windowEventListener.bind([this](const cc::WindowEvent &ev) { redirectWindowEvent(ev); });
 }
 
 Engine::~Engine() {
     destroy();
-
-    delete _scriptEngine;
-    _scriptEngine = nullptr;
 }
 
 int32_t Engine::init() {
@@ -157,11 +106,8 @@ int32_t Engine::init() {
     _profiler = ccnew Profiler();
 #endif
 
-    EventDispatcher::init();
-
     BasePlatform *platform = BasePlatform::getPlatform();
 
-    se::ScriptEngine::getInstance()->addRegisterCallback(setCanvasCallback);
     emit<EngineStatusChange>(ON_START);
     _inited = true;
     return 0;
@@ -178,13 +124,7 @@ void Engine::destroy() {
     AudioEngine::end();
 #endif
 
-    EventDispatcher::destroy();
-
-    // Should delete it before deleting DeviceManager as ScriptEngine will check gpu resource usage,
-    // and ScriptEngine will hold gfx objects.
-    // Because the user registration interface needs to be added during initialization.
-    // ScriptEngine cannot be released here.
-    _scriptEngine->cleanup();
+    // Cleanup resources
 
 #if CC_USE_PROFILER
     delete _profiler;
@@ -221,11 +161,6 @@ void Engine::destroy() {
     if (cc::render::getRenderingModule()) {
         cc::render::Factory::destroy(cc::render::getRenderingModule());
     }
-    #if (SCRIPT_ENGINE_TYPE == SCRIPT_ENGINE_JSVM)
-        // When using JSVM, not all objects are destroyed during cleanup, so we need to close JSVM at the end.
-        _scriptEngine->closeEngine();
-    #endif
-
     CC_SAFE_DESTROY_AND_DELETE(_gfxDevice);
     delete _fs;
     _scheduler.reset();
@@ -352,19 +287,12 @@ void Engine::tick() {
         }
 #endif
 
-        // Ensure a V8 HandleScope covers the entire frame so that any
-        // code path that touches the JS engine (scheduler callbacks,
-        // CCObject::deferredDestroy via Root::frameMove, async callbacks,
-        // etc.) has a valid scope for creating V8 Local<> handles.
-        se::AutoHandleScope hs;
-
         events::BeforeTick::broadcast();
 
         prevTime = std::chrono::steady_clock::now();
         if (_xr) _xr->beginRenderFrame();
         _scheduler->update(dt);
 
-        se::ScriptEngine::getInstance()->handlePromiseExceptions();
         events::Tick::broadcast(dt);
 
         // Drive Root::frameMove from C++ directly.  In Creator builds this is
@@ -377,8 +305,6 @@ void Engine::tick() {
 #endif
             root->frameMove(dt, static_cast<int32_t>(_totalFrames));
         }
-
-        se::ScriptEngine::getInstance()->mainLoopUpdate();
 
         cc::DeferredReleasePool::clear();
         if (_xr) _xr->endRenderFrame();

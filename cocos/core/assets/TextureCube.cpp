@@ -23,6 +23,7 @@
 ****************************************************************************/
 
 #include "core/assets/TextureCube.h"
+#include <algorithm>
 #include "core/assets/ImageAsset.h"
 #include "core/assets/Texture2D.h"
 #include "renderer/gfx-base/GFXTexture.h"

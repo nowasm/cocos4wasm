@@ -27,11 +27,6 @@
 #include "base/Macros.h"
 
 #include "ApplicationManager.h"
-#include "cocos/bindings/event/EventDispatcher.h"
-#include "cocos/bindings/jswrapper/SeApi.h"
-#include "cocos/bindings/manual/jsb_classtype.h"
-#include "cocos/bindings/manual/jsb_global.h"
-#include "cocos/bindings/manual/jsb_module_register.h"
 #include "cocos/engine/BaseEngine.h"
 #include "cocos/platform/interfaces/modules/IScreen.h"
 #include "cocos/platform/interfaces/modules/ISystemWindowManager.h"
@@ -78,22 +73,6 @@ int CocosApplication::init() {
                 CC_ABORT();
         }
     });
-
-    se::ScriptEngine *se = se::ScriptEngine::getInstance();
-
-    jsb_init_file_operation_delegate();
-
-    se->setExceptionCallback(
-        std::bind(&CocosApplication::handleException, this, // NOLINT(modernize-avoid-bind)
-                  std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
-
-    jsb_register_all_modules();
-#if CC_EDITOR
-    auto isolate = v8::Isolate::GetCurrent();
-    se->start(isolate);
-#else
-    se->start();
-#endif
 
 #if (CC_PLATFORM == CC_PLATFORM_IOS)
     auto logicSize = _systemWindow->getViewSize();
@@ -160,21 +139,19 @@ void CocosApplication::onClose() {
 }
 
 void CocosApplication::setDebugIpAndPort(const ccstd::string &serverAddr, uint32_t port, bool isWaitForConnect) {
-    // Enable debugger here
-    jsb_enable_debugger(serverAddr, port, isWaitForConnect);
+    // No-op: JS debugger removed in pure C++ mode
 }
 
 void CocosApplication::runScript(const ccstd::string &filePath) {
-    jsb_run_script(filePath);
+    // No-op: JS script execution removed in pure C++ mode
 }
 
 void CocosApplication::handleException(const char *location, const char *message, const char *stack) {
-    // Send exception information to server like Tencent Bugly.
     CC_LOG_ERROR("\nUncaught Exception:\n - location :  %s\n - msg : %s\n - detail : \n      %s\n", location, message, stack);
 }
 
 void CocosApplication::setXXTeaKey(const ccstd::string &key) {
-    jsb_set_xxtea_key(key);
+    // No-op: XXTEA encryption removed in pure C++ mode
 }
 #if CC_PLATFORM == CC_PLATFORM_WINDOWS || CC_PLATFORM == CC_PLATFORM_LINUX || CC_PLATFORM == CC_PLATFORM_QNX || CC_PLATFORM == CC_PLATFORM_MACOS
 void CocosApplication::createWindow(const char *title, int32_t w,

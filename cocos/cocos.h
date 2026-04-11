@@ -28,10 +28,5 @@
 
 #include "application/ApplicationManager.h"
 #include "application/BaseGame.h"
-#include "bindings/event/EventDispatcher.h"
-#include "bindings/jswrapper/SeApi.h"
-#include "bindings/manual/jsb_classtype.h"
-#include "bindings/manual/jsb_global.h"
-#include "bindings/manual/jsb_module_register.h"
 #include "cocos-version.h"
 #include "core/event/Event.h"

@@ -32,7 +32,7 @@
 #include "base/csscolorparser.h"
 #include "base/std/container/array.h"
 #include "cocos/bindings/jswrapper/SeApi.h"
-#include "cocos/bindings/manual/jsb_platform.h"
+#include "cocos/platform/FontFamilyNameMap.h"
 #include "math/Math.h"
 #include "platform/FileUtils.h"
 

@@ -29,6 +29,7 @@
 
 #pragma once
 
+#include <map>
 #include <vector>
 #include "IOBuffer.h"
 #include "SkeletonAnimation.h"

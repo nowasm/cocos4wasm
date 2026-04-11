@@ -41,7 +41,6 @@
 #include "cocos/scene/RenderWindow.h"
 #include "cocos/scene/SpotLight.h"
 #include "cocos/scene/DirectionalLight.h"
-#include "bindings/jswrapper/SeApi.h" // IWYU pragma: keep
 #include "cocos/renderer/pipeline/custom/NativeUtils.h"
 
 #if CC_USE_DEBUG_RENDERER
@@ -1314,21 +1313,8 @@ void buildLayoutGraphNodeBuffer(
     }
 }
 
-se::Value buildRPVal;
 void buildRenderPipeline() {
-    if (buildRPVal.isUndefined()) {
-        auto *global = se::ScriptEngine::getInstance()->getGlobalObject();
-        se::Value jsbVal;
-        if(global->getProperty("jsb", &jsbVal) && jsbVal.isObject()) {
-            jsbVal.toObject()->getProperty("buildRenderPipeline", &buildRPVal);
-        }
-        se::ScriptEngine::getInstance()->addBeforeCleanupHook([]() {
-            buildRPVal.setUndefined();
-        });
-    }
-    if (buildRPVal.isUndefined() || !buildRPVal.isObject()) return;
-    se::ValueArray args;
-    buildRPVal.toObject()->call(args, nullptr);
+    // No-op: JS script engine removed (SCRIPT_ENGINE_NONE)
 }
 
 } // namespace
