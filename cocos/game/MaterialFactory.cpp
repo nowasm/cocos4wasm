@@ -40,9 +40,19 @@ Material* MaterialFactory::createUnlitTextured(Texture2D* texture) {
 }
 
 Material* MaterialFactory::createStandard(const Color& albedo) {
+    PBRParams params;
+    params.albedo = albedo;
+    return createStandard(params);
+}
+
+Material* MaterialFactory::createStandard(const PBRParams& params) {
     auto* material = createMaterialWithEffect("builtin-standard");
     if (material) {
-        material->setPropertyColor("mainColor", albedo);
+        material->setPropertyColor("mainColor", params.albedo);
+        // shader reads packed vec4: x=occlusion y=roughness z=metallic w=specularIntensity
+        Vec4 pbr(0.0f, params.roughness, params.metallic, params.specularIntensity);
+        material->setPropertyVec4("pbrParams", pbr);
+        material->setPropertyColor("emissive", params.emissive);
     }
     return material;
 }
