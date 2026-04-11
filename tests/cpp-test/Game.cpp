@@ -4,7 +4,10 @@
 #include "core/Root.h"
 #include "core/builtin/BuiltinResMgr.h"
 #include "core/builtin/BuiltinEffectLoader.h"
+#include "core/assets/EffectAsset.h"
+#include "profiler/DebugRenderer.h"
 #include "renderer/pipeline/forward/ForwardPipeline.h"
+#include "renderer/pipeline/PipelineSceneData.h"
 #include "renderer/GFXDeviceManager.h"
 #include "platform/FileUtils.h"
 #include "platform/interfaces/modules/ISystemWindow.h"
@@ -82,7 +85,13 @@ void Game::switchTest(int index) {
     auto &reg = getTestRegistry();
     if (reg.empty()) return;
     index = ((index % (int)reg.size()) + (int)reg.size()) % (int)reg.size();
-    if (index == _currentTest && _activeTest) return;
+    // Defer to next frame start — GPU may still reference current frame's resources
+    _pendingTest = index;
+}
+
+void Game::doSwitchTest() {
+    if (_pendingTest < 0 || _pendingTest == _currentTest) return;
+    auto &reg = getTestRegistry();
 
     // cleanup old test — renderers detach themselves from scene
     if (_activeTest) {
@@ -98,11 +107,12 @@ void Game::switchTest(int index) {
         _renderScene->setMainLight(_defaultLight);
     }
 
-    _currentTest = index;
-    _activeTest = reg[index].factory();
+    _currentTest = _pendingTest;
+    _pendingTest = -1;
+    _activeTest = reg[_currentTest].factory();
     _activeTest->setup(_renderScene, Root::getInstance());
     updateTitle();
-    CC_LOG_INFO("Switched to [%s] %s", reg[index].category.c_str(), reg[index].name.c_str());
+    CC_LOG_INFO("Switched to [%s] %s", reg[_currentTest].category.c_str(), reg[_currentTest].name.c_str());
 }
 
 void Game::updateTitle() {
@@ -136,10 +146,12 @@ int Game::init() {
         CC_LOG_INFO("  [%zu] %s / %s", i + 1, e.category.c_str(), e.name.c_str());
     }
 
-    switchTest(0);
+    // First test loaded immediately (no deferred needed — nothing to clean up)
+    _pendingTest = 0;
 
-    // tick
+    // tick — deferred test switch happens at frame start, before update/render
     _tickListener.bind([this](float dt) {
+        doSwitchTest();
         if (_activeTest) _activeTest->update(dt);
     });
 

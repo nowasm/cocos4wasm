@@ -23,6 +23,7 @@
 ****************************************************************************/
 
 #include "platform/win32/modules/CanvasRenderingContext2DDelegate.h"
+#include "base/Log.h"
 #include "base/memory/Memory.h"
 
 namespace {
@@ -114,7 +115,7 @@ void CanvasRenderingContext2DDelegate::saveContext() {
 void CanvasRenderingContext2DDelegate::restoreContext() {
     BOOL ret = RestoreDC(_DC, _savedDC);
     if (0 == ret) {
-        SE_LOGD("CanvasRenderingContext2DImpl restore context failed.\n");
+        CC_LOG_DEBUG("CanvasRenderingContext2DImpl restore context failed.");
     }
 }
 
@@ -254,8 +255,8 @@ void CanvasRenderingContext2DDelegate::updateFont(const ccstd::string &fontName,
         _font = CreateFontIndirectA(&tFont);
         if (!_font) {
             // create failed, use default font
-            SE_LOGE("Failed to create custom font(font name: %s, font size: %f), use default font.\n",
-                    _fontName.c_str(), fontSize);
+            CC_LOG_ERROR("Failed to create custom font(font name: %s, font size: %f), use default font.",
+                         _fontName.c_str(), fontSize);
         } else {
             SelectObject(_DC, _font);
             SendMessage(_wnd, WM_FONTCHANGE, 0, 0);

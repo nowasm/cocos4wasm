@@ -25,7 +25,6 @@
 #include "MiddlewareManager.h"
 #include <algorithm>
 #include "2d/renderer/Batcher2d.h"
-#include "SeApi.h"
 #include "core/Root.h"
 
 MIDDLEWARE_BEGIN

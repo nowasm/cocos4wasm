@@ -26,7 +26,6 @@
 
 #include <ace/xcomponent/native_interface_xcomponent.h>
 
-#include "bindings/jswrapper/SeApi.h"
 #include "platform/interfaces//modules/IScreen.h"
 #include "platform/openharmony/FileUtils-OpenHarmony.h"
 #include "platform/openharmony/OpenHarmonyPlatform.h"

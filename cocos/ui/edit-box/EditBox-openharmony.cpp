@@ -28,7 +28,6 @@
 
 #include "application/ApplicationManager.h"
 #include "platform/openharmony/napi/NapiHelper.h"
-#include "bindings/jswrapper/SeApi.h"
 namespace cc {
 
 /*************************************************************************
@@ -36,31 +35,11 @@ namespace cc {
 ************************************************************************/
 
 namespace {
-se::Value g_textInputCallback;
-
-void getTextInputCallback() {
-    if (!g_textInputCallback.isUndefined())
-        return;
-
-    auto global = se::ScriptEngine::getInstance()->getGlobalObject();
-    se::Value jsbVal;
-    if (global->getProperty("jsb", &jsbVal) && jsbVal.isObject()) {
-        jsbVal.toObject()->getProperty("onTextInput", &g_textInputCallback);
-        // free globle se::Value before ScriptEngine clean up
-        se::ScriptEngine::getInstance()->addBeforeCleanupHook([]() {
-            g_textInputCallback.setUndefined();
-        });
-    }
-}
 
 void callJSFunc(const ccstd::string &type, const ccstd::string &text) {
-    se::AutoHandleScope scope;
-    getTextInputCallback();
-    
-    se::ValueArray args;
-    args.push_back(se::Value(type));
-    args.push_back(se::Value(text));
-    g_textInputCallback.toObject()->call(args, nullptr);
+    // EditBox JS callback removed — bindings layer no longer available.
+    CC_UNUSED_PARAM(type);
+    CC_UNUSED_PARAM(text);
 }
 
 } // namespace

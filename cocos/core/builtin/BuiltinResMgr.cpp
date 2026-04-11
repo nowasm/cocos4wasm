@@ -241,6 +241,7 @@ void BuiltinResMgr::initFontAssets() {
         // Search in multiple locations
         ccstd::vector<ccstd::string> searchPaths = {
             "fonts/" + ttfFile,
+            "default_fonts/builtin-freetype/" + ttfFile,
             ttfFile,
         };
 

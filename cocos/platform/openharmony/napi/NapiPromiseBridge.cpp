@@ -24,7 +24,6 @@
 ****************************************************************************/
 #include "cocos/platform/openharmony/napi/NapiPromiseBridge.h"
 #include "cocos/platform/openharmony/napi/NapiHelper.h"
-#include "cocos/bindings/jswrapper/SeApi.h"
 
 namespace cc {
 struct CallbackData {

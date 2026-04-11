@@ -26,7 +26,6 @@
 
 #include "base/csscolorparser.h"
 #include "base/std/container/array.h"
-#include "bindings/jswrapper/config.h"
 #include "math/Math.h"
 #include "platform/interfaces/modules/canvas/ICanvasRenderingContext2D.h"
 

@@ -11,6 +11,7 @@ public:
 private:
     bool initEngine();
     void switchTest(int index);
+    void doSwitchTest();
     void updateTitle();
 
     cc::events::Tick::Listener _tickListener;
@@ -29,6 +30,7 @@ private:
 
     // test management
     int _currentTest{-1};
+    int _pendingTest{-1};  // deferred switch
     TestScene *_activeTest{nullptr};
 
     // directional light (shared across tests)

@@ -23,8 +23,6 @@
 ****************************************************************************/
 
 #include "EditBox.h"
-#include "cocos/bindings/jswrapper/SeApi.h"
-#include "cocos/bindings/manual/jsb_global.h"
 #include "base/Log.h"
 
 #include <emscripten.h>
@@ -120,32 +118,10 @@ namespace cc {
 
 bool EditBox::_isShown = false;
 
-static se::Value g_textInputCallback;
-
-static void getTextInputCallback() {
-    if (!g_textInputCallback.isUndefined())
-        return;
-
-    auto global = se::ScriptEngine::getInstance()->getGlobalObject();
-    se::Value jsbVal;
-    if (global->getProperty("jsb", &jsbVal) && jsbVal.isObject()) {
-        jsbVal.toObject()->getProperty("onTextInput", &g_textInputCallback);
-        // Free global se::Value before ScriptEngine cleanup
-        se::ScriptEngine::getInstance()->addBeforeCleanupHook([]() {
-            g_textInputCallback.setUndefined();
-        });
-    }
-}
-
 static void callJSFunc(const ccstd::string &type, const ccstd::string &text) {
-    getTextInputCallback();
-    if (g_textInputCallback.isUndefined()) return;
-
-    se::AutoHandleScope scope;
-    se::ValueArray args;
-    args.push_back(se::Value(type));
-    args.push_back(se::Value(text));
-    g_textInputCallback.toObject()->call(args, nullptr);
+    // EditBox JS callback removed — bindings layer no longer available.
+    CC_UNUSED_PARAM(type);
+    CC_UNUSED_PARAM(text);
 }
 
 void EditBox::show(const ShowInfo &showInfo) {

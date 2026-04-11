@@ -32,7 +32,6 @@
 #include "SDL2/SDL.h"
 #include "SDL2/SDL_main.h"
 #include "SDL2/SDL_syswm.h"
-#include "bindings/event/EventDispatcher.h"
 #include "platform/IEventDispatch.h"
 #include "platform/qnx/QnxPlatform.h"
 

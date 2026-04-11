@@ -32,7 +32,6 @@
 #include <vector>
 #include "IOTypedArray.h"
 #include "MiddlewareManager.h"
-#include "Object.h"
 #include "base/Macros.h"
 #include "base/RefCounted.h"
 #include "base/RefMap.h"

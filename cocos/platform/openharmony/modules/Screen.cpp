@@ -26,7 +26,6 @@
 #include "platform/openharmony/modules/Screen.h"
 #include "platform/openharmony/napi/NapiHelper.h"
 
-#include "bindings/jswrapper/SeApi.h"
 
 namespace cc {
 

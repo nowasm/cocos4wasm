@@ -28,8 +28,6 @@
 #include "base/csscolorparser.h"
 #include "math/Math.h"
 
-#include "cocos/bindings/jswrapper/SeApi.h"
-#include "cocos/bindings/manual/jsb_platform.h"
 
 #import <Foundation/Foundation.h>
 

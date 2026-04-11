@@ -29,7 +29,6 @@
 #define NAPI_DISABLE_CPP_EXCEPTIONS            1
 #define NODE_ADDON_API_DISABLE_DEPRECATED      1
 #include "cocos/platform/openharmony/napi/napi.h"
-#include "cocos/bindings/jswrapper/config.h"
 
 namespace se {
 class Object;

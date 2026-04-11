@@ -1,6 +1,5 @@
 #include "NapiValueConverter.h"
 #include <stdexcept>
-#include "cocos/bindings/jswrapper/Value.h"
 #include "base/Log.h"
 
 napi_valuetype GetNapiValueType(napi_env env, napi_value value) {

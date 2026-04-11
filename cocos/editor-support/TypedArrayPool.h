@@ -25,12 +25,12 @@
 #pragma once
 #include <map>
 #include <vector>
+#include "IOTypedArray.h"
 #include "MiddlewareMacro.h"
-#include "SeApi.h"
 #include "engine/EngineEvents.h"
 
 MIDDLEWARE_BEGIN
-/** 
+/**
  * TypeArray Pool for IOTypedArray
  */
 class TypedArrayPool {
@@ -54,7 +54,7 @@ public:
 
 private:
     using arrayType = se::Object::TypedArrayType;
-    using objPool = ccstd::vector<se::Object *>;
+    using objPool = ccstd::vector<void *>;
     using fitMap = std::map<std::size_t, objPool *>;
     using typeMap = std::map<arrayType, fitMap *>;
 
@@ -84,13 +84,13 @@ public:
      * @param[in] size.
      * @return a js TypeArray Object.
      */
-    se::Object *pop(arrayType type, std::size_t size);
+    void *pop(arrayType type, std::size_t size);
     /**
      * @brief push a TypeArray back to pool.
      * @param[in] type TypeArray type.
      * @param[in] arrayCapacity TypeArray capacity.
      * @param[in] object TypeArray which want to put in pool.
      */
-    void push(arrayType type, std::size_t arrayCapacity, se::Object *object);
+    void push(arrayType type, std::size_t arrayCapacity, void *object);
 };
 MIDDLEWARE_END

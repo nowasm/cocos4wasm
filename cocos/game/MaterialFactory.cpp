@@ -1,5 +1,6 @@
 #include "game/MaterialFactory.h"
 #include "core/assets/EffectAsset.h"
+#include "core/builtin/BuiltinResMgr.h"
 #include "base/Log.h"
 
 namespace cc::game {
@@ -33,7 +34,7 @@ Material* MaterialFactory::createUnlit(const Color& color) {
 
 Material* MaterialFactory::createUnlitTextured(Texture2D* texture) {
     auto* material = createMaterialWithEffect("builtin-unlit");
-    if (material && texture) {
+    if (material && texture && texture->getGFXTexture()) {
         material->setPropertyTextureBase("mainTexture", texture);
     }
     return material;
@@ -59,7 +60,7 @@ Material* MaterialFactory::createStandard(const PBRParams& params) {
 
 Material* MaterialFactory::createStandardTextured(Texture2D* texture) {
     auto* material = createMaterialWithEffect("builtin-standard");
-    if (material && texture) {
+    if (material && texture && texture->getGFXTexture()) {
         material->setPropertyTextureBase("mainTexture", texture);
     }
     return material;

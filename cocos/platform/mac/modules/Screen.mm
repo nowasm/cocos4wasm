@@ -30,7 +30,6 @@
 #include <Foundation/Foundation.h>
 
 #include "base/Macros.h"
-#include "cocos/bindings/jswrapper/SeApi.h"
 #include "platform/interfaces/modules/ISystemWindowManager.h"
 #include "platform/mac/modules/SystemWindow.h"
 #include "application/ApplicationManager.h"

@@ -24,7 +24,6 @@
 
 #include "platform/wasm/modules/Screen.h"
 #include "base/Macros.h"
-#include "cocos/bindings/jswrapper/SeApi.h"
 
 #include <emscripten.h>
 

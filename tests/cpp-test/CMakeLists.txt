@@ -31,6 +31,8 @@ set(TEST_SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/tests/TestMaterials.cpp
     ${CMAKE_CURRENT_LIST_DIR}/tests/TestLighting.cpp
     ${CMAKE_CURRENT_LIST_DIR}/tests/TestTransform.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/tests/TestText.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/tests/TestBuiltinAssets.cpp
 )
 
 add_executable(CocosCppTest ${TEST_SOURCES})
@@ -78,7 +80,9 @@ if(MSVC)
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             ${COCOS_X_PATH}/templates/wasm32/builtin-effects.json
             $<TARGET_FILE_DIR:CocosCppTest>/builtin-effects.json
-        # builtin fonts
+        # Copy entire editor/assets to output (cubemaps, fonts, UI textures, etc.)
+        COMMAND robocopy "${COCOS_X_PATH}/editor/assets/" "$<TARGET_FILE_DIR:CocosCppTest>/" /E /XF *.meta /NFL /NDL /NJH /NJS || (exit 0)
+        # Also copy fonts to fonts/ subfolder for BuiltinResMgr
         COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:CocosCppTest>/fonts
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             ${COCOS_X_PATH}/editor/assets/default_fonts/builtin-freetype/OpenSans-Regular.ttf

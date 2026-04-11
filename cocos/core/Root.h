@@ -25,7 +25,6 @@
 
 #include <cstdint>
 //#include "3d/skeletal-animation/DataPoolManager.h"
-#include "bindings/event/EventDispatcher.h"
 #include "core/event/Event.h"
 #include "core/memop/Pool.h"
 #include "renderer/pipeline/RenderPipeline.h"

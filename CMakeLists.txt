@@ -3083,210 +3083,7 @@ elseif(EMSCRIPTEN)
 endif()
 endif() # NOT USE_SE_NONE - end of manual bindings
 
-############# module bindings
-if(USE_SE_V8)
-    cocos_source_files(MODULE ccbindings
-        cocos/bindings/sebind/intl/common.h
-        cocos/bindings/sebind/intl/common.cpp
-        cocos/bindings/sebind/class.inl
-        cocos/bindings/sebind/sebind.h
-    )
-
-    cocos_source_files(MODULE ccbindings
-                     cocos/bindings/sebind/class_v8.h
-                     cocos/bindings/sebind/class_v8.cpp
-                     cocos/bindings/jswrapper/v8/Base.h
-                     cocos/bindings/jswrapper/v8/Class.cpp
-                     cocos/bindings/jswrapper/v8/Class.h
-                     cocos/bindings/jswrapper/v8/HelperMacros.h
-                     cocos/bindings/jswrapper/v8/HelperMacros.cpp
-                     cocos/bindings/jswrapper/v8/Object.cpp
-                     cocos/bindings/jswrapper/v8/Object.h
-                     cocos/bindings/jswrapper/v8/ObjectWrap.cpp
-                     cocos/bindings/jswrapper/v8/ObjectWrap.h
-                     cocos/bindings/jswrapper/v8/ScriptEngine.cpp
-                     cocos/bindings/jswrapper/v8/ScriptEngine.h
-                     cocos/bindings/jswrapper/v8/SeApi.h
-                     cocos/bindings/jswrapper/v8/Utils.cpp
-                     cocos/bindings/jswrapper/v8/Utils.h
-                     cocos/bindings/jswrapper/v8/MissingSymbols.cpp
-                     cocos/bindings/jswrapper/v8/MissingSymbols.h
-    )
-    if(USE_V8_DEBUGGER)
-    cocos_source_files(MODULE ccbindings
-                                cocos/bindings/jswrapper/v8/debugger/base64.h
-        NO_WERROR               cocos/bindings/jswrapper/v8/debugger/env.cpp
-                                cocos/bindings/jswrapper/v8/debugger/env.h
-        NO_WERROR   NO_UBUILD   cocos/bindings/jswrapper/v8/debugger/http_parser.cpp
-                                cocos/bindings/jswrapper/v8/debugger/http_parser.h
-        NO_WERROR               cocos/bindings/jswrapper/v8/debugger/inspector_agent.cpp
-                                cocos/bindings/jswrapper/v8/debugger/inspector_agent.h
-        NO_WERROR               cocos/bindings/jswrapper/v8/debugger/inspector_io.cpp
-                                cocos/bindings/jswrapper/v8/debugger/inspector_io.h
-        NO_WERROR               cocos/bindings/jswrapper/v8/debugger/inspector_socket.cpp
-                                cocos/bindings/jswrapper/v8/debugger/inspector_socket.h
-        NO_WERROR               cocos/bindings/jswrapper/v8/debugger/inspector_socket_server.cpp
-                                cocos/bindings/jswrapper/v8/debugger/inspector_socket_server.h
-        NO_WERROR               cocos/bindings/jswrapper/v8/debugger/node.cpp
-                                cocos/bindings/jswrapper/v8/debugger/node.h
-        NO_WERROR               cocos/bindings/jswrapper/v8/debugger/node_debug_options.cpp
-                                cocos/bindings/jswrapper/v8/debugger/node_debug_options.h
-                                cocos/bindings/jswrapper/v8/debugger/node_mutex.h
-        NO_WERROR               cocos/bindings/jswrapper/v8/debugger/SHA1.cpp
-                                cocos/bindings/jswrapper/v8/debugger/SHA1.h
-                                cocos/bindings/jswrapper/v8/debugger/util-inl.h
-        NO_WERROR               cocos/bindings/jswrapper/v8/debugger/util.cpp
-                                cocos/bindings/jswrapper/v8/debugger/util.h
-                                cocos/bindings/jswrapper/v8/debugger/v8_inspector_protocol_json.h
-    )
-    endif()
-endif()
-
-if(USE_SE_SM)
-    cocos_source_files(MODULE ccbindings
-                    cocos/bindings/jswrapper/sm/Base.h
-        NO_WERROR   cocos/bindings/jswrapper/sm/Class.cpp
-                    cocos/bindings/jswrapper/sm/Class.h
-                    cocos/bindings/jswrapper/sm/HelperMacros.h
-        NO_WERROR   cocos/bindings/jswrapper/sm/HelperMacros.cpp
-        NO_WERROR   cocos/bindings/jswrapper/sm/Object.cpp
-                    cocos/bindings/jswrapper/sm/Object.h
-        NO_WERROR   cocos/bindings/jswrapper/sm/ScriptEngine.cpp
-                    cocos/bindings/jswrapper/sm/ScriptEngine.h
-                    cocos/bindings/jswrapper/sm/SeApi.h
-        NO_WERROR   cocos/bindings/jswrapper/sm/Utils.cpp
-                    cocos/bindings/jswrapper/sm/Utils.h
-    )
-endif()
-
-if(USE_SE_NAPI)
-    cocos_source_files(MODULE ccbindings
-                     cocos/bindings/jswrapper/napi/Class.cpp
-                     cocos/bindings/jswrapper/napi/Class.h
-                     cocos/bindings/jswrapper/napi/CommonHeader.h
-                     cocos/bindings/jswrapper/napi/HelperMacros.h
-                     cocos/bindings/jswrapper/napi/HelperMacros.cpp
-                     cocos/bindings/jswrapper/napi/Object.cpp
-                     cocos/bindings/jswrapper/napi/Object.h
-        NO_WERROR    cocos/bindings/jswrapper/napi/ScriptEngine.cpp
-                     cocos/bindings/jswrapper/napi/ScriptEngine.h
-                     cocos/bindings/jswrapper/napi/SeApi.h
-        NO_WERROR    cocos/bindings/jswrapper/napi/Utils.cpp
-                     cocos/bindings/jswrapper/napi/Utils.h
-    )
-endif()
-
-
-
-if(USE_SE_JSVM)
-    cocos_source_files(MODULE ccbindings
-        cocos/bindings/jswrapper/jsvm/Class.cpp
-        cocos/bindings/jswrapper/jsvm/Class.h
-        cocos/bindings/jswrapper/jsvm/HelperMacros.cpp
-        cocos/bindings/jswrapper/jsvm/HelperMacros.h
-        cocos/bindings/jswrapper/jsvm/Object.cpp
-        cocos/bindings/jswrapper/jsvm/Object.h
-        cocos/bindings/jswrapper/jsvm/ScriptEngine.cpp
-        cocos/bindings/jswrapper/jsvm/ScriptEngine.h
-        cocos/bindings/jswrapper/jsvm/SeApi.h
-        cocos/bindings/jswrapper/jsvm/Utils.cpp
-        cocos/bindings/jswrapper/jsvm/Utils.h
-        cocos/bindings/jswrapper/jsvm/CommonHeader.h
-    )
-
-    if (NOT OPENHARMONY)
-        include_directories(${CWD}/cocos/bindings/jswrapper/jsvm-v8-backend)
-        cocos_source_files(MODULE ccbindings
-            cocos/bindings/jswrapper/jsvm-v8-backend/js_native_api_v8.cc
-            cocos/bindings/jswrapper/jsvm-v8-backend/js_native_api_v8.h
-            cocos/bindings/jswrapper/jsvm-v8-backend/js_native_api_v8_internals.h
-            cocos/bindings/jswrapper/jsvm-v8-backend/jsvm.h
-            cocos/bindings/jswrapper/jsvm-v8-backend/jsvm_types.h
-            cocos/bindings/jswrapper/jsvm-v8-backend/util.h
-            cocos/bindings/jswrapper/jsvm-v8-backend/callback_queue-inl.h
-            cocos/bindings/jswrapper/jsvm-v8-backend/callback_queue.h
-        )
-    endif()
-
-endif()
-
-if(USE_SE_QJS)
-    cocos_source_files(MODULE ccbindings
-        cocos/bindings/jswrapper/quickjs/Base.h
-        cocos/bindings/jswrapper/quickjs/Class.cpp
-        cocos/bindings/jswrapper/quickjs/Class.h
-        cocos/bindings/jswrapper/quickjs/HelperMacros.h
-        cocos/bindings/jswrapper/quickjs/Object.cpp
-        cocos/bindings/jswrapper/quickjs/Object.h
-        cocos/bindings/jswrapper/quickjs/ScriptEngine.cpp
-        cocos/bindings/jswrapper/quickjs/ScriptEngine.h
-        cocos/bindings/jswrapper/quickjs/SeApi.h
-        cocos/bindings/jswrapper/quickjs/Utils.h
-        cocos/bindings/jswrapper/quickjs/Utils.cpp
-    )
-endif()
-
-if(USE_SE_BROWSER)
-    cocos_source_files(MODULE ccbindings
-        cocos/bindings/jswrapper/browser/Base.h
-        cocos/bindings/jswrapper/browser/Class.cpp
-        cocos/bindings/jswrapper/browser/Class.h
-        cocos/bindings/jswrapper/browser/HelperMacros.h
-        cocos/bindings/jswrapper/browser/Object.cpp
-        cocos/bindings/jswrapper/browser/Object.h
-        cocos/bindings/jswrapper/browser/ScriptEngine.cpp
-        cocos/bindings/jswrapper/browser/ScriptEngine.h
-        cocos/bindings/jswrapper/browser/SeApi.h
-        cocos/bindings/jswrapper/browser/Utils.h
-        cocos/bindings/jswrapper/browser/Utils.cpp
-    )
-endif()
-
-if(USE_SE_NONE)
-    cocos_source_files(MODULE ccbindings
-        cocos/bindings/jswrapper/none/Base.h
-        cocos/bindings/jswrapper/none/Class.cpp
-        cocos/bindings/jswrapper/none/Class.h
-        cocos/bindings/jswrapper/none/HelperMacros.h
-        cocos/bindings/jswrapper/none/Object.cpp
-        cocos/bindings/jswrapper/none/Object.h
-        cocos/bindings/jswrapper/none/ScriptEngine.cpp
-        cocos/bindings/jswrapper/none/ScriptEngine.h
-        cocos/bindings/jswrapper/none/SeApi.h
-        cocos/bindings/jswrapper/none/Utils.h
-    )
-endif()
-
-cocos_source_files(MODULE ccbindings
-                 cocos/bindings/jswrapper/config.h
-                 cocos/bindings/jswrapper/config.cpp
-                 cocos/bindings/jswrapper/HandleObject.cpp
-                 cocos/bindings/jswrapper/HandleObject.h
-                 cocos/bindings/jswrapper/MappingUtils.cpp
-                 cocos/bindings/jswrapper/MappingUtils.h
-                 cocos/bindings/jswrapper/Object.h
-                 cocos/bindings/jswrapper/RefCounter.cpp
-                 cocos/bindings/jswrapper/RefCounter.h
-                 cocos/bindings/jswrapper/SeApi.h
-                 cocos/bindings/jswrapper/State.h
-                 cocos/bindings/jswrapper/PrivateObject.h
-                 cocos/bindings/jswrapper/Value.cpp
-                 cocos/bindings/jswrapper/Value.h
-                 cocos/bindings/jswrapper/ValueArrayPool.cpp
-                 cocos/bindings/jswrapper/ValueArrayPool.h
-)
-
-cocos_source_files(
-                 cocos/bindings/manual/jsb_global_init.cpp
-                 cocos/bindings/manual/jsb_global_init.h
-                 cocos/bindings/manual/jsb_classtype.cpp
-                 cocos/bindings/manual/jsb_classtype.h
-)
-
-cocos_source_files(
-                 cocos/bindings/event/EventDispatcher.cpp
-                 cocos/bindings/event/EventDispatcher.h
-)
+# bindings/ directory removed — pure C++ engine
 
 #### storage
 if(NOT ANDROID)
@@ -3473,7 +3270,6 @@ if(USE_MODULES)
     add_library(ccfilesystem ${ccfilesystem_SOURCE_LIST} ${CC_TINYDIR_SOURCES})
     add_library(ccutils ${ccutils_SOURCE_LIST} ${CC_UTILS_SOURCES})
     add_library(ccunzip ${ccunzip_SOURCE_LIST} ${CC_UNZIP_SOURCES})
-    add_library(ccbindings ${ccbindings_SOURCE_LIST})
     add_library(ccgeometry ${ccgeometry_SOURCE_LIST})
 
     target_include_directories(ccmath PRIVATE
@@ -3499,13 +3295,6 @@ if(USE_MODULES)
         ${CWD}/cocos
         ${CWD}/external/sources
     )
-    target_include_directories(ccbindings PRIVATE
-        ${CWD}/cocos
-        ${CWD}/cocos/bindings/jswrapper
-        ${CWD}/cocos/editor-support # TODO: refactor include path
-        ${CWD}
-        ${CC_EXTERNAL_INCLUDES}
-    )
     target_link_libraries(ccunzip PUBLIC
         ${ZLIB}
     )
@@ -3514,14 +3303,6 @@ if(USE_MODULES)
         ccutils
         cclog
     )
-    target_link_libraries(ccbindings PUBLIC
-        ccfilesystem
-        cclog
-        ${se_libs_name}
-    )
-    if(NOT USE_SE_NONE)
-        target_link_libraries(ccbindings PUBLIC uv)
-    endif()
     target_link_libraries(ccgeometry PUBLIC
         ccmath
     )
@@ -3558,7 +3339,6 @@ else()
         ${cclog_SOURCE_LIST}
         ${ccfilesystem_SOURCE_LIST}
         ${ccunzip_SOURCE_LIST}
-        ${ccbindings_SOURCE_LIST}
         ${ccutils_SOURCE_LIST}
         ${CC_UNZIP_SOURCES}
         ${CC_TINYDIR_SOURCES}
@@ -3586,7 +3366,6 @@ if(USE_MODULES)
         cclog
         ccfilesystem
         ccunzip
-        ccbindings
         ccutils
     )
 endif()
@@ -3670,7 +3449,6 @@ if(USE_MODULES)
     cc_apply_definations(cclog)
     cc_apply_definations(ccfilesystem)
     cc_apply_definations(ccunzip)
-    cc_apply_definations(ccbindings)
     cc_apply_definations(ccutils)
 endif()
 
@@ -3681,7 +3459,6 @@ if(USE_XR)
         cc_xr_apply_definations(cclog)
         cc_xr_apply_definations(ccfilesystem)
         cc_xr_apply_definations(ccunzip)
-        cc_xr_apply_definations(ccbindings)
         cc_xr_apply_definations(ccutils)
     endif()
 endif()
@@ -3761,7 +3538,6 @@ target_include_directories(${ENGINE_NAME}
         ${CWD}/cocos/editor-support
         ${SWIG_OUTPUT_ROOT}
         ${SWIG_OUTPUT_ROOT}/cocos
-        $<$<BOOL:USE_SE_V8>:${CWD}/cocos/bindings/jswrapper>
     PRIVATE
         ${CC_EXTERNAL_PRIVATE_INCLUDES}
 )
@@ -3796,13 +3572,9 @@ elseif(WINDOWS)
         cc_win32_definations(ccunzip)
         cc_win32_definations(ccfilesystem)
         cc_win32_definations(ccutils)
-        cc_win32_definations(ccbindings)
 
         target_link_libraries(ccutils PUBLIC
             ws2_32 psapi userenv Iphlpapi
-        )
-        target_link_libraries(ccbindings PUBLIC
-            ws2_32
         )
     endif()
 endif()

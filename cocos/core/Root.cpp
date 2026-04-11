@@ -25,7 +25,6 @@
 #include "core/Root.h"
 #include "2d/renderer/Batcher2d.h"
 #include "application/ApplicationManager.h"
-#include "bindings/event/EventDispatcher.h"
 #include "pipeline/custom/RenderingModule.h"
 #include "platform/interfaces/modules/IScreen.h"
 #include "platform/interfaces/modules/ISystemWindow.h"

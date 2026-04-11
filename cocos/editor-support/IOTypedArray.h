@@ -26,8 +26,27 @@
 
 #include "IOBuffer.h"
 #include "MiddlewareMacro.h"
-#include "SeApi.h"
 #include "base/Macros.h"
+
+// Minimal typed-array type enum replacing se::Object::TypedArrayType
+// after removal of the bindings layer.
+namespace se {
+struct Object {
+    enum class TypedArrayType {
+        NONE,
+        INT8,
+        INT16,
+        INT32,
+        UINT8,
+        UINT16,
+        UINT32,
+        FLOAT32,
+        FLOAT64,
+    };
+};
+} // namespace se
+
+using se_object_ptr = void *;
 
 MIDDLEWARE_BEGIN
 /**
@@ -44,7 +63,7 @@ public:
     IOTypedArray(se::Object::TypedArrayType arrayType, std::size_t defaultSize, bool usePool = false);
     ~IOTypedArray() override;
 
-    inline se::Object *getTypeArray() const {
+    inline void *getTypeArray() const {
         return _typeArray;
     }
 
@@ -52,7 +71,7 @@ public:
 
 private:
     se::Object::TypedArrayType _arrayType = se::Object::TypedArrayType::NONE;
-    se::Object *_typeArray = nullptr;
+    void *_typeArray = nullptr;
     bool _usePool = false;
 };
 

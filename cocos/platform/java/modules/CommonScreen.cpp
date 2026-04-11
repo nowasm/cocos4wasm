@@ -23,7 +23,6 @@
 ****************************************************************************/
 
 #include "platform/java/modules/CommonScreen.h"
-#include "cocos/bindings/jswrapper/SeApi.h"
 #include "platform/java/jni/JniImp.h"
 
 namespace {

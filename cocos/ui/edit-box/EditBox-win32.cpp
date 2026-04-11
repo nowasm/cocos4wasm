@@ -24,7 +24,6 @@
 
 #include "EditBox.h"
 #include "cocos/application/ApplicationManager.h"
-#include "cocos/bindings/jswrapper/SeApi.h"
 #include "cocos/platform/interfaces/modules/ISystemWindow.h"
 #include "cocos/platform/interfaces/modules/ISystemWindowManager.h"
 
@@ -47,8 +46,6 @@ bool g_isMultiline = false;
 HWND g_hwndEditBox = nullptr;
 WNDPROC g_prevMainWindowProc = nullptr;
 WNDPROC g_prevEditWindowProc = nullptr;
-se::Value g_textInputCallback;
-
 HWND getCurrentWindowHwnd() {
     if (!CC_CURRENT_APPLICATION()) {
         return nullptr;
@@ -68,29 +65,10 @@ int getCocosWindowHeight() {
     return (rect.bottom - rect.top);
 }
 
-void getTextInputCallback() {
-    if (!g_textInputCallback.isUndefined())
-        return;
-
-    auto global = se::ScriptEngine::getInstance()->getGlobalObject();
-    se::Value jsbVal;
-    if (global->getProperty("jsb", &jsbVal) && jsbVal.isObject()) {
-        jsbVal.toObject()->getProperty("onTextInput", &g_textInputCallback);
-        // free globle se::Value before ScriptEngine clean up
-        se::ScriptEngine::getInstance()->addBeforeCleanupHook([]() {
-            g_textInputCallback.setUndefined();
-        });
-    }
-}
-
 void callJSFunc(const ccstd::string &type, const ccstd::string &text) {
-    getTextInputCallback();
-
-    se::AutoHandleScope scope;
-    se::ValueArray args;
-    args.push_back(se::Value(type));
-    args.push_back(se::Value(text));
-    g_textInputCallback.toObject()->call(args, nullptr);
+    // EditBox JS callback removed — bindings layer no longer available.
+    CC_UNUSED_PARAM(type);
+    CC_UNUSED_PARAM(text);
 }
 
 ccstd::string getText(HWND hwnd) {

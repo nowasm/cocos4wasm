@@ -26,8 +26,8 @@
 
 #include <cstdint>
 #include <regex>
+#include "base/memory/Memory.h"
 #include "base/csscolorparser.h"
-#include "cocos/bindings/jswrapper/SeApi.h"
 #include "cocos/platform/FontFamilyNameMap.h"
 #include "math/Math.h"
 #include "platform/FileUtils.h"

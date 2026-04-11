@@ -26,6 +26,8 @@
 
 #include <unordered_map>
 #include <vector>
+#include "base/std/container/string.h"
+#include "base/std/container/unordered_map.h"
 #include "MeshBuffer.h"
 #include "MiddlewareMacro.h"
 #include "SharedBufferManager.h"

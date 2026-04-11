@@ -33,7 +33,6 @@
 #include "MiddlewareManager.h"
 #include "base/RefCounted.h"
 #include "base/RefMap.h"
-#include "bindings/event/EventDispatcher.h"
 #include "dragonbones-creator-support/CCSlot.h"
 #include "dragonbones/DragonBonesHeaders.h"
 #include "middleware-adapter.h"
