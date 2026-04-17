@@ -1,12 +1,24 @@
 #pragma once
+#include <type_traits>
 #include <utility>
+#include "base/Ptr.h"
 #include "base/memory/Memory.h"
+#include "base/std/container/vector.h"
 #include "ClassDB.h"
 #include "ClassMeta.h"
 #include "TypeId.h"
 
 namespace cc {
 namespace reflection {
+
+namespace detail {
+// SFINAE: detects whether T has a release() method callable with no args.
+template <typename T, typename = void>
+struct HasRelease : std::false_type {};
+
+template <typename T>
+struct HasRelease<T, std::void_t<decltype(std::declval<T *>()->release())>> : std::true_type {};
+}  // namespace detail
 
 // Per-class fluent builder for ClassMeta. One instance is created inside each
 // class's `getStaticClass()` to chain property() calls and register with
@@ -24,6 +36,13 @@ public:
         _meta->base = base;
         _meta->size = sizeof(ClassT);
         _meta->factory = []() -> void * { return ccnew ClassT(); };
+        if constexpr (detail::HasRelease<ClassT>::value) {
+            _meta->addRef  = [](void *p) { static_cast<ClassT *>(p)->addRef(); };
+            _meta->release = [](void *p) { static_cast<ClassT *>(p)->release(); };
+        } else {
+            _meta->addRef  = nullptr;
+            _meta->release = nullptr;
+        }
         _meta->properties.clear();  // idempotent if builder is invoked twice
     }
 
@@ -63,6 +82,31 @@ public:
         FieldT captured(std::forward<DefaultT>(defaultValue));
         p.applyDefault = [field, captured](void *inst) {
             static_cast<ClassT *>(inst)->*field = captured;
+        };
+        _meta->properties.push_back(std::move(p));
+        return *this;
+    }
+
+    // Reflect an array property stored as ccstd::vector<IntrusivePtr<ElemT>>.
+    // Deserializer uses arrayClear + arrayAppend to rebuild the vector from a
+    // JSON array. ElemT must be a reflected class.
+    template <typename ElemT>
+    ClassBuilder &property(const char *propName,
+                           ccstd::vector<IntrusivePtr<ElemT>> ClassT::*field) {
+        PropertyMeta p;
+        p.name = propName;
+        p.typeId = TypeId::ARRAY;
+        p.elementTypeId = TypeId::POINTER;
+        p.pointeeClassFn = &ElemT::getStaticClass;  // resolved lazily — avoids self-recursion
+        p.applyDefault = [field](void *inst) {
+            (static_cast<ClassT *>(inst)->*field).clear();
+        };
+        p.arrayClear = [field](void *inst) {
+            (static_cast<ClassT *>(inst)->*field).clear();
+        };
+        p.arrayAppend = [field](void *inst, void *elementValue) {
+            ElemT *ptr = *static_cast<ElemT **>(elementValue);
+            (static_cast<ClassT *>(inst)->*field).emplace_back(ptr);
         };
         _meta->properties.push_back(std::move(p));
         return *this;

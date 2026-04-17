@@ -1097,6 +1097,16 @@ void Node::_decSkewCompCount() {
     --skewCompCount;
 }
 
+// ─── Reflection ─────────────────────────────────────────────────────────
+// Reflection-root (Editor JSON __type__ tree stops at "cc.Node"). Only fields
+// needed by the P1c minimal deserializer are registered for now; transforms
+// and activation state are added as later phases require them.
+
+CC_IMPLEMENT_ROOT_CLASS(Node, "cc.Node")
+    .property("children",   &Node::_children)
+    .property("components", &Node::_components)
+CC_END_CLASS(Node);
+
 // ─── Component system ───────────────────────────────────────────────────
 
 Component *Node::addComponent(Component *comp) {

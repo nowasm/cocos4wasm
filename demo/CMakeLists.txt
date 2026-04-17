@@ -28,6 +28,7 @@ set(DEMO_SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/scenes/SceneRegistry.cpp
     ${CMAKE_CURRENT_LIST_DIR}/scenes/EmptyScene.cpp
     ${CMAKE_CURRENT_LIST_DIR}/scenes/LifecycleScene.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/scenes/JsonLoadScene.cpp
 )
 
 add_executable(CocosDemo ${DEMO_SOURCES})
@@ -69,6 +70,7 @@ if(MSVC)
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             ${COCOS_X_PATH}/templates/wasm32/builtin-effects.json
             $<TARGET_FILE_DIR:CocosDemo>/builtin-effects.json
+        COMMAND robocopy "${CMAKE_CURRENT_LIST_DIR}/assets/" "$<TARGET_FILE_DIR:CocosDemo>/assets/" /E /NFL /NDL /NJH /NJS || (exit 0)
         COMMAND robocopy "${COCOS_X_PATH}/editor/assets/" "$<TARGET_FILE_DIR:CocosDemo>/" /E /XF *.meta /NFL /NDL /NJH /NJS || (exit 0)
         COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:CocosDemo>/fonts
         COMMAND ${CMAKE_COMMAND} -E copy_if_different

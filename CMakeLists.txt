@@ -2291,6 +2291,10 @@ cocos_source_files(
     cocos/core/component/NodeActivator.h
     cocos/core/component/NodeActivator.cpp
 
+    # serialization
+    cocos/serialization/JsonDeserializer.h
+    cocos/serialization/JsonDeserializer.cpp
+
     cocos/core/assets/Asset.cpp
     cocos/core/assets/Asset.h
     cocos/core/assets/AssetEnum.h

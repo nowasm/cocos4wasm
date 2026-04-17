@@ -33,8 +33,9 @@ enum class TypeId : uint32_t {
     COLOR,    // cc::Color
     ENUM,     // any enum / enum class (stored as int32)
     POINTER,  // raw pointer to any CCObject-derived type
+    ARRAY,    // ccstd::vector<IntrusivePtr<T>> or similar; element info on PropertyMeta
     // Reserved for later phases:
-    //   ARRAY, MAP, UUID_REF, NODE_REF, OBJECT (value-embedded nested struct)
+    //   MAP, UUID_REF, NODE_REF, OBJECT (value-embedded nested struct)
 };
 
 // Human-readable name for a TypeId, for logging and debug dumps.

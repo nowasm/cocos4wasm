@@ -18,6 +18,11 @@ struct ClassMeta {
     size_t size{0};
     std::function<void *()> factory;
 
+    // Present only for RefCounted types. addRef pairs with release so the
+    // deserializer can balance ownership across the graph. Empty for plain types.
+    std::function<void(void *)> addRef;
+    std::function<void(void *)> release;
+
     std::vector<PropertyMeta> properties;
 
     bool isDerivedFrom(const ClassMeta *other) const;

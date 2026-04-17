@@ -26,6 +26,7 @@ const char *typeIdName(TypeId id) {
         case TypeId::COLOR:   return "Color";
         case TypeId::ENUM:    return "enum";
         case TypeId::POINTER: return "pointer";
+        case TypeId::ARRAY:   return "array";
     }
     return "<bad-type-id>";
 }
