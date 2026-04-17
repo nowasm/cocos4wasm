@@ -31,6 +31,7 @@ set(DEMO_SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/scenes/JsonLoadScene.cpp
     ${CMAKE_CURRENT_LIST_DIR}/scenes/UIBasicsScene.cpp
     ${CMAKE_CURRENT_LIST_DIR}/scenes/ColoredQuadScene.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/scenes/SpriteScene.cpp
 )
 
 add_executable(CocosDemo ${DEMO_SOURCES})

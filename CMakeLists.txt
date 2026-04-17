@@ -2208,6 +2208,10 @@ cocos_source_files(
     cocos/2d/framework/UIRenderer.h
     cocos/2d/framework/UIRenderer.cpp
 
+    # components (P2c+)
+    cocos/2d/components/Sprite.h
+    cocos/2d/components/Sprite.cpp
+
     cocos/2d/renderer/Batcher2d.h
     cocos/2d/renderer/Batcher2d.cpp
     cocos/2d/renderer/UIModelProxy.h

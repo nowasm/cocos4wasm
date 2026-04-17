@@ -46,9 +46,11 @@ public:
 protected:
     // Empty defaults so the class stays concrete (reflection factory needs
     // default constructibility). Subclasses override with real geometry and
-    // shader selection — a bare UIRenderer silently no-ops.
+    // shader selection — a bare UIRenderer silently no-ops. resolveMaterial
+    // is defined out-of-line so consumers of this header don't need to see
+    // the full Material type.
     virtual void updateGeometry() {}
-    virtual IntrusivePtr<Material> resolveMaterial() { return nullptr; }
+    virtual IntrusivePtr<Material> resolveMaterial();
     virtual ccstd::vector<gfx::Attribute> vertexAttributes() const;
 
     void markDirty() { _dirty = true; }

@@ -27,6 +27,10 @@ ccstd::vector<gfx::Attribute> UIRenderer::vertexAttributes() const {
     };
 }
 
+IntrusivePtr<Material> UIRenderer::resolveMaterial() {
+    return nullptr;
+}
+
 void UIRenderer::onEnable() {
     _dirty = true;
     ensureModel();
