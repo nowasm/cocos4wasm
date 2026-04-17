@@ -2200,6 +2200,12 @@ endif()
 
 ##### 2d
 cocos_source_files(
+    # framework (P2a+)
+    cocos/2d/framework/UITransform.h
+    cocos/2d/framework/UITransform.cpp
+    cocos/2d/framework/Canvas.h
+    cocos/2d/framework/Canvas.cpp
+
     cocos/2d/renderer/Batcher2d.h
     cocos/2d/renderer/Batcher2d.cpp
     cocos/2d/renderer/UIModelProxy.h
