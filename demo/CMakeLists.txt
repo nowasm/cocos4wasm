@@ -27,6 +27,7 @@ set(DEMO_SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/scenes/SceneRegistry.h
     ${CMAKE_CURRENT_LIST_DIR}/scenes/SceneRegistry.cpp
     ${CMAKE_CURRENT_LIST_DIR}/scenes/EmptyScene.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/scenes/LifecycleScene.cpp
 )
 
 add_executable(CocosDemo ${DEMO_SOURCES})
@@ -47,6 +48,10 @@ if(MSVC)
     target_compile_options(CocosDemo PRIVATE /MP /bigobj
         /wd4018 /wd4221 /wd4244 /wd4267 /wd4305 /wd4309 /wd4819 /wd4996 /wd4098 /wd4099
     )
+
+    # Console subsystem so CC_LOG_* prints stream to stdout during development.
+    # Switch to /SUBSYSTEM:WINDOWS for shipping builds.
+    target_link_options(CocosDemo PRIVATE /SUBSYSTEM:CONSOLE)
 
     file(GLOB WINDOWS_DLLS
         ${COCOS_X_PATH}/external/win64/libs/*.dll

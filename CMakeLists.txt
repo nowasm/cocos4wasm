@@ -2283,6 +2283,14 @@ cocos_source_files(
     cocos/core/reflection/ReflectionMacros.h
     cocos/core/reflection/Reflection.h
 
+    # component runtime
+    cocos/core/component/Component.h
+    cocos/core/component/Component.cpp
+    cocos/core/component/ComponentScheduler.h
+    cocos/core/component/ComponentScheduler.cpp
+    cocos/core/component/NodeActivator.h
+    cocos/core/component/NodeActivator.cpp
+
     cocos/core/assets/Asset.cpp
     cocos/core/assets/Asset.h
     cocos/core/assets/AssetEnum.h

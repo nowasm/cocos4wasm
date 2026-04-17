@@ -23,10 +23,14 @@
 ****************************************************************************/
 
 #include "core/scene-graph/Node.h"
+#include "base/Log.h"
 #include "base/StringUtil.h"
+#include "core/component/Component.h"
+#include "core/component/NodeActivator.h"
 #include "core/data/Object.h"
 #include "core/memop/CachedArray.h"
 #include "core/platform/Debug.h"
+#include "core/reflection/ClassDB.h"
 #include "core/scene-graph/NodeEnum.h"
 #include "core/scene-graph/Scene.h"
 #include "core/utils/IDGenerator.h"
@@ -143,7 +147,7 @@ void Node::onHierarchyChangedBase(Node *oldParent) { // NOLINT(misc-unused-param
 
     bool shouldActiveNow = isActive() && !!(newParent && newParent->isActiveInHierarchy());
     if (isActiveInHierarchy() != shouldActiveNow) {
-        // Director::getInstance()->getNodeActivator()->activateNode(this, shouldActiveNow); // TODO(xwx): use TS temporarily
+        NodeActivator::get().activateNode(this, shouldActiveNow);
         emit<ActiveNode>(shouldActiveNow);
     }
 }
@@ -156,7 +160,7 @@ void Node::setActive(bool isActive) {
         if (parent) {
             bool couldActiveInScene = parent->isActiveInHierarchy();
             if (couldActiveInScene) {
-                // Director::getInstance()->getNodeActivator()->activateNode(this, isActive); // TODO(xwx): use TS temporarily
+                NodeActivator::get().activateNode(this, isActive);
                 emit<ActiveNode>(isActive);
             }
         }
@@ -1068,6 +1072,16 @@ void Node::_setChildren(ccstd::vector<IntrusivePtr<Node>> &&children) {
 }
 
 void Node::destruct() {
+    // Tear down components before children so component onDestroy still sees
+    // the populated hierarchy.
+    for (const auto &c : _components) {
+        if (c) {
+            NodeActivator::get().destroyComp(c.get());
+            c->_node = nullptr;
+        }
+    }
+    _components.clear();
+
     CCObject::destruct();
     _children.clear();
     _scene = nullptr;
@@ -1081,6 +1095,51 @@ void Node::_incSkewCompCount() {
 
 void Node::_decSkewCompCount() {
     --skewCompCount;
+}
+
+// ─── Component system ───────────────────────────────────────────────────
+
+Component *Node::addComponent(Component *comp) {
+    if (!comp) return nullptr;
+    comp->_node = this;
+    _components.push_back(comp);
+    // If this node is already active in hierarchy, fire onLoad/onEnable now.
+    // Otherwise lifecycle waits for activation to propagate.
+    if (isActiveInHierarchy()) {
+        NodeActivator::get().activateComp(comp);
+    }
+    return comp;
+}
+
+Component *Node::addComponentByClassName(const char *className) {
+    auto *comp = reflection::ClassDB::get().createInstance<Component>(className);
+    if (!comp) {
+        CC_LOG_ERROR("[Node] addComponentByClassName: unknown class '%s'", className ? className : "(null)");
+        return nullptr;
+    }
+    return addComponent(comp);
+}
+
+void Node::removeComponent(Component *comp) {
+    if (!comp) return;
+    for (auto it = _components.begin(); it != _components.end(); ++it) {
+        if (it->get() == comp) {
+            NodeActivator::get().destroyComp(comp);
+            comp->_node = nullptr;
+            _components.erase(it);
+            return;
+        }
+    }
+}
+
+Component *Node::getComponentByClassName(const char *className) const {
+    if (!className) return nullptr;
+    const auto *meta = reflection::ClassDB::get().findByName(className);
+    if (!meta) return nullptr;
+    for (const auto &c : _components) {
+        if (c && c->getClass()->isDerivedFrom(meta)) return c.get();
+    }
+    return nullptr;
 }
 
 } // namespace cc

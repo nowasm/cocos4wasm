@@ -3,6 +3,8 @@
 #include "core/Root.h"
 #include "core/builtin/BuiltinResMgr.h"
 #include "core/builtin/BuiltinEffectLoader.h"
+#include "core/component/ComponentScheduler.h"
+#include "core/component/NodeActivator.h"
 #include "renderer/pipeline/forward/ForwardPipeline.h"
 #include "renderer/GFXDeviceManager.h"
 #include "platform/FileUtils.h"
@@ -112,11 +114,18 @@ int DemoGame::init() {
         CC_LOG_INFO("  [%zu] %s", i + 1, reg[i].name.c_str());
     }
 
-    if (!reg.empty()) _pendingSceneIdx = 0;
+    // Start on the last-registered scene — that's usually the newest milestone
+    // we care about verifying. Arrow keys cycle to earlier scenes.
+    if (!reg.empty()) _pendingSceneIdx = static_cast<int>(reg.size()) - 1;
 
     _tickListener.bind([this](float dt) {
         applyPendingSceneSwitch();
+        // Canonical Cocos tick order:
+        //   queued start() → component update → scene logic → component lateUpdate
+        NodeActivator::get().invokePendingStarts();
+        ComponentScheduler::get().update(dt);
         if (_currentScene) _currentScene->onUpdate(dt);
+        ComponentScheduler::get().lateUpdate(dt);
     });
 
     _keyboardListener.bind([this](const KeyboardEvent &ev) {

@@ -25,9 +25,9 @@
 #pragma once
 
 #include "base/Ptr.h"
+#include "base/memory/Memory.h"
 #include "base/std/any.h"
-// #include "core/components/Component.h"
-// #include "core/event/Event.h"
+#include "core/component/Component.h"
 #include "core/data/Object.h"
 #include "core/event/EventTarget.h"
 #include "core/scene-graph/Layers.h"
@@ -504,93 +504,46 @@ public:
 
     //    inline NodeUiProperties *getUIProps() const { return _uiProps.get(); }
 
-    //    // ------------------  Component code start -----------------------------
-    //    // TODO(Lenovo):
+    // ─── Component system ────────────────────────────────────────────────
     //
-    //    template <typename T, typename = std::enable_if_t<std::is_base_of<Component, T>::value>>
-    //    static Component *findComponent(Node * /*node*/) {
-    //        // cjh TODO:
-    //        CC_ABORT();
-    //        return nullptr;
-    //    }
-    //
-    //    template <typename T, typename = std::enable_if_t<std::is_base_of<Component, T>::value>>
-    //    static Component *findComponents(Node * /*node*/, const ccstd::vector<Component *> & /*components*/) {
-    //        // cjh TODO:
-    //        CC_ABORT();
-    //        return nullptr;
-    //    }
-    //
-    //    template <typename T, typename = std::enable_if_t<std::is_base_of<Component, T>::value>>
-    //    static Component *findChildComponent(const ccstd::vector<Node *> & /*children*/) {
-    //        // cjh TODO:
-    //        CC_ABORT();
-    //        return nullptr;
-    //    }
-    //
-    //    template <typename T, typename = std::enable_if_t<std::is_base_of<Component, T>::value>>
-    //    static void findChildComponents(const ccstd::vector<Node *> & /*children*/, ccstd::vector<Component *> & /*components*/) {
-    //        // cjh TODO:
-    //        CC_ABORT();
-    //    }
-    //
-    //    template <typename T, typename = std::enable_if_t<std::is_base_of_v<Component, T>, T>>
-    //    T *addComponent() {
-    //        T *comp = new T();
-    //        return static_cast<T *>(addComponent(comp));
-    //    }
-    //
-    //    template <typename T, typename std::enable_if_t<std::is_base_of<Component, T>::value>>
-    //    void removeComponent() {
-    //        for (auto iter = _components.begin(); iter != _components.end(); ++iter) {
-    //            if (dynamic_cast<T *>(*iter) != nullptr) {
-    //                _components.erase(iter);
-    //            }
-    //        }
-    //    }
-    //
-    //    Component *addComponent(Component *comp);
-    //    void       removeComponent(Component *comp);
-    //
-    //    template <typename T, typename = std::enable_if_t<std::is_base_of<Component, T>::value>>
-    //    Component *getComponent() const {
-    //        for (auto *component : _components) {
-    //            if (dynamic_cast<T *>(component) != nullptr) {
-    //                return component;
-    //            }
-    //        }
-    //        return nullptr;
-    //    }
-    //
-    //    // TODO(Lenovo):
-    //    template <typename T, typename std::enable_if_t<std::is_base_of<Component, T>::value>>
-    //    ccstd::vector<Component *> getComponents() const {
-    //        // cjh TODO:
-    //        CC_ABORT();
-    //        return {};
-    //    };
-    //
-    //    template <typename T, typename std::enable_if_t<std::is_base_of<Component, T>::value>>
-    //    Component *getComponentInChildren(const T & /*comp*/) const {
-    //        // cjh TODO:
-    //        CC_ABORT();
-    //        return nullptr;
-    //    }
-    //
-    //    template <typename T, typename std::enable_if_t<std::is_base_of<Component, T>::value>>
-    //    ccstd::vector<Component *> getComponentsInChildren() const {
-    //        // cjh TODO:
-    //        CC_ABORT();
-    //        return {};
-    //    }
-    //
-    //    inline ccstd::vector<Component *> getComponents() const { return _components; }
-    //
-    //    void                     checkMultipleComp(Component *comp) {}
-    //    ccstd::vector<Component *> _components;
-    //
-    //    friend void componentCorrupted(Node *node, Component *comp, uint32_t index);
-    // ------------------  Component code end -----------------------------
+    // API shape mirrors TS: addComponent<T>() / getComponent<T>() /
+    // getComponents<T>(). Runtime dispatch uses reflection isDerivedFrom
+    // instead of dynamic_cast — no RTTI, and the same mechanism the JSON
+    // deserializer will use to construct components by __type__ string.
+
+    Component *addComponent(Component *comp);
+    Component *addComponentByClassName(const char *className);
+    void       removeComponent(Component *comp);
+
+    template <typename T, std::enable_if_t<std::is_base_of_v<Component, T>, int> = 0>
+    T *addComponent() {
+        auto *c = ccnew T();
+        return static_cast<T *>(addComponent(c));
+    }
+
+    template <typename T, std::enable_if_t<std::is_base_of_v<Component, T>, int> = 0>
+    T *getComponent() const {
+        const auto *meta = T::getStaticClass();
+        for (const auto &c : _components) {
+            if (c && c->getClass()->isDerivedFrom(meta)) return static_cast<T *>(c.get());
+        }
+        return nullptr;
+    }
+
+    template <typename T, std::enable_if_t<std::is_base_of_v<Component, T>, int> = 0>
+    ccstd::vector<T *> getComponents() const {
+        const auto *meta = T::getStaticClass();
+        ccstd::vector<T *> out;
+        for (const auto &c : _components) {
+            if (c && c->getClass()->isDerivedFrom(meta)) out.push_back(static_cast<T *>(c.get()));
+        }
+        return out;
+    }
+
+    Component *getComponentByClassName(const char *className) const;
+
+    // Raw list — used by NodeActivator and similar scene-graph-aware code.
+    inline const ccstd::vector<IntrusivePtr<Component>> &getComponentList() const { return _components; }
 
     // For deserialization
     //    void     _setChild(index_t i, Node *child);
@@ -685,6 +638,8 @@ private:
     IntrusivePtr<UserData> _userData;
 
     ccstd::vector<IntrusivePtr<Node>> _children;
+    ccstd::vector<IntrusivePtr<Component>> _components;
+
     // local transform
     Vec3 _localPosition{Vec3::ZERO};
     Vec3 _localScale{Vec3::ONE};
