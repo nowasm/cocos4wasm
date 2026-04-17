@@ -2272,6 +2272,16 @@ cocos_source_files(
     cocos/core/memop/Pool.h
     cocos/core/memop/RecyclePool.h
 
+    # reflection
+    cocos/core/reflection/TypeId.h
+    cocos/core/reflection/PropertyMeta.h
+    cocos/core/reflection/ClassMeta.h
+    cocos/core/reflection/ClassBuilder.h
+    cocos/core/reflection/ClassDB.h
+    cocos/core/reflection/ClassDB.cpp
+    cocos/core/reflection/ClassAutoReg.h
+    cocos/core/reflection/ReflectionMacros.h
+    cocos/core/reflection/Reflection.h
 
     cocos/core/assets/Asset.cpp
     cocos/core/assets/Asset.h

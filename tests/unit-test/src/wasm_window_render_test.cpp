@@ -5,7 +5,12 @@
  - SystemWindow: construction, ID, handle, view size
  - SystemWindowManager: init, createWindow, getWindow, multi-window
  - GFX data structures: default values, enum sanity, struct layout
+
+ Only builds under the emscripten toolchain — pulls in <emscripten/html5.h>
+ and the wasm platform stubs which don't exist on native targets.
 ****************************************************************************/
+
+#ifdef __EMSCRIPTEN__
 
 #include "gtest/gtest.h"
 
@@ -247,3 +252,5 @@ TEST(WasmWindowInfoTest, WindowFlagConstants) {
     EXPECT_EQ(cc::ISystemWindow::WindowFlags::CC_WINDOW_SHOWN,      0x00000004);
     EXPECT_EQ(cc::ISystemWindow::WindowFlags::CC_WINDOW_RESIZABLE,  0x00000020);
 }
+
+#endif  // __EMSCRIPTEN__

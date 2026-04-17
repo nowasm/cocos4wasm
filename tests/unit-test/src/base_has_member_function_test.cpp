@@ -1,3 +1,8 @@
+// Disabled: this test exercised SFINAE on `se::Object*` bindings that were
+// removed when the JS script engine was stripped from the fork. Wrapped
+// rather than deleted so it remains discoverable if the binding layer ever
+// comes back.
+#if 0
 /****************************************************************************
  Copyright (c) 2021-2023 Xiamen Yaji Software Co., Ltd.
 
@@ -157,3 +162,4 @@ TEST(HasMemberFunction, test06) {
         EXPECT_EQ(b->getScriptObject(), reinterpret_cast<se::Object*>(reinterpret_cast<uintptr_t>(&fakeAddr)));
     }
 }
+#endif  // script engine removed
