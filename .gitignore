@@ -65,6 +65,8 @@ local.properties
 build_*_xcode/
 build_*_vc10/
 
+demo/build/
+
 # Ignore files build by xcode
 *.mode*v*
 *.pbxuser
