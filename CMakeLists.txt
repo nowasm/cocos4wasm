@@ -2205,6 +2205,8 @@ cocos_source_files(
     cocos/2d/framework/UITransform.cpp
     cocos/2d/framework/Canvas.h
     cocos/2d/framework/Canvas.cpp
+    cocos/2d/framework/UIRenderer.h
+    cocos/2d/framework/UIRenderer.cpp
 
     cocos/2d/renderer/Batcher2d.h
     cocos/2d/renderer/Batcher2d.cpp
