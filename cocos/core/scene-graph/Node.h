@@ -55,18 +55,40 @@ class Scene;
  */
 using TransformDirtyBit = TransformBit;
 
+// Scene-graph-layer input events. Decoupled from cc::MouseEvent /
+// cc::TouchEvent (the Engine-bus structs) so Node.h can stay lean; the
+// InputEventDispatcher populates these from the raw bus events after
+// running hit-test, filling both screen and local (post-inverse-world)
+// coordinates for handler ergonomics.
+struct NodeMouseEventArg {
+    float x{0.f};       // window-space (origin top-left, y grows down)
+    float y{0.f};
+    float localX{0.f};  // UI local space of the hit Node (origin = anchor)
+    float localY{0.f};
+    uint16_t button{0}; // 0=left, 1=middle, 2=right — matches cc::MouseEvent
+    float wheelDx{0.f}; // only meaningful for MouseWheel
+    float wheelDy{0.f};
+};
+struct NodeTouchEventArg {
+    float x{0.f};
+    float y{0.f};
+    float localX{0.f};
+    float localY{0.f};
+    uint32_t touchId{0};
+};
+
 class Node : public CCObject {
     CC_CLASS_DECL(Node, void)
     IMPL_EVENT_TARGET_WITH_PARENT(Node, getParent)
     DECLARE_TARGET_EVENT_BEGIN(Node)
-    TARGET_EVENT_ARG0(TouchStart)
-    TARGET_EVENT_ARG0(TouchMove)
-    TARGET_EVENT_ARG0(TouchEnd)
-    TARGET_EVENT_ARG0(TouchCancel)
-    TARGET_EVENT_ARG0(MouseDown)
-    TARGET_EVENT_ARG0(MouseMove)
-    TARGET_EVENT_ARG0(MouseUp)
-    TARGET_EVENT_ARG0(MouseWheel)
+    TARGET_EVENT_ARG1(TouchStart,  NodeTouchEventArg)
+    TARGET_EVENT_ARG1(TouchMove,   NodeTouchEventArg)
+    TARGET_EVENT_ARG1(TouchEnd,    NodeTouchEventArg)
+    TARGET_EVENT_ARG1(TouchCancel, NodeTouchEventArg)
+    TARGET_EVENT_ARG1(MouseDown,   NodeMouseEventArg)
+    TARGET_EVENT_ARG1(MouseMove,   NodeMouseEventArg)
+    TARGET_EVENT_ARG1(MouseUp,     NodeMouseEventArg)
+    TARGET_EVENT_ARG1(MouseWheel,  NodeMouseEventArg)
     TARGET_EVENT_ARG0(MouseEnter)
     TARGET_EVENT_ARG0(MouseLeave)
     TARGET_EVENT_ARG0(KeyDown)

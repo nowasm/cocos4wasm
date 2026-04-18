@@ -5,6 +5,7 @@
 #include "cocos/asset/EffectLoader.h"
 #include "cocos/asset/MaterialLoader.h"
 #include "cocos/asset/PrefabLoader.h"
+#include "cocos/input/InputEventDispatcher.h"
 #include "core/Root.h"
 #include "core/assets/Asset.h"
 #include "core/builtin/BuiltinResMgr.h"
@@ -84,6 +85,10 @@ bool DemoGame::initEngine() {
     auto *pipeline = ccnew pipeline::ForwardPipeline();
     pipeline->initialize({});
     root->setRenderPipeline(pipeline);
+
+    // Start the P4 input dispatcher — it subscribes to the engine bus and
+    // begins routing mouse/touch events into the active-Canvas subtrees.
+    InputEventDispatcher::get().start();
 
     IRenderSceneInfo si;
     si.name = "DemoMain";
@@ -167,7 +172,12 @@ int DemoGame::init() {
 
     // Start on the last-registered scene — that's usually the newest milestone
     // we care about verifying. Arrow keys cycle to earlier scenes.
-    if (!reg.empty()) _pendingSceneIdx = static_cast<int>(reg.size()) - 1;
+    // Start on the ClickableScene so P4 is visually verifiable out of the box.
+    int startIdx = static_cast<int>(reg.size()) - 1;
+    for (size_t i = 0; i < reg.size(); ++i) {
+        if (reg[i].name == "ClickableScene") { startIdx = static_cast<int>(i); break; }
+    }
+    if (!reg.empty()) _pendingSceneIdx = startIdx;
 
     _tickListener.bind([this](float dt) {
         applyPendingSceneSwitch();

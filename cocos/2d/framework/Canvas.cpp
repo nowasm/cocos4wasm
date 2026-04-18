@@ -1,6 +1,7 @@
 #include "cocos/2d/framework/Canvas.h"
 
 #include "base/Log.h"
+#include "cocos/input/InputEventDispatcher.h"
 #include "core/Root.h"
 #include "core/scene-graph/Node.h"
 #include "scene/Camera.h"
@@ -18,9 +19,14 @@ Canvas::~Canvas() = default;
 
 void Canvas::onEnable() {
     createCamera();
+    // Register with the input dispatcher so this Canvas's subtree becomes
+    // eligible for hit-testing. Priority is re-read each event so we don't
+    // need to notify on setPriority.
+    InputEventDispatcher::get().registerCanvas(this);
 }
 
 void Canvas::onDisable() {
+    InputEventDispatcher::get().unregisterCanvas(this);
     destroyCamera();
 }
 

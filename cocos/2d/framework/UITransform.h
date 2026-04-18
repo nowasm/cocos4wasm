@@ -2,6 +2,7 @@
 
 #include "core/component/Component.h"
 #include "math/Vec2.h"
+#include "math/Vec3.h"
 
 namespace cc {
 
@@ -33,6 +34,15 @@ public:
 
     int32_t getPriority() const { return _priority; }
     void setPriority(int32_t v) { _priority = v; }
+
+    // Point-in-rect test for a world-space point. Returns true if the point
+    // lies inside this transform's rectangle after mapping back through the
+    // owning Node's world matrix.
+    //
+    // Also fills `outLocal` with the local-space coordinates (origin at the
+    // anchor point, +x right, +y up) so callers can reuse the result without
+    // re-running the matrix inverse.
+    bool hitTestWorld(float worldX, float worldY, Vec2 *outLocal = nullptr) const;
 
 private:
     Vec2    _anchorPoint{0.5f, 0.5f};

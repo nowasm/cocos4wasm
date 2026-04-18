@@ -2334,6 +2334,10 @@ cocos_source_files(
     cocos/asset/EffectLoader.h
     cocos/asset/EffectLoader.cpp
 
+    # input dispatch (P4)
+    cocos/input/InputEventDispatcher.h
+    cocos/input/InputEventDispatcher.cpp
+
     cocos/core/assets/Asset.cpp
     cocos/core/assets/Asset.h
     cocos/core/assets/AssetEnum.h
