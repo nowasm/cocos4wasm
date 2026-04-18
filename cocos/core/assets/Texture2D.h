@@ -29,6 +29,7 @@
 #include "core/assets/Asset.h"
 #include "core/assets/AssetEnum.h"
 #include "core/assets/SimpleTexture.h"
+#include "core/reflection/Reflection.h"
 
 namespace cc {
 
@@ -88,6 +89,7 @@ struct ITexture2DCreateInfo {
  * @zh 二维贴图资源。二维贴图资源的每个 Mipmap 层级都为一张 [[ImageAsset]]。
  */
 class Texture2D final : public SimpleTexture {
+    CC_CLASS_DECL(Texture2D, void)
 public:
     using Super = SimpleTexture;
 

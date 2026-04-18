@@ -1,0 +1,15 @@
+[
+  {
+    "__type__": "cc.Material",
+    "_effectAsset": "builtin-unlit",
+    "_techIdx": 0,
+    "_defines": [
+      { "USE_TEXTURE": false, "USE_VERTEX_COLOR": true }
+    ],
+    "_props": [
+      {
+        "mainColor": { "r": 255, "g": 255, "b": 255, "a": 255 }
+      }
+    ]
+  }
+]

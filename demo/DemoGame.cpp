@@ -1,17 +1,51 @@
 #include "DemoGame.h"
 #include "base/Log.h"
 #include "cocos/2d/renderer/UIBatcher2d.h"
+#include "cocos/asset/AssetManager.h"
+#include "cocos/asset/MaterialLoader.h"
+#include "cocos/asset/PrefabLoader.h"
 #include "core/Root.h"
+#include "core/assets/Asset.h"
 #include "core/builtin/BuiltinResMgr.h"
 #include "core/builtin/BuiltinEffectLoader.h"
 #include "core/component/ComponentScheduler.h"
 #include "core/component/NodeActivator.h"
+#include "game/TextureLoader.h"
 #include "renderer/pipeline/forward/ForwardPipeline.h"
 #include "renderer/GFXDeviceManager.h"
 #include "platform/FileUtils.h"
 
 using namespace cc;
 using namespace cc::scene;
+
+static void registerAssetLoaders() {
+    // PNG → Texture2D loader. Reuses the existing TextureLoader path.
+    auto pngLoader = [](const ccstd::string &absPath, const ccstd::string & /*uuid*/)
+        -> IntrusivePtr<Asset> {
+        auto *tex = game::TextureLoader::loadFromFile(absPath);
+        return IntrusivePtr<Asset>(tex);
+    };
+    AssetManager::get().registerLoader(".png",  pngLoader);
+    AssetManager::get().registerLoader(".jpg",  pngLoader);
+    AssetManager::get().registerLoader(".jpeg", pngLoader);
+    AssetManager::get().registerLoader(".webp", pngLoader);
+
+    // .mtl → Material (Cocos Creator 3.x material asset format).
+    AssetManager::get().registerLoader(".mtl",
+        [](const ccstd::string &absPath, const ccstd::string & /*uuid*/)
+            -> IntrusivePtr<Asset> {
+            auto *mat = MaterialLoader::loadFromFile(absPath);
+            return IntrusivePtr<Asset>(mat);
+        });
+
+    // .prefab → Prefab asset (JSON wrapper; instantiate() per-use).
+    AssetManager::get().registerLoader(".prefab",
+        [](const ccstd::string &absPath, const ccstd::string & /*uuid*/)
+            -> IntrusivePtr<Asset> {
+            auto *pre = PrefabLoader::loadFromFile(absPath);
+            return IntrusivePtr<Asset>(pre);
+        });
+}
 
 bool DemoGame::initEngine() {
     auto *device = gfx::Device::getInstance();
@@ -20,6 +54,12 @@ bool DemoGame::initEngine() {
     auto *root = ccnew Root(device);
     root->initialize(nullptr);
     BuiltinResMgr::getInstance()->initBuiltinRes();
+
+    // Asset pipeline: register loaders + load the uuid-map for the
+    // editor-sample fixture bundle.
+    registerAssetLoaders();
+    AssetManager::get().setAssetRoot("assets/editor-sample/");
+    AssetManager::get().loadUuidMap("assets/editor-sample/uuid-map.json");
 
     auto *fu = FileUtils::getInstance();
     for (auto &p : {"builtin-effects.json",

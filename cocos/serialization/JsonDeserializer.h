@@ -44,19 +44,23 @@ public:
     JsonDeserializer() = default;
     ~JsonDeserializer() = default;
 
-    // Returns the first top-level object (index 0) on success, nullptr if:
+    // Returns the object at `rootIndex` on success, nullptr if:
     //   - JSON fails to parse
     //   - top level is not an array
-    //   - index 0 has no reflectable __type__
+    //   - rootIndex has no reflectable __type__
     // Partial failures on inner objects log an error and continue.
-    void *deserialize(const char *jsonText, size_t jsonLength);
-    void *deserialize(const ccstd::string &jsonText) {
-        return deserialize(jsonText.data(), jsonText.size());
+    //
+    // rootIndex lets callers pick a non-zero object as the owned result —
+    // used by PrefabLoader to skip the `cc.Prefab` wrapper and return the
+    // wrapped Node at `wrapper.data.__id__`.
+    void *deserialize(const char *jsonText, size_t jsonLength, size_t rootIndex = 0);
+    void *deserialize(const ccstd::string &jsonText, size_t rootIndex = 0) {
+        return deserialize(jsonText.data(), jsonText.size(), rootIndex);
     }
 
     template <typename T>
-    T *deserializeAs(const ccstd::string &jsonText) {
-        return static_cast<T *>(deserialize(jsonText));
+    T *deserializeAs(const ccstd::string &jsonText, size_t rootIndex = 0) {
+        return static_cast<T *>(deserialize(jsonText, rootIndex));
     }
 
     size_t objectCount() const { return _objects.size(); }

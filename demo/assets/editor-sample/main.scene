@@ -1,0 +1,30 @@
+[
+  {
+    "__type__": "cc.Node",
+    "_name": "Canvas",
+    "children": [
+      { "__id__": 1 }
+    ],
+    "components": [
+      { "__id__": 3 }
+    ]
+  },
+  {
+    "__type__": "cc.Node",
+    "_name": "SpriteNode",
+    "children": [],
+    "components": [
+      { "__id__": 2 }
+    ]
+  },
+  {
+    "__type__": "cc.Sprite",
+    "_texture": { "__uuid__": "a1b2c3d4-e5f6-7890-1234-567890abcdef" },
+    "size": { "x": 200, "y": 200 },
+    "color": { "r": 255, "g": 255, "b": 255, "a": 255 }
+  },
+  {
+    "__type__": "cc.Canvas",
+    "clearColor": { "r": 25, "g": 30, "b": 50, "a": 255 }
+  }
+]

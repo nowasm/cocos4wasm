@@ -3,9 +3,13 @@
 #include <cstring>
 
 #include "base/Log.h"
+#include "cocos/asset/AssetManager.h"
+#include "core/assets/Asset.h"
+#include "core/component/Component.h"
 #include "core/reflection/ClassDB.h"
 #include "core/reflection/ClassMeta.h"
 #include "core/reflection/PropertyMeta.h"
+#include "core/scene-graph/Node.h"
 #include "math/Color.h"
 #include "math/Mat4.h"
 #include "math/Quaternion.h"
@@ -83,6 +87,10 @@ bool decodeColor(const JsonValue &v, Color &out) {
 
 bool isIdRef(const JsonValue &v) {
     return v.IsObject() && v.HasMember("__id__") && v["__id__"].IsInt();
+}
+
+bool isUuidRef(const JsonValue &v) {
+    return v.IsObject() && v.HasMember("__uuid__") && v["__uuid__"].IsString();
 }
 
 // Decode a JSON value into the reflected property's field and invoke setter.
@@ -178,7 +186,7 @@ void JsonDeserializer::reset() {
     _objects.clear();
 }
 
-void *JsonDeserializer::deserialize(const char *jsonText, size_t jsonLength) {
+void *JsonDeserializer::deserialize(const char *jsonText, size_t jsonLength, size_t rootIndex) {
     reset();
 
     rapidjson::Document doc;
@@ -257,8 +265,19 @@ void *JsonDeserializer::deserialize(const char *jsonText, size_t jsonLength) {
                 continue;
             }
 
-            // Single pointer reference
+            // Single pointer reference — either an __id__ cross-ref within
+            // the scene array, or an __uuid__ asset ref resolved by
+            // AssetManager.
             if (prop->typeId == TypeId::POINTER) {
+                if (isUuidRef(v)) {
+                    const ccstd::string uuid = v["__uuid__"].GetString();
+                    auto asset = AssetManager::get().loadAsset(uuid);
+                    if (asset) {
+                        Asset *rawAsset = asset.get();
+                        if (prop->setter) prop->setter(slot.ptr, &rawAsset);
+                    }
+                    continue;
+                }
                 if (!isIdRef(v)) {
                     if (v.IsNull() && prop->setter) {
                         void *np = nullptr;
@@ -278,12 +297,32 @@ void *JsonDeserializer::deserialize(const char *jsonText, size_t jsonLength) {
         }
     }
 
+    // ── Phase 2.5: wire non-reflected Node↔Component/child back-refs.
+    // The reflected arrays ("children", "components") populate the vectors
+    // but don't set Component::_node or Node::_parent — those are private
+    // pointers managed by addComponent()/setParent() in normal code paths.
+    // For deserialized scenes we patch them here so the activation pass sees
+    // a consistent graph.
+    for (size_t i = 0; i < _slots.size(); ++i) {
+        auto &s = _slots[i];
+        if (!s.ptr || !s.meta) continue;
+        if (std::strcmp(s.meta->name, "cc.Node") != 0) continue;
+        auto *node = static_cast<Node *>(s.ptr);
+        for (auto &comp : node->getComponentList()) {
+            if (comp) comp->_node = node;
+        }
+        for (auto &child : node->getChildren()) {
+            if (child) child->modifyParent(node);
+        }
+    }
+
     // ── Phase 3: hand off ownership. Release the initial ccnew refcount on
     // every non-root object; they are now retained by their parent's
     // IntrusivePtr members. The root's initial refcount is preserved and
     // passed to the caller.
-    void *root = _slots.empty() ? nullptr : _slots[0].ptr;
-    for (size_t i = 1; i < _slots.size(); ++i) {
+    void *root = (rootIndex < _slots.size()) ? _slots[rootIndex].ptr : nullptr;
+    for (size_t i = 0; i < _slots.size(); ++i) {
+        if (i == rootIndex) continue;
         auto &s = _slots[i];
         if (s.ptr && s.meta && s.meta->release) {
             s.meta->release(s.ptr);

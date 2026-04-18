@@ -87,6 +87,31 @@ public:
         return *this;
     }
 
+    // Reflect a single IntrusivePtr<ElemT> field — used for asset refs
+    // like Sprite::_texture : IntrusivePtr<Texture2D>. Serialised form is
+    // `{"__uuid__":"..."}`; the deserializer resolves via AssetManager
+    // and hands us a raw T* which IntrusivePtr::operator= then addRefs.
+    template <typename ElemT>
+    ClassBuilder &property(const char *propName, IntrusivePtr<ElemT> ClassT::*field) {
+        PropertyMeta p;
+        p.name = propName;
+        p.typeId = TypeId::POINTER;
+        p.pointeeClassFn = &ElemT::getStaticClass;
+        p.setter = [field](void *inst, const void *value) {
+            ElemT *ptr = *static_cast<ElemT *const *>(value);
+            (static_cast<ClassT *>(inst)->*field) = ptr;
+        };
+        p.getter = [field](const void *inst, void *outValue) {
+            ElemT *ptr = (static_cast<const ClassT *>(inst)->*field).get();
+            *static_cast<ElemT **>(outValue) = ptr;
+        };
+        p.applyDefault = [field](void *inst) {
+            (static_cast<ClassT *>(inst)->*field).reset();
+        };
+        _meta->properties.push_back(std::move(p));
+        return *this;
+    }
+
     // Reflect an array property stored as ccstd::vector<IntrusivePtr<ElemT>>.
     // Deserializer uses arrayClear + arrayAppend to rebuild the vector from a
     // JSON array. ElemT must be a reflected class.

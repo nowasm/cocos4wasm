@@ -31,6 +31,9 @@
 
 namespace cc {
 
+CC_IMPLEMENT_ROOT_CLASS(Texture2D, "cc.Texture2D")
+CC_END_CLASS(Texture2D);
+
 Texture2D::Texture2D() = default;
 Texture2D::~Texture2D() = default;
 

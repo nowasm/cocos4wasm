@@ -1,0 +1,12 @@
+{
+  "ver": "1.0.0",
+  "importer": "texture",
+  "uuid": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
+  "files": [".png"],
+  "userData": {
+    "wrapMode": "clamp-to-edge",
+    "minFilter": "linear",
+    "magFilter": "linear",
+    "mipFilter": "none"
+  }
+}

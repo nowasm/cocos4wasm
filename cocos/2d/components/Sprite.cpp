@@ -11,8 +11,9 @@
 namespace cc {
 
 CC_IMPLEMENT_CLASS(Sprite, "cc.Sprite", UIRenderer)
-    .property("color", &Sprite::_color, Color{255, 255, 255, 255})
-    .property("size",  &Sprite::_size,  Vec2{100.0f, 100.0f})
+    .property("color",    &Sprite::_color,    Color{255, 255, 255, 255})
+    .property("size",     &Sprite::_size,     Vec2{100.0f, 100.0f})
+    .property("_texture", &Sprite::_texture)
 CC_END_CLASS(Sprite);
 
 namespace {

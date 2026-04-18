@@ -35,6 +35,7 @@ set(DEMO_SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/scenes/LabelScene.cpp
     ${CMAKE_CURRENT_LIST_DIR}/scenes/GraphicsScene.cpp
     ${CMAKE_CURRENT_LIST_DIR}/scenes/MaskScene.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/scenes/EditorSceneLoadScene.cpp
 )
 
 add_executable(CocosDemo ${DEMO_SOURCES})

@@ -5,6 +5,8 @@
 
 namespace cc {
 
+namespace serialization { class JsonDeserializer; }
+
 class Node;
 
 // Component is the base class for all authoring-layer behaviors attached to a
@@ -49,6 +51,7 @@ protected:
     friend class Node;
     friend class NodeActivator;
     friend class ComponentScheduler;
+    friend class serialization::JsonDeserializer;
 
     // Subclasses that override update()/lateUpdate() should set the
     // corresponding flag in their constructor so the scheduler knows to call

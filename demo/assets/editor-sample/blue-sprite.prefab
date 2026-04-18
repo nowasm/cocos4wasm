@@ -1,0 +1,18 @@
+[
+  {
+    "__type__": "cc.Prefab",
+    "_name": "blue-sprite",
+    "data": { "__id__": 1 }
+  },
+  {
+    "__type__": "cc.Node",
+    "_name": "PrefabSpriteRoot",
+    "children": [],
+    "components": [ { "__id__": 2 } ]
+  },
+  {
+    "__type__": "cc.Sprite",
+    "size":  { "x": 120, "y": 120 },
+    "color": { "r": 80, "g": 160, "b": 240, "a": 255 }
+  }
+]

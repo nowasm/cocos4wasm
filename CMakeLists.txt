@@ -2322,6 +2322,16 @@ cocos_source_files(
     cocos/serialization/JsonDeserializer.h
     cocos/serialization/JsonDeserializer.cpp
 
+    # asset manager (P3)
+    cocos/asset/AssetManager.h
+    cocos/asset/AssetManager.cpp
+    cocos/asset/MaterialLoader.h
+    cocos/asset/MaterialLoader.cpp
+    cocos/asset/Prefab.h
+    cocos/asset/Prefab.cpp
+    cocos/asset/PrefabLoader.h
+    cocos/asset/PrefabLoader.cpp
+
     cocos/core/assets/Asset.cpp
     cocos/core/assets/Asset.h
     cocos/core/assets/AssetEnum.h
