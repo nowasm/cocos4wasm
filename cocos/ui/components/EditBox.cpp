@@ -74,12 +74,16 @@ size_t byteOffsetOfCodepoint(const ccstd::string &s, size_t cp) {
     return cur;
 }
 
-// Nearest UITransform-bearing ancestor gives us the canvas size for
-// screen → world conversion. Demo scenes put a 1280×720 rect on the
-// Canvas node; real apps would hook this to resize events.
+// Nearest ancestor UITransform gives us the canvas size for screen →
+// world conversion. Crucially we must skip `from` itself — the EditBox
+// node carries its OWN small UITransform (e.g. 400×50), and using that
+// would make every click land outside the expected window-space region.
+// Demo scenes put a 1280×720 UITransform on the Canvas node one level
+// up; real apps hook it to window-resize events.
 void nearestCanvasSize(Node *from, float &w, float &h) {
     w = 1280.f; h = 720.f;
-    for (Node *n = from; n; n = n->getParent()) {
+    Node *n = from ? from->getParent() : nullptr;
+    for (; n; n = n->getParent()) {
         if (auto *ui = n->getComponent<UITransform>()) {
             w = ui->getContentSize().x;
             h = ui->getContentSize().y;
