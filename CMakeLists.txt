@@ -2347,6 +2347,8 @@ cocos_source_files(
     cocos/ui/components/Layout.cpp
     cocos/ui/components/ScrollView.h
     cocos/ui/components/ScrollView.cpp
+    cocos/ui/components/EditBox.h
+    cocos/ui/components/EditBox.cpp
 
     cocos/core/assets/Asset.cpp
     cocos/core/assets/Asset.h

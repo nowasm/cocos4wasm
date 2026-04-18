@@ -39,6 +39,7 @@ set(DEMO_SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/scenes/ClickableScene.cpp
     ${CMAKE_CURRENT_LIST_DIR}/scenes/WidgetScene.cpp
     ${CMAKE_CURRENT_LIST_DIR}/scenes/ScrollViewScene.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/scenes/EditBoxScene.cpp
 )
 
 add_executable(CocosDemo ${DEMO_SOURCES})

@@ -177,6 +177,15 @@ struct ControllerChangeEvent {
     ccstd::vector<uint32_t> controllerIds;
 };
 
+// P5e text input — UTF-8 string delivered by the OS when text input is
+// enabled (SDL_TEXTINPUT on desktop; IME composition not yet surfaced).
+// Fires alongside the matching KeyDown but carries the character the OS
+// resolved from the keystroke (shift, dead-keys, etc.).
+struct TextInputEvent {
+    ccstd::string text;  // one or more UTF-8 codepoints, typically one char
+    uint32_t windowId = 0;
+};
+
 class MouseEvent {
 public:
     MouseEvent() = default;
@@ -340,6 +349,7 @@ DECLARE_BUS_EVENT_ARG0(LowMemory, Engine)
 DECLARE_BUS_EVENT_ARG1(Touch, Engine, const cc::TouchEvent &)
 DECLARE_BUS_EVENT_ARG1(Mouse, Engine, const cc::MouseEvent &)
 DECLARE_BUS_EVENT_ARG1(Keyboard, Engine, const cc::KeyboardEvent &)
+DECLARE_BUS_EVENT_ARG1(TextInput, Engine, const cc::TextInputEvent &)
 DECLARE_BUS_EVENT_ARG1(Controller, Engine, const cc::ControllerEvent &)
 DECLARE_BUS_EVENT_ARG1(ControllerChange, Engine, const cc::ControllerChangeEvent &)
 DECLARE_BUS_EVENT_ARG1(Tick, Engine, float)

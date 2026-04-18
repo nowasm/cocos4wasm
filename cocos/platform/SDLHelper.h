@@ -54,6 +54,7 @@ public:
 #endif
     static void setCursorEnabled(bool value);
     static Vec2 getWindowPosition(SDL_Window* window);
+    static void startTextInput();
     static void stopTextInput();
     static bool isWindowMinimized(SDL_Window* window);
 

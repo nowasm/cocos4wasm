@@ -176,7 +176,7 @@ int DemoGame::init() {
     // ScrollViewScene (P5d) → WidgetScene (P5a-c) → ClickableScene (P4).
     int startIdx = static_cast<int>(reg.size()) - 1;
     bool found = false;
-    for (const char *prefer : {"ScrollViewScene", "WidgetScene", "ClickableScene"}) {
+    for (const char *prefer : {"EditBoxScene", "ScrollViewScene", "WidgetScene", "ClickableScene"}) {
         for (size_t i = 0; i < reg.size(); ++i) {
             if (reg[i].name == prefer) {
                 startIdx = static_cast<int>(i);

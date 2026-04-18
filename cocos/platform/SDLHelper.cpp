@@ -356,6 +356,17 @@ void SDLHelper::dispatchSDLEvent(uint32_t windowId, const SDL_Event &sdlEvent) {
             break;
             break;
         }
+        case SDL_TEXTINPUT: {
+            // UTF-8 string resolved by the OS (shift, dead-keys, numpad,
+            // IME composition result). Fires *alongside* SDL_KEYDOWN —
+            // the EditBox uses TextInput for character insertion and
+            // KeyDown only for editing keys (backspace/arrows/enter).
+            TextInputEvent tev;
+            tev.text = sdlEvent.text.text;
+            tev.windowId = windowId;
+            events::TextInput::broadcast(tev);
+            break;
+        }
         default:
             break;
     }
@@ -422,6 +433,10 @@ Vec2 SDLHelper::getWindowPosition(SDL_Window *window) {
     int y = 0;
     SDL_GetWindowPosition(window, &x, &y);
     return Vec2(x, y);
+}
+
+void SDLHelper::startTextInput() {
+    SDL_StartTextInput();
 }
 
 void SDLHelper::stopTextInput() {
