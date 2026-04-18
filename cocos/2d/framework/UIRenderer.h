@@ -2,37 +2,33 @@
 
 #include "base/Ptr.h"
 #include "base/std/container/vector.h"
+#include "base/std/hash/hash_fwd.hpp"
 #include "core/component/Component.h"
 #include "renderer/gfx-base/GFXDef-common.h"
 
 namespace cc {
 
-namespace scene {
-class Model;
-class RenderScene;
-}  // namespace scene
-
+namespace gfx { class Texture; }
 class Material;
-class RenderingSubMesh;
 
-namespace gfx { class Buffer; }
-
-// Base class for 2D UI drawables.
+// Base class for 2D UI drawables (path A).
 //
-// Path A (per docs/memory/project_p2_rendering_path.md): each UIRenderer
-// instance owns one cc::scene::Model and attaches it directly to the main
-// RenderScene. Subclass responsibility:
+// After B2 the UIRenderer no longer owns a scene::Model / gfx::Buffer /
+// RenderingSubMesh. Each activated instance registers with UIBatcher2d,
+// which per-frame walks all registered renderers, groups consecutive
+// same-key ones, and emits pooled scene::Models with the combined
+// geometry. UIRenderer's job is therefore:
 //
-//   - updateGeometry():  fill _vertexData (interleaved floats) and
-//                        _indexData (uint16); set _vertexCount/_indexCount;
-//                        set _vertexStrideFloats once before first upload.
-//   - vertexAttributes(): the gfx::Attribute list describing the layout —
-//                        default is position-only (3 floats).
-//   - resolveMaterial(): return an IntrusivePtr<Material>. Usually built
-//                        via MaterialFactory or loaded from BuiltinResMgr.
+//   1. Produce vertex/index data in LOCAL space via updateGeometry()
+//   2. Declare vertex attributes + stride
+//   3. Resolve a Material (subclass implements resolveMaterial())
+//   4. Expose a gfx::Texture* so the batcher can key by texture
+//   5. Register / unregister with UIBatcher2d on activation
 //
-// The base handles buffer creation, model attach, and per-frame upload on
-// markDirty(). No batching; that's deliberate for this phase.
+// The stencil pass override (for Masks and their content) still lives in
+// UIRenderer — wrapped via UIBatcher2d::getStencilMaterial so siblings
+// under a common mask share the same wrapped Material instance and end
+// up in the same batch.
 class UIRenderer : public Component {
     CC_CLASS_DECL(UIRenderer, Component)
 public:
@@ -43,42 +39,52 @@ public:
     void onDisable() override;
     void lateUpdate(float dt) override;
 
-    // Public so ancestor-walk helpers can query without being friends.
     virtual bool isMask() const { return false; }
 
+    // ─── Accessors consumed by UIBatcher2d ──────────────────────────────
+    Material *getMaterial() const { return _material.get(); }
+    const ccstd::vector<gfx::Attribute> &getAttributes() const { return _attributes; }
+    uint32_t getVertexStrideFloats() const { return _vertexStrideFloats; }
+    const ccstd::vector<float>    &getVertexData() const { return _vertexData; }
+    const ccstd::vector<uint16_t> &getIndexData()  const { return _indexData; }
+    uint32_t getVertexCount() const { return _vertexCount; }
+    uint32_t getIndexCount()  const { return _indexCount; }
+    gfx::Texture *getBatchTexture() const { return _batchTexture; }
+    uint32_t getStencilDepth() const { return _stencilDepth; }
+    ccstd::hash_t getBatchKey() const { return _batchKey; }
+
+    bool isRenderable() const { return _material && _vertexCount > 0 && _indexCount > 0; }
+
 protected:
-    // Empty defaults so the class stays concrete (reflection factory needs
-    // default constructibility). Subclasses override with real geometry and
-    // shader selection — a bare UIRenderer silently no-ops. resolveMaterial
-    // is defined out-of-line so consumers of this header don't need to see
-    // the full Material type.
     virtual void updateGeometry() {}
     virtual IntrusivePtr<Material> resolveMaterial();
     virtual ccstd::vector<gfx::Attribute> vertexAttributes() const;
+    virtual gfx::Texture *resolveBatchTexture() const { return nullptr; }
 
     void markDirty() { _dirty = true; }
 
-    ccstd::vector<float>    _vertexData;   // interleaved floats
+    // Local-space vertex / index buffers — the batcher reads these each
+    // frame, applies the node world matrix to positions, and appends into
+    // the group's shared CPU buffer before GPU upload.
+    ccstd::vector<float>    _vertexData;
     ccstd::vector<uint16_t> _indexData;
     uint32_t _vertexCount{0};
     uint32_t _indexCount{0};
-    uint32_t _vertexStrideFloats{3};       // default position-only
+    uint32_t _vertexStrideFloats{3};
 
 private:
-    void ensureModel();
-    void destroyModel();
-    void uploadBuffers();
+    void rebuildForRender();     // material + attributes + geometry + batch key
+    void computeBatchKey();
+    void registerSelf();
+    void unregisterSelf();
 
-    IntrusivePtr<scene::Model>     _model;
     IntrusivePtr<Material>         _material;
-    IntrusivePtr<gfx::Buffer>      _vb;
-    IntrusivePtr<gfx::Buffer>      _ib;
-    IntrusivePtr<RenderingSubMesh> _subMesh;
-    scene::RenderScene            *_renderScene{nullptr};
-
-    bool   _dirty{true};
-    size_t _vbCapacityBytes{0};
-    size_t _ibCapacityBytes{0};
+    ccstd::vector<gfx::Attribute>  _attributes;
+    gfx::Texture                  *_batchTexture{nullptr};
+    uint32_t                       _stencilDepth{0};
+    ccstd::hash_t                  _batchKey{0};
+    bool                           _dirty{true};
+    bool                           _registered{false};
 };
 
 }  // namespace cc

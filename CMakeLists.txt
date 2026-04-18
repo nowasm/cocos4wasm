@@ -2222,6 +2222,11 @@ cocos_source_files(
     cocos/2d/text/BmfFont.h
     cocos/2d/text/BmfFont.cpp
 
+    # new lightweight C++ batcher for path A (B2)
+    cocos/2d/renderer/UIBatcher2d.h
+    cocos/2d/renderer/UIBatcher2d.cpp
+
+    # legacy (JS-era) Batcher2d kept for reference
     cocos/2d/renderer/Batcher2d.h
     cocos/2d/renderer/Batcher2d.cpp
     cocos/2d/renderer/UIModelProxy.h

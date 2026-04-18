@@ -1,5 +1,6 @@
 #include "DemoGame.h"
 #include "base/Log.h"
+#include "cocos/2d/renderer/UIBatcher2d.h"
 #include "core/Root.h"
 #include "core/builtin/BuiltinResMgr.h"
 #include "core/builtin/BuiltinEffectLoader.h"
@@ -121,11 +122,14 @@ int DemoGame::init() {
     _tickListener.bind([this](float dt) {
         applyPendingSceneSwitch();
         // Canonical Cocos tick order:
-        //   queued start() → component update → scene logic → component lateUpdate
+        //   queued start() → component update → scene logic → component
+        //   lateUpdate → UI batcher (collects all registered UIRenderers
+        //   and emits the minimum number of scene::Models)
         NodeActivator::get().invokePendingStarts();
         ComponentScheduler::get().update(dt);
         if (_currentScene) _currentScene->onUpdate(dt);
         ComponentScheduler::get().lateUpdate(dt);
+        UIBatcher2d::get().tick();
     });
 
     _keyboardListener.bind([this](const KeyboardEvent &ev) {
