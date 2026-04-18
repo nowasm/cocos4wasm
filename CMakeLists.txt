@@ -2350,6 +2350,24 @@ cocos_source_files(
     cocos/ui/editBox/Types.h
     cocos/ui/components/EditBox.h
     cocos/ui/components/EditBox.cpp
+    cocos/ui/components/BlockInputEvents.h
+    cocos/ui/components/BlockInputEvents.cpp
+    cocos/ui/components/ProgressBar.h
+    cocos/ui/components/ProgressBar.cpp
+    cocos/ui/components/Slider.h
+    cocos/ui/components/Slider.cpp
+    cocos/ui/components/ScrollBar.h
+    cocos/ui/components/ScrollBar.cpp
+    cocos/ui/components/Toggle.h
+    cocos/ui/components/Toggle.cpp
+    cocos/ui/components/ToggleContainer.h
+    cocos/ui/components/ToggleContainer.cpp
+    cocos/ui/components/PageView.h
+    cocos/ui/components/PageView.cpp
+    cocos/ui/components/PageViewIndicator.h
+    cocos/ui/components/PageViewIndicator.cpp
+    cocos/ui/components/SafeArea.h
+    cocos/ui/components/SafeArea.cpp
 
     cocos/core/assets/Asset.cpp
     cocos/core/assets/Asset.h
