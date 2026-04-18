@@ -2215,6 +2215,8 @@ cocos_source_files(
     cocos/2d/components/Label.cpp
     cocos/2d/components/Graphics.h
     cocos/2d/components/Graphics.cpp
+    cocos/2d/components/Mask.h
+    cocos/2d/components/Mask.cpp
 
     # text (P2d+)
     cocos/2d/text/BmfFont.h

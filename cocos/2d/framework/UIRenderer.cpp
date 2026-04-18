@@ -2,15 +2,117 @@
 
 #include "base/Log.h"
 #include "core/Root.h"
+#include "core/assets/EffectAsset.h"
 #include "core/assets/Material.h"
 #include "core/assets/RenderingSubMesh.h"
 #include "core/scene-graph/Node.h"
+#include "renderer/core/MaterialInstance.h"
 #include "renderer/gfx-base/GFXBuffer.h"
 #include "renderer/gfx-base/GFXDevice.h"
 #include "scene/Model.h"
 #include "scene/RenderScene.h"
 
 namespace cc {
+
+namespace {
+
+// Counts Mask ancestors on the parent chain of `startNode` (not counting
+// any component attached to startNode itself). Uses the UIRenderer::isMask()
+// virtual so we don't need a Mask-specific include here.
+int countMaskAncestors(Node *startNode) {
+    if (!startNode) return 0;
+    int count = 0;
+    const auto *uirMeta = UIRenderer::getStaticClass();
+    Node *p = startNode->getParent();
+    while (p) {
+        for (const auto &c : p->getComponentList()) {
+            if (!c) continue;
+            if (c->getClass()->isDerivedFrom(uirMeta)) {
+                auto *uir = static_cast<UIRenderer *>(c.get());
+                if (uir->isMask()) {
+                    ++count;
+                    break;  // one Mask per node max
+                }
+            }
+        }
+        p = p->getParent();
+    }
+    return count;
+}
+
+// Builds a DepthStencilStateInfo for a given nesting depth and stage.
+// Mirrors Cocos' StencilManager bit-mask model (bit N-1 owned by the Nth
+// nested mask) without mutating the global singleton's state.
+//
+//   ENABLED:      content inside masks — stencil EQUAL (bits 0..depth-1 set)
+//   ENTER_LEVEL:  the mask's own shape — stencil NEVER + REPLACE bit (depth-1),
+//                 so rasterised fragments fail the test (no colour output)
+//                 while failOp writes our stencil bit.
+DepthStencilStateInfo buildStencilDssInfo(uint32_t depth, bool isMaskShape) {
+    DepthStencilStateInfo info;
+    info.depthTest = false;
+    info.depthWrite = false;
+
+    if (depth == 0) return info;  // nothing to do (safety)
+
+    const uint32_t writeBit  = (1u << (depth - 1));
+    const uint32_t stencilRef = (1u << depth) - 1u;  // bits 0..depth-1 all set
+
+    info.stencilTestFront = true;
+    info.stencilTestBack  = true;
+
+    if (isMaskShape) {
+        info.stencilFuncFront      = gfx::ComparisonFunc::NEVER;
+        info.stencilFuncBack       = gfx::ComparisonFunc::NEVER;
+        info.stencilReadMaskFront  = writeBit;
+        info.stencilReadMaskBack   = writeBit;
+        info.stencilWriteMaskFront = writeBit;
+        info.stencilWriteMaskBack  = writeBit;
+        info.stencilRefFront       = writeBit;
+        info.stencilRefBack        = writeBit;
+        info.stencilFailOpFront    = gfx::StencilOp::REPLACE;
+        info.stencilFailOpBack     = gfx::StencilOp::REPLACE;
+        info.stencilZFailOpFront   = gfx::StencilOp::REPLACE;
+        info.stencilZFailOpBack    = gfx::StencilOp::REPLACE;
+        info.stencilPassOpFront    = gfx::StencilOp::KEEP;
+        info.stencilPassOpBack     = gfx::StencilOp::KEEP;
+    } else {
+        info.stencilFuncFront      = gfx::ComparisonFunc::EQUAL;
+        info.stencilFuncBack       = gfx::ComparisonFunc::EQUAL;
+        info.stencilReadMaskFront  = stencilRef;
+        info.stencilReadMaskBack   = stencilRef;
+        info.stencilWriteMaskFront = 0;
+        info.stencilWriteMaskBack  = 0;
+        info.stencilRefFront       = stencilRef;
+        info.stencilRefBack        = stencilRef;
+        info.stencilFailOpFront    = gfx::StencilOp::KEEP;
+        info.stencilFailOpBack     = gfx::StencilOp::KEEP;
+        info.stencilZFailOpFront   = gfx::StencilOp::KEEP;
+        info.stencilZFailOpBack    = gfx::StencilOp::KEEP;
+        info.stencilPassOpFront    = gfx::StencilOp::KEEP;
+        info.stencilPassOpBack     = gfx::StencilOp::KEEP;
+    }
+    return info;
+}
+
+// Wraps a base Material in a MaterialInstance carrying a stencil pass
+// override. Returns the parent unchanged when no stencil work is needed.
+IntrusivePtr<Material> wrapWithStencil(IntrusivePtr<Material> base,
+                                       uint32_t depth, bool isMaskShape) {
+    if (!base || depth == 0) return base;
+
+    IMaterialInstanceInfo instInfo;
+    instInfo.parent = base.get();
+    auto *inst = ccnew MaterialInstance(instInfo);
+
+    PassOverrides po;
+    po.depthStencilState = buildStencilDssInfo(depth, isMaskShape);
+    inst->overridePipelineStates(po);
+
+    return IntrusivePtr<Material>(inst);
+}
+
+}  // namespace
 
 CC_IMPLEMENT_CLASS(UIRenderer, "cc.UIRenderer", Component)
 CC_END_CLASS(UIRenderer);
@@ -54,6 +156,17 @@ void UIRenderer::ensureModel() {
     if (!_material) {
         CC_LOG_WARNING("[UIRenderer] no material from resolveMaterial(); geometry not created");
         return;
+    }
+
+    // Stencil wrapping — if this renderer is itself a mask, or lives under
+    // Mask ancestors, replace the freshly-built material with a
+    // MaterialInstance carrying stencil pass overrides.
+    const int   ancestors = countMaskAncestors(getNode());
+    const bool  meIsMask  = isMask();
+    const uint32_t depth  = static_cast<uint32_t>(ancestors) + (meIsMask ? 1u : 0u);
+    if (depth > 0) {
+        _material = wrapWithStencil(_material, depth, meIsMask);
+        CC_LOG_INFO("[UIRenderer] stencil wrap: depth=%u isMask=%d", depth, (int)meIsMask);
     }
 
     updateGeometry();

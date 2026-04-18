@@ -43,6 +43,9 @@ public:
     void onDisable() override;
     void lateUpdate(float dt) override;
 
+    // Public so ancestor-walk helpers can query without being friends.
+    virtual bool isMask() const { return false; }
+
 protected:
     // Empty defaults so the class stays concrete (reflection factory needs
     // default constructibility). Subclasses override with real geometry and
