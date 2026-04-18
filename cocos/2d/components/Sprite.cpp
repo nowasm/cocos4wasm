@@ -43,6 +43,26 @@ IntrusivePtr<Material> buildTexturedMat(Texture2D *tex) {
     // mainColor stays white — per-sprite tint rides on vertex colour.
     return IntrusivePtr<Material>(mat);
 }
+
+// Shared untextured material — same USE_VERTEX_COLOR path as the textured
+// build, just without USE_TEXTURE. All tint-only sprites can batch together
+// because the Material pointer matches.
+IntrusivePtr<Material> buildUntexturedVertexColorMat() {
+    auto *effect = EffectAsset::get("builtin-unlit");
+    if (!effect) return nullptr;
+
+    MacroRecord defines{
+        {"USE_VERTEX_COLOR",  true},
+    };
+    IMaterialInfo info;
+    info.effectAsset = effect;
+    info.technique   = 1u;  // transparent
+    info.defines     = IMaterialInfo::DefinesType{defines};
+
+    auto *mat = ccnew Material();
+    mat->initialize(info);
+    return IntrusivePtr<Material>(mat);
+}
 }  // namespace
 
 Sprite::Sprite() {
@@ -102,9 +122,10 @@ void Sprite::updateGeometry() {
 
 IntrusivePtr<Material> Sprite::resolveMaterial() {
     if (!_texture || !_texture->getGFXTexture()) {
-        // Shared un-textured fallback so mis-configured sprites still batch.
+        // Shared un-textured material — USE_VERTEX_COLOR=1 so each sprite's
+        // setColor still shows up via the baked per-corner vertex tint.
         if (!g_spriteUntexturedFallback) {
-            g_spriteUntexturedFallback = game::MaterialFactory::createUnlit(Color{255, 255, 255, 255});
+            g_spriteUntexturedFallback = buildUntexturedVertexColorMat();
         }
         return g_spriteUntexturedFallback;
     }
