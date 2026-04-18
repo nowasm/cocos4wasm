@@ -2211,6 +2211,12 @@ cocos_source_files(
     # components (P2c+)
     cocos/2d/components/Sprite.h
     cocos/2d/components/Sprite.cpp
+    cocos/2d/components/Label.h
+    cocos/2d/components/Label.cpp
+
+    # text (P2d+)
+    cocos/2d/text/BmfFont.h
+    cocos/2d/text/BmfFont.cpp
 
     cocos/2d/renderer/Batcher2d.h
     cocos/2d/renderer/Batcher2d.cpp
