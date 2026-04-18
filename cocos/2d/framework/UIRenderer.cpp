@@ -9,6 +9,7 @@
 #include "renderer/core/MaterialInstance.h"
 #include "renderer/gfx-base/GFXBuffer.h"
 #include "renderer/gfx-base/GFXDevice.h"
+#include "renderer/pipeline/Define.h"
 #include "scene/Model.h"
 #include "scene/RenderScene.h"
 
@@ -107,6 +108,15 @@ IntrusivePtr<Material> wrapWithStencil(IntrusivePtr<Material> base,
 
     PassOverrides po;
     po.depthStencilState = buildStencilDssInfo(depth, isMaskShape);
+    if (isMaskShape) {
+        // RenderQueue sorts transparent passes ascending by pass priority
+        // (see RenderQueue::insertRenderPass), so mask-writes render before
+        // default-priority (0x80) content. Deeper nested masks bump their
+        // priority slightly so inner-mask writes land after outer-mask
+        // writes — REPLACE order matters when bits overlap.
+        po.priority = static_cast<int32_t>(pipeline::RenderPriority::MIN) +
+                      static_cast<int32_t>(depth - 1);
+    }
     inst->overridePipelineStates(po);
 
     return IntrusivePtr<Material>(inst);
