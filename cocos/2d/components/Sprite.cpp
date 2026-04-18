@@ -2,8 +2,10 @@
 
 #include "base/Log.h"
 #include "base/std/container/unordered_map.h"
+#include "cocos/2d/framework/UITransform.h"
 #include "core/assets/EffectAsset.h"
 #include "core/assets/Material.h"
+#include "core/scene-graph/Node.h"
 #include "game/MaterialFactory.h"
 #include "renderer/core/PassUtils.h"
 #include "renderer/gfx-base/GFXTexture.h"
@@ -65,11 +67,50 @@ IntrusivePtr<Material> buildUntexturedVertexColorMat() {
 }
 }  // namespace
 
+struct Sprite::Hooks {
+    cc::event::TargetEventID<Node::SizeChanged> sizeId;
+};
+
 Sprite::Sprite() {
     _vertexStrideFloats = 9;  // position(3) + uv(2) + colour(4)
 }
 
 Sprite::~Sprite() = default;
+
+void Sprite::onEnable() {
+    UIRenderer::onEnable();
+    syncSizeFromUITransform();
+    if (!_hooks) {
+        _hooks = new Hooks();
+        if (auto *n = getNode()) {
+            _hooks->sizeId = n->on<Node::SizeChanged>([this](Node * /*self*/) {
+                syncSizeFromUITransform();
+            });
+        }
+    }
+}
+
+void Sprite::onDisable() {
+    if (_hooks) {
+        if (auto *n = getNode()) {
+            n->off<Node::SizeChanged>(_hooks->sizeId);
+        }
+        delete _hooks;
+        _hooks = nullptr;
+    }
+    UIRenderer::onDisable();
+}
+
+void Sprite::syncSizeFromUITransform() {
+    auto *n = getNode();
+    if (!n) return;
+    auto *ui = n->getComponent<UITransform>();
+    if (!ui) return;
+    const Vec2 &sz = ui->getContentSize();
+    if (_size.x == sz.x && _size.y == sz.y) return;
+    _size = sz;
+    markDirty();
+}
 
 void Sprite::setTexture(Texture2D *tex) {
     if (_texture.get() == tex) return;

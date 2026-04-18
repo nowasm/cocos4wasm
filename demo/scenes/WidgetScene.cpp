@@ -5,6 +5,7 @@
 #include "cocos/2d/framework/Canvas.h"
 #include "cocos/2d/framework/UITransform.h"
 #include "cocos/ui/components/Button.h"
+#include "cocos/ui/components/Widget.h"
 #include "core/component/NodeActivator.h"
 #include "core/scene-graph/Node.h"
 
@@ -68,7 +69,13 @@ public:
         auto *canvas = _root->addComponent<cc::Canvas>();
         canvas->setClearColor(cc::Color(35, 40, 55, 255));
 
-        int clickCount = 0;  // captured by the middle button's handler
+        // Give the canvas a UITransform matching the viewport so Widgets
+        // can anchor against its edges. 1280×720 matches the demo window;
+        // real apps hook this to resize events.
+        auto *rootUI = _root->addComponent<cc::UITransform>();
+        rootUI->setContentSize(1280.0f, 720.0f);
+        rootUI->setAnchorPoint(0.5f, 0.5f);
+
         addButton(_root, "btn-fire",     -260.0f, cc::Color(90, 160, 240, 255), true,
             [](cc::Button *b) {
                 CC_LOG_INFO("[P5a] 'btn-fire' clicked");
@@ -80,8 +87,41 @@ public:
             });
         addButton(_root, "btn-disabled",  260.0f, cc::Color(230, 80, 80, 255), false, {});
 
+        // ── P5b widget demo: four corner badges anchored to the canvas
+        //     rectangle + one stretched banner across the top. Corners
+        //     verify TOP/BOTTOM × LEFT/RIGHT; banner verifies the
+        //     LEFT+RIGHT stretch codepath.
+        auto addBadge = [this](const char *name, uint32_t align,
+                               float top, float bottom, float left, float right,
+                               const cc::Color &tint, float w = 80.f, float h = 80.f) {
+            auto *n = ccnew cc::Node(name);
+            auto *ui = n->addComponent<cc::UITransform>();
+            ui->setContentSize(w, h);
+            ui->setAnchorPoint(0.5f, 0.5f);
+            auto *sp = n->addComponent<cc::Sprite>();
+            sp->setSize(w, h);
+            sp->setColor(tint);
+            auto *w_ = n->addComponent<cc::Widget>();
+            w_->setAlign(align);
+            w_->setTopMargin(top);
+            w_->setBottomMargin(bottom);
+            w_->setLeftMargin(left);
+            w_->setRightMargin(right);
+            _root->addChild(n);
+        };
+        addBadge("tl", cc::Widget::TOP | cc::Widget::LEFT,   20, 0,  20, 0, cc::Color(230,180, 80, 255));
+        addBadge("tr", cc::Widget::TOP | cc::Widget::RIGHT,  20, 0,  0, 20, cc::Color(230,180, 80, 255));
+        addBadge("bl", cc::Widget::BOTTOM | cc::Widget::LEFT, 0, 20, 20, 0, cc::Color(200,110,160, 255));
+        addBadge("br", cc::Widget::BOTTOM | cc::Widget::RIGHT, 0, 20, 0, 20, cc::Color(200,110,160, 255));
+        // Stretched banner: fills horizontally between 40 and 40 px
+        // margins, anchored to the top with a 20 px gap.
+        addBadge("banner",
+                 cc::Widget::TOP | cc::Widget::LEFT | cc::Widget::RIGHT,
+                 20, 0, 40, 40, cc::Color(100, 180, 230, 255),
+                 /*w=*/0, /*h=*/40);  // width will be overwritten by stretch
+
         cc::NodeActivator::get().activateNode(_root, true);
-        CC_LOG_INFO("[WidgetScene] armed: 2 interactable + 1 disabled");
+        CC_LOG_INFO("[WidgetScene] armed: 3 buttons + 4 badges + 1 banner");
     }
 
     void onExit() override {

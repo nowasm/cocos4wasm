@@ -2341,6 +2341,8 @@ cocos_source_files(
     # ui widgets (P5)
     cocos/ui/components/Button.h
     cocos/ui/components/Button.cpp
+    cocos/ui/components/Widget.h
+    cocos/ui/components/Widget.cpp
 
     cocos/core/assets/Asset.cpp
     cocos/core/assets/Asset.h

@@ -11,6 +11,22 @@ CC_IMPLEMENT_CLASS(UITransform, "cc.UITransform", Component)
     .property("priority",    &UITransform::_priority)
 CC_END_CLASS(UITransform);
 
+void UITransform::setAnchorPoint(const Vec2 &v) {
+    if (_anchorPoint.x == v.x && _anchorPoint.y == v.y) return;
+    _anchorPoint = v;
+    if (auto *n = getNode()) {
+        n->dispatchEvent<Node::AnchorChanged>();
+    }
+}
+
+void UITransform::setContentSize(const Vec2 &v) {
+    if (_contentSize.x == v.x && _contentSize.y == v.y) return;
+    _contentSize = v;
+    if (auto *n = getNode()) {
+        n->dispatchEvent<Node::SizeChanged>();
+    }
+}
+
 bool UITransform::hitTestWorld(float worldX, float worldY, Vec2 *outLocal) const {
     auto *node = getNode();
     if (!node) return false;

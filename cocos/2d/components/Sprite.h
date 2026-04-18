@@ -26,6 +26,9 @@ public:
     Sprite();
     ~Sprite() override;
 
+    void onEnable() override;
+    void onDisable() override;
+
     void setTexture(Texture2D *tex);
     Texture2D *getTexture() const { return _texture.get(); }
 
@@ -43,9 +46,18 @@ protected:
     gfx::Texture *resolveBatchTexture() const override;
 
 private:
+    // Pull _size from the owning node's UITransform if present. Called at
+    // onEnable and whenever the node emits SizeChanged (e.g. from Widget's
+    // stretch layout).
+    void syncSizeFromUITransform();
+
     IntrusivePtr<Texture2D> _texture;
     Vec2  _size{100.0f, 100.0f};
     Color _color{255, 255, 255, 255};
+
+    // Event-subscription id. Opaque — see Node.h for the typed event.
+    struct Hooks;
+    Hooks *_hooks{nullptr};
 };
 
 }  // namespace cc

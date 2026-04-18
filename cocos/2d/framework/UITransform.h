@@ -25,12 +25,12 @@ public:
     ~UITransform() override = default;
 
     const Vec2 &getAnchorPoint() const { return _anchorPoint; }
-    void setAnchorPoint(const Vec2 &v) { _anchorPoint = v; }
-    void setAnchorPoint(float x, float y) { _anchorPoint.set(x, y); }
+    void setAnchorPoint(const Vec2 &v);
+    void setAnchorPoint(float x, float y) { setAnchorPoint(Vec2{x, y}); }
 
     const Vec2 &getContentSize() const { return _contentSize; }
-    void setContentSize(const Vec2 &v) { _contentSize = v; }
-    void setContentSize(float w, float h) { _contentSize.set(w, h); }
+    void setContentSize(const Vec2 &v);
+    void setContentSize(float w, float h) { setContentSize(Vec2{w, h}); }
 
     int32_t getPriority() const { return _priority; }
     void setPriority(int32_t v) { _priority = v; }
