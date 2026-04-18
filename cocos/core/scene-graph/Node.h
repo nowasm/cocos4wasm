@@ -82,6 +82,18 @@ struct NodeTouchEventArg {
 // query the current string / focus state. Matches Creator's TS
 // `node.emit(EditBoxEventType.TEXT_CHANGED, this)` convention.
 class EditBox;
+// Button (cc.Button) forward decl. ButtonClick ARG carries the firing
+// Button so handlers can check `btn->isInteractable()` or the component
+// hierarchy. Matches TS `node.emit(ButtonEventType.CLICK, this)`.
+class Button;
+// ScrollView (cc.ScrollView) forward decl. ScrollEvent carries a small
+// payload (sender + event-type tag) so one typed Node event channel
+// handles all 13 ScrollViewEventType values without a Node event per tag.
+class ScrollView;
+struct NodeScrollEventArg {
+    ScrollView *sender{nullptr};
+    uint32_t    type{0};  // ScrollView::EventType
+};
 
 class Node : public CCObject {
     CC_CLASS_DECL(Node, void)
@@ -108,6 +120,12 @@ class Node : public CCObject {
     TARGET_EVENT_ARG1(EditBoxEnded,       EditBox *)
     TARGET_EVENT_ARG1(EditBoxTextChanged, EditBox *)
     TARGET_EVENT_ARG1(EditBoxReturn,      EditBox *)
+    // Button (cc.Button) — fires on MouseUp inside the button while still
+    // armed. Matches Creator's ButtonEventType.CLICK ('click').
+    TARGET_EVENT_ARG1(ButtonClick,        Button *)
+    // ScrollView — one-channel equivalent of Creator's 13-value
+    // ScrollViewEventType. Payload carries the specific tag.
+    TARGET_EVENT_ARG1(ScrollEvent,        NodeScrollEventArg)
     TARGET_EVENT_ARG0(DeviceMotion)
     TARGET_EVENT_ARG1(TransformChanged, TransformBit)
     TARGET_EVENT_ARG0(SceneChangedForPersist)

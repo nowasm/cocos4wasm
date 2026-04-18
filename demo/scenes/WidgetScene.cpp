@@ -24,7 +24,7 @@
 namespace {
 void addButton(cc::Node *parent, const char *name, float x,
                const cc::Color &tint, bool interactable,
-               cc::Button::ClickHandler onClick) {
+               cc::Button::Handler onClick) {
     auto *node = ccnew cc::Node(name);
     node->setPosition(cc::Vec3(x, 0, 0));
 
@@ -37,6 +37,7 @@ void addButton(cc::Node *parent, const char *name, float x,
     sprite->setColor(tint);  // initial; Button::onEnable will overwrite
 
     auto *btn = node->addComponent<cc::Button>();
+    btn->setTransition(cc::Button::Transition::COLOR);
     btn->setInteractable(interactable);
     btn->setNormalColor  (tint);
     btn->setHoverColor   (cc::Color(
@@ -112,8 +113,8 @@ public:
         };
         addBadge("tl", cc::Widget::TOP | cc::Widget::LEFT,   20, 0,  20, 0, cc::Color(230,180, 80, 255));
         addBadge("tr", cc::Widget::TOP | cc::Widget::RIGHT,  20, 0,  0, 20, cc::Color(230,180, 80, 255));
-        addBadge("bl", cc::Widget::BOTTOM | cc::Widget::LEFT, 0, 20, 20, 0, cc::Color(200,110,160, 255));
-        addBadge("br", cc::Widget::BOTTOM | cc::Widget::RIGHT, 0, 20, 0, 20, cc::Color(200,110,160, 255));
+        addBadge("bl", cc::Widget::BOT | cc::Widget::LEFT, 0, 20, 20, 0, cc::Color(200,110,160, 255));
+        addBadge("br", cc::Widget::BOT | cc::Widget::RIGHT, 0, 20, 0, 20, cc::Color(200,110,160, 255));
         // Stretched banner: fills horizontally between 40 and 40 px
         // margins, anchored to the top with a 20 px gap.
         addBadge("banner",
@@ -144,7 +145,7 @@ public:
             ui->setContentSize(440.0f, 60.0f);
             ui->setAnchorPoint(0.5f, 0.5f);
             auto *w_ = row->addComponent<cc::Widget>();
-            w_->setAlign(cc::Widget::BOTTOM | cc::Widget::LEFT);
+            w_->setAlign(cc::Widget::BOT | cc::Widget::LEFT);
             w_->setBottomMargin(120);
             w_->setLeftMargin(20);
             auto *lay = row->addComponent<cc::Layout>();
@@ -165,7 +166,7 @@ public:
             ui->setContentSize(260.0f, 260.0f);
             ui->setAnchorPoint(0.5f, 0.5f);
             auto *w_ = grid->addComponent<cc::Widget>();
-            w_->setAlign(cc::Widget::BOTTOM | cc::Widget::RIGHT);
+            w_->setAlign(cc::Widget::BOT | cc::Widget::RIGHT);
             w_->setBottomMargin(120);
             w_->setRightMargin(20);
             auto *lay = grid->addComponent<cc::Layout>();

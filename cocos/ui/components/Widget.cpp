@@ -8,35 +8,66 @@
 namespace cc {
 
 CC_IMPLEMENT_CLASS(Widget, "cc.Widget", Component)
-    .property("alignFlags", &Widget::_align,   static_cast<uint32_t>(0))
-    .property("top",        &Widget::_top)
-    .property("bottom",     &Widget::_bottom)
-    .property("left",       &Widget::_left)
-    .property("right",      &Widget::_right)
-    .property("hCenter",    &Widget::_hCenter)
-    .property("vCenter",    &Widget::_vCenter)
+    .property("_alignFlags", &Widget::_alignFlags, static_cast<uint32_t>(0))
+    .property("_alignMode",  &Widget::_alignMode,  AlignMode::ON_WINDOW_RESIZE)
+    .property("_top",        &Widget::_top)
+    .property("_bottom",     &Widget::_bottom)
+    .property("_left",       &Widget::_left)
+    .property("_right",      &Widget::_right)
+    .property("_hCenter",    &Widget::_hCenter)
+    .property("_vCenter",    &Widget::_vCenter)
+    .property("_absTop",     &Widget::_absTop,     true)
+    .property("_absBottom",  &Widget::_absBottom,  true)
+    .property("_absLeft",    &Widget::_absLeft,    true)
+    .property("_absRight",   &Widget::_absRight,   true)
+    .property("_absHCenter", &Widget::_absHCenter, true)
+    .property("_absVCenter", &Widget::_absVCenter, true)
 CC_END_CLASS(Widget);
 
-// Retained so we can detach the parent SizeChanged subscription cleanly.
-// Stored out of the header because a forward-declared Node doesn't carry
-// the event-template helpers.
-struct Widget::ParentHook {
-    Node *parent{nullptr};
-    cc::event::TargetEventID<Node::SizeChanged> sizeId;
+struct Widget::TargetHook {
+    Node *target{nullptr};
+    cc::event::TargetEventID<Node::SizeChanged>   sizeId;
+    cc::event::TargetEventID<Node::AnchorChanged> anchorId;
 };
 
+// ────────────────────────────────────────────────────────────────────────
+// Lifecycle
+// ────────────────────────────────────────────────────────────────────────
+
 void Widget::onEnable() {
-    bindParentListener();
-    updateLayout();
+    bindTargetListener();
+    _didAlignOnce = false;
+    updateAlignment();
+    _didAlignOnce = true;
 }
 
 void Widget::onDisable() {
-    unbindParentListener();
+    unbindTargetListener();
 }
 
-void Widget::setAlign(uint32_t flags) {
-    if (_align == flags) return;
-    _align = flags;
+// ────────────────────────────────────────────────────────────────────────
+// target / flags / mode setters
+// ────────────────────────────────────────────────────────────────────────
+
+Node *Widget::effectiveTarget() const {
+    if (_target) return _target;
+    return getNode() ? getNode()->getParent() : nullptr;
+}
+
+void Widget::setTarget(Node *n) {
+    if (_target == n) return;
+    _target = n;
+    // Rewire the listener to the new target.
+    if (_hook) {
+        unbindTargetListener();
+        bindTargetListener();
+    }
+    scheduleLayout();
+}
+
+void Widget::setAlignFlags(uint32_t v) {
+    if (_alignFlags == v) return;
+    _alignFlags = v;
     scheduleLayout();
 }
 
@@ -44,57 +75,97 @@ void Widget::setAlignMode(AlignMode m) {
     _alignMode = m;
 }
 
-void Widget::scheduleLayout() {
-    // Only re-apply automatically when the component is active; calling
-    // updateLayout() pre-activation would read stale UITransform state.
-    if (getNode() && getNode()->isActiveInHierarchy()) {
-        updateLayout();
+void Widget::setAlignTop(bool v) {
+    if (v) {
+        _alignFlags = (_alignFlags | TOP) & ~MID;  // enabling an edge clears centre
+    } else {
+        _alignFlags &= ~TOP;
     }
+    scheduleLayout();
+}
+void Widget::setAlignBottom(bool v) {
+    if (v) _alignFlags = (_alignFlags | BOT) & ~MID;
+    else   _alignFlags &= ~BOT;
+    scheduleLayout();
+}
+void Widget::setAlignLeft(bool v) {
+    if (v) _alignFlags = (_alignFlags | LEFT) & ~CENTER;
+    else   _alignFlags &= ~LEFT;
+    scheduleLayout();
+}
+void Widget::setAlignRight(bool v) {
+    if (v) _alignFlags = (_alignFlags | RIGHT) & ~CENTER;
+    else   _alignFlags &= ~RIGHT;
+    scheduleLayout();
+}
+void Widget::setAlignVerticalCenter(bool v) {
+    if (v) _alignFlags = (_alignFlags | MID) & ~(TOP | BOT);
+    else   _alignFlags &= ~MID;
+    scheduleLayout();
+}
+void Widget::setAlignHorizontalCenter(bool v) {
+    if (v) _alignFlags = (_alignFlags | CENTER) & ~(LEFT | RIGHT);
+    else   _alignFlags &= ~CENTER;
+    scheduleLayout();
 }
 
-void Widget::bindParentListener() {
-    auto *node = getNode();
-    if (!node) return;
-    Node *parent = node->getParent();
-    if (!parent) return;
-    if (_hook && _hook->parent == parent) return;
-    unbindParentListener();
-
-    _hook = new ParentHook();
-    _hook->parent = parent;
-    _hook->sizeId = parent->on<Node::SizeChanged>(
-        [this](Node * /*self*/) {
-            if (_alignMode == AlignMode::ALWAYS) {
-                updateLayout();
-            }
-        });
+void Widget::setPadding(float v) {
+    _top = v; _bottom = v; _left = v; _right = v;
+    scheduleLayout();
 }
 
-void Widget::unbindParentListener() {
+// ────────────────────────────────────────────────────────────────────────
+// Target listener
+// ────────────────────────────────────────────────────────────────────────
+
+void Widget::bindTargetListener() {
+    Node *t = effectiveTarget();
+    if (!t) return;
+    if (_hook && _hook->target == t) return;
+    _hook = new TargetHook();
+    _hook->target = t;
+    _hook->sizeId = t->on<Node::SizeChanged>([this](Node *) {
+        if (_alignMode != AlignMode::ONCE) scheduleLayout();
+    });
+    _hook->anchorId = t->on<Node::AnchorChanged>([this](Node *) {
+        if (_alignMode != AlignMode::ONCE) scheduleLayout();
+    });
+}
+
+void Widget::unbindTargetListener() {
     if (!_hook) return;
-    if (_hook->parent) {
-        _hook->parent->off<Node::SizeChanged>(_hook->sizeId);
+    if (_hook->target) {
+        _hook->target->off<Node::SizeChanged>  (_hook->sizeId);
+        _hook->target->off<Node::AnchorChanged>(_hook->anchorId);
     }
     delete _hook;
     _hook = nullptr;
 }
 
-void Widget::updateLayout() {
-    if (_align == 0) return;
+void Widget::scheduleLayout() {
+    auto *n = getNode();
+    if (!n || !n->isActiveInHierarchy()) return;
+    if (_alignMode == AlignMode::ONCE && _didAlignOnce) return;
+    updateAlignment();
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// Alignment math
+// ────────────────────────────────────────────────────────────────────────
+
+void Widget::updateAlignment() {
+    if (_alignFlags == 0) return;
 
     auto *node = getNode();
     if (!node) return;
     auto *ui = node->getComponent<UITransform>();
     if (!ui) return;
 
-    auto *parent = node->getParent();
+    Node *parent = effectiveTarget();
     if (!parent) return;
     auto *parentUI = parent->getComponent<UITransform>();
     if (!parentUI) return;
 
-    // Parent-local coords of parent's edges. Parent's origin is at (0,0)
-    // in its own local frame; with anchor (ax, ay) and size (W, H), the
-    // rectangle covers x ∈ [-ax·W, (1-ax)·W], y ∈ [-ay·H, (1-ay)·H].
     const Vec2 &pSize   = parentUI->getContentSize();
     const Vec2 &pAnchor = parentUI->getAnchorPoint();
     const float pLeft   = -pAnchor.x * pSize.x;
@@ -102,52 +173,56 @@ void Widget::updateLayout() {
     const float pBottom = -pAnchor.y * pSize.y;
     const float pTop    = (1.0f - pAnchor.y) * pSize.y;
 
-    // Our node's contentSize; may be stretched below if both edges aligned.
+    // Resolve pixel vs ratio margins against the parent dimensions.
+    const float topPx  = _absTop     ? _top     : _top     * pSize.y;
+    const float botPx  = _absBottom  ? _bottom  : _bottom  * pSize.y;
+    const float leftPx = _absLeft    ? _left    : _left    * pSize.x;
+    const float rightPx= _absRight   ? _right   : _right   * pSize.x;
+    const float hcPx   = _absHCenter ? _hCenter : _hCenter * pSize.x;
+    const float vcPx   = _absVCenter ? _vCenter : _vCenter * pSize.y;
+
     Vec2 selfSize = ui->getContentSize();
     const Vec2 &selfAnchor = ui->getAnchorPoint();
-
     Vec3 pos = node->getPosition();
 
-    // ── Horizontal ────────────────────────────────────────────────────
-    const bool hasL = (_align & LEFT)  != 0;
-    const bool hasR = (_align & RIGHT) != 0;
+    // ── Horizontal axis ──────────────────────────────────────────────
+    const bool hasL = (_alignFlags & LEFT)   != 0;
+    const bool hasR = (_alignFlags & RIGHT)  != 0;
+    const bool hasC = (_alignFlags & CENTER) != 0;
     if (hasL && hasR) {
-        // Stretch: resize so that both margins are honoured, then centre.
-        selfSize.x = (pRight - _right) - (pLeft + _left);
+        selfSize.x = (pRight - rightPx) - (pLeft + leftPx);
         if (selfSize.x < 0.f) selfSize.x = 0.f;
         ui->setContentSize(selfSize);
-        // Node origin sits at anchor·size from the left edge; place it.
-        pos.x = (pLeft + _left) + selfAnchor.x * selfSize.x;
+        pos.x = (pLeft + leftPx) + selfAnchor.x * selfSize.x;
     } else if (hasL) {
-        pos.x = (pLeft + _left) + selfAnchor.x * selfSize.x;
+        pos.x = (pLeft + leftPx) + selfAnchor.x * selfSize.x;
     } else if (hasR) {
-        pos.x = (pRight - _right) - (1.f - selfAnchor.x) * selfSize.x;
-    } else if (_align & HORIZONTAL_CENTER) {
-        // Centre the node's origin line at parent's horizontal centre,
-        // offset by _hCenter. Works regardless of selfAnchor because the
-        // user's _hCenter is applied to the origin point, not an edge.
+        pos.x = (pRight - rightPx) - (1.f - selfAnchor.x) * selfSize.x;
+    } else if (hasC) {
         const float pCenterX = 0.5f * (pLeft + pRight);
-        pos.x = pCenterX + _hCenter + (selfAnchor.x - 0.5f) * selfSize.x;
+        pos.x = pCenterX + hcPx + (selfAnchor.x - 0.5f) * selfSize.x;
     }
 
-    // ── Vertical ──────────────────────────────────────────────────────
-    const bool hasT = (_align & TOP)    != 0;
-    const bool hasB = (_align & BOTTOM) != 0;
+    // ── Vertical axis ────────────────────────────────────────────────
+    const bool hasT = (_alignFlags & TOP) != 0;
+    const bool hasB = (_alignFlags & BOT) != 0;
+    const bool hasM = (_alignFlags & MID) != 0;
     if (hasT && hasB) {
-        selfSize.y = (pTop - _top) - (pBottom + _bottom);
+        selfSize.y = (pTop - topPx) - (pBottom + botPx);
         if (selfSize.y < 0.f) selfSize.y = 0.f;
         ui->setContentSize(selfSize);
-        pos.y = (pBottom + _bottom) + selfAnchor.y * selfSize.y;
+        pos.y = (pBottom + botPx) + selfAnchor.y * selfSize.y;
     } else if (hasT) {
-        pos.y = (pTop - _top) - (1.f - selfAnchor.y) * selfSize.y;
+        pos.y = (pTop - topPx) - (1.f - selfAnchor.y) * selfSize.y;
     } else if (hasB) {
-        pos.y = (pBottom + _bottom) + selfAnchor.y * selfSize.y;
-    } else if (_align & VERTICAL_CENTER) {
+        pos.y = (pBottom + botPx) + selfAnchor.y * selfSize.y;
+    } else if (hasM) {
         const float pCenterY = 0.5f * (pTop + pBottom);
-        pos.y = pCenterY + _vCenter + (selfAnchor.y - 0.5f) * selfSize.y;
+        pos.y = pCenterY + vcPx + (selfAnchor.y - 0.5f) * selfSize.y;
     }
 
     node->setPosition(pos);
+    _didAlignOnce = true;
 }
 
 }  // namespace cc

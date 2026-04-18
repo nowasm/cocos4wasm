@@ -1,5 +1,8 @@
 #include "cocos/ui/components/Layout.h"
 
+#include <algorithm>
+#include <cmath>
+
 #include "base/Log.h"
 #include "cocos/2d/framework/UITransform.h"
 #include "core/scene-graph/Node.h"
@@ -8,17 +11,27 @@
 namespace cc {
 
 CC_IMPLEMENT_CLASS(Layout, "cc.Layout", Component)
-    .property("type",       &Layout::_type,       static_cast<Type>(0))
-    .property("hDir",       &Layout::_hDir,       static_cast<HorizontalDirection>(0))
-    .property("vDir",       &Layout::_vDir,       static_cast<VerticalDirection>(0))
-    .property("padTop",     &Layout::_padTop)
-    .property("padBottom",  &Layout::_padBottom)
-    .property("padLeft",    &Layout::_padLeft)
-    .property("padRight",   &Layout::_padRight)
-    .property("spacingX",   &Layout::_spacingX)
-    .property("spacingY",   &Layout::_spacingY)
-    .property("cellSize",   &Layout::_cellSize,   Vec2{0.f, 0.f})
+    .property("_type",             &Layout::_type,             Type::NONE)
+    .property("_resizeMode",       &Layout::_resizeMode,       ResizeMode::NONE)
+    .property("_horizontalDirection", &Layout::_hDir,          HorizontalDirection::LEFT_TO_RIGHT)
+    .property("_verticalDirection",   &Layout::_vDir,          VerticalDirection::TOP_TO_BOTTOM)
+    .property("_startAxis",        &Layout::_startAxis,        AxisDirection::HORIZONTAL)
+    .property("_constraint",       &Layout::_constraint,       Constraint::NONE)
+    .property("_N",                &Layout::_constraintNum,    2)
+    .property("_paddingTop",       &Layout::_padTop)
+    .property("_paddingBottom",    &Layout::_padBottom)
+    .property("_paddingLeft",      &Layout::_padLeft)
+    .property("_paddingRight",     &Layout::_padRight)
+    .property("_spacingX",         &Layout::_spacingX)
+    .property("_spacingY",         &Layout::_spacingY)
+    .property("_cellSize",         &Layout::_cellSize,         Vec2{40.f, 40.f})
+    .property("_affectedByScale",  &Layout::_affectedByScale,  false)
 CC_END_CLASS(Layout);
+
+void Layout::setPadding(float v) {
+    _padTop = v; _padBottom = v; _padLeft = v; _padRight = v;
+    scheduleLayout();
+}
 
 // Keep the per-subscription ids out of the header so consumers don't pull
 // in the Node event-template machinery. Heap-alloced on first onEnable.
@@ -72,8 +85,8 @@ void Layout::unbindHooks() {
     _hooks = nullptr;
 }
 
-void Layout::updateLayout() {
-    if (_type == Type::NONE) return;
+void Layout::updateLayout(bool force) {
+    if (_type == Type::NONE && !force) return;
     auto *node = getNode();
     if (!node) return;
     auto *ui = node->getComponent<UITransform>();
@@ -84,6 +97,43 @@ void Layout::updateLayout() {
         case Type::VERTICAL:   layoutVertical(ui);   break;
         case Type::GRID:       layoutGrid(ui);       break;
         default: break;
+    }
+
+    // ResizeMode::CONTAINER — after arranging children, shrink-wrap the
+    // owning UITransform to fit the children's bounding box plus padding.
+    // Simpler than ResizeMode::CHILDREN (which would need each child
+    // resized against a target rail) and covers the common demand of
+    // list/table auto-height. CHILDREN mode stays unimplemented until a
+    // demo actually needs it.
+    if (_resizeMode == ResizeMode::CONTAINER) {
+        const auto &children = node->getChildren();
+        if (children.empty()) return;
+        float minX = 1e9f, maxX = -1e9f, minY = 1e9f, maxY = -1e9f;
+        for (const auto &c : children) {
+            auto *cn = c.get();
+            if (!cn || !cn->isActiveInHierarchy()) continue;
+            auto *cui = cn->getComponent<UITransform>();
+            if (!cui) continue;
+            const Vec3 &p = cn->getPosition();
+            const Vec2 &sz = cui->getContentSize();
+            const Vec2 &an = cui->getAnchorPoint();
+            const float l = p.x - an.x * sz.x;
+            const float r = p.x + (1.f - an.x) * sz.x;
+            const float b = p.y - an.y * sz.y;
+            const float t = p.y + (1.f - an.y) * sz.y;
+            if (l < minX) minX = l;
+            if (r > maxX) maxX = r;
+            if (b < minY) minY = b;
+            if (t > maxY) maxY = t;
+        }
+        if (maxX >= minX && maxY >= minY) {
+            const Vec2 newSize{(maxX - minX) + _padLeft + _padRight,
+                               (maxY - minY) + _padTop  + _padBottom};
+            if (std::abs(newSize.x - ui->getContentSize().x) > 0.5f ||
+                std::abs(newSize.y - ui->getContentSize().y) > 0.5f) {
+                ui->setContentSize(newSize);
+            }
+        }
     }
 }
 
