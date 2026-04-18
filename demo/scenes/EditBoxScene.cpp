@@ -44,27 +44,39 @@ public:
             CC_LOG_ERROR("[EditBoxScene] font load failed — EditBox will render blank");
         }
 
-        // Background rectangle + EditBox component.
-        auto *box = ccnew cc::Node("editbox");
-        {
+        auto makeBox = [&](const char *name, float y, float h,
+                           const char *placeholder,
+                           bool passwordMode, bool multiLine) -> cc::EditBox * {
+            auto *box = ccnew cc::Node(name);
+            box->setPosition(cc::Vec3(0.f, y, 0.f));
             auto *ui = box->addComponent<cc::UITransform>();
-            ui->setContentSize(400.f, 60.f);
+            ui->setContentSize(400.f, h);
             ui->setAnchorPoint(0.5f, 0.5f);
             auto *bg = box->addComponent<cc::Sprite>();
-            bg->setSize(400.f, 60.f);
+            bg->setSize(400.f, h);
             bg->setColor(cc::Color(60, 62, 80, 255));
 
             auto *eb = box->addComponent<cc::EditBox>();
             eb->setFont(_font.get());
-            eb->setPlaceholder("type here...");
-            eb->setOnTextChanged([](cc::EditBox *, const ccstd::string &t) {
-                CC_LOG_INFO("[EditBox] text='%s'", t.c_str());
+            eb->setPlaceholder(placeholder);
+            eb->setPasswordMode(passwordMode);
+            eb->setMultiLine(multiLine);
+            eb->setOnTextChanged([name](cc::EditBox *, const ccstd::string &t) {
+                CC_LOG_INFO("[EditBox:%s] text='%s'", name, t.c_str());
             });
             _root->addChild(box);
-        }
+            return eb;
+        };
+
+        makeBox("username", 120.f, 50.f,  "username",           false, false);
+        makeBox("password",  60.f, 50.f,  "password (hidden)",  true,  false);
+        makeBox("notes",    -60.f, 120.f, "multi-line notes\n(Enter for newline)",
+                false, true);
 
         cc::NodeActivator::get().activateNode(_root, true);
-        CC_LOG_INFO("[EditBoxScene] click in the rectangle to start typing");
+        CC_LOG_INFO("[EditBoxScene] click in a field to start typing. "
+                    "Arrows/Home/End move caret, Shift+Arrows select, "
+                    "Ctrl+C/X/V/A for clipboard, Enter/Esc to blur.");
     }
 
     void onExit() override {

@@ -186,6 +186,19 @@ struct TextInputEvent {
     uint32_t windowId = 0;
 };
 
+// P5e-5 IME composition preview. Fires while the user is still composing
+// (e.g. typing pinyin "ni" for "你"). The engine routes this to any
+// currently-focused EditBox so it can draw an inline preview of the
+// uncommitted glyphs. When the IME commits, a TextInputEvent arrives and
+// the composition string resets to empty via another TextEditingEvent
+// with empty `text`.
+struct TextEditingEvent {
+    ccstd::string text;   // current composition string
+    int32_t start = 0;    // cursor position within `text` (UTF-8 bytes)
+    int32_t length = 0;   // selection length within `text` (often 0)
+    uint32_t windowId = 0;
+};
+
 class MouseEvent {
 public:
     MouseEvent() = default;
@@ -349,7 +362,8 @@ DECLARE_BUS_EVENT_ARG0(LowMemory, Engine)
 DECLARE_BUS_EVENT_ARG1(Touch, Engine, const cc::TouchEvent &)
 DECLARE_BUS_EVENT_ARG1(Mouse, Engine, const cc::MouseEvent &)
 DECLARE_BUS_EVENT_ARG1(Keyboard, Engine, const cc::KeyboardEvent &)
-DECLARE_BUS_EVENT_ARG1(TextInput, Engine, const cc::TextInputEvent &)
+DECLARE_BUS_EVENT_ARG1(TextInput,   Engine, const cc::TextInputEvent &)
+DECLARE_BUS_EVENT_ARG1(TextEditing, Engine, const cc::TextEditingEvent &)
 DECLARE_BUS_EVENT_ARG1(Controller, Engine, const cc::ControllerEvent &)
 DECLARE_BUS_EVENT_ARG1(ControllerChange, Engine, const cc::ControllerChangeEvent &)
 DECLARE_BUS_EVENT_ARG1(Tick, Engine, float)

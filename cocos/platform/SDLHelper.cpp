@@ -367,6 +367,20 @@ void SDLHelper::dispatchSDLEvent(uint32_t windowId, const SDL_Event &sdlEvent) {
             events::TextInput::broadcast(tev);
             break;
         }
+        case SDL_TEXTEDITING: {
+            // IME composition preview — fires repeatedly as the user
+            // types pinyin / kana, with the current composition string
+            // in `text`. Once the IME commits, a SDL_TEXTINPUT arrives
+            // with the resolved glyphs and a subsequent SDL_TEXTEDITING
+            // with empty text clears the preview.
+            TextEditingEvent ev;
+            ev.text = sdlEvent.edit.text;
+            ev.start = sdlEvent.edit.start;
+            ev.length = sdlEvent.edit.length;
+            ev.windowId = windowId;
+            events::TextEditing::broadcast(ev);
+            break;
+        }
         default:
             break;
     }
@@ -441,6 +455,19 @@ void SDLHelper::startTextInput() {
 
 void SDLHelper::stopTextInput() {
     SDL_StopTextInput();
+}
+
+ccstd::string SDLHelper::getClipboardText() {
+    if (!SDL_HasClipboardText()) return {};
+    char *raw = SDL_GetClipboardText();
+    if (!raw) return {};
+    ccstd::string out(raw);
+    SDL_free(raw);
+    return out;
+}
+
+bool SDLHelper::setClipboardText(const ccstd::string &text) {
+    return SDL_SetClipboardText(text.c_str()) == 0;
 }
 
 bool SDLHelper::isWindowMinimized(SDL_Window *window) {

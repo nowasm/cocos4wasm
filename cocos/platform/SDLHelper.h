@@ -24,6 +24,7 @@
 
 #pragma once
 #include <iostream>
+#include "base/std/container/string.h"
 #include "engine/EngineEvents.h"
 #include "math/Vec2.h"
 
@@ -56,6 +57,12 @@ public:
     static Vec2 getWindowPosition(SDL_Window* window);
     static void startTextInput();
     static void stopTextInput();
+
+    // Clipboard helpers — thin wrappers over SDL_GetClipboardText /
+    // SDL_SetClipboardText. Returned string is UTF-8 and owned by the
+    // caller; empty string on failure / empty clipboard.
+    static ccstd::string getClipboardText();
+    static bool          setClipboardText(const ccstd::string &text);
     static bool isWindowMinimized(SDL_Window* window);
 
 private:
