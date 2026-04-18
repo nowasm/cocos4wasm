@@ -46,32 +46,42 @@ public:
 
         auto makeBox = [&](const char *name, float y, float h,
                            const char *placeholder,
-                           bool passwordMode, bool multiLine) -> cc::EditBox * {
+                           cc::EditBox::InputMode mode,
+                           cc::EditBox::InputFlag flag) -> cc::EditBox * {
             auto *box = ccnew cc::Node(name);
             box->setPosition(cc::Vec3(0.f, y, 0.f));
             auto *ui = box->addComponent<cc::UITransform>();
             ui->setContentSize(400.f, h);
             ui->setAnchorPoint(0.5f, 0.5f);
-            auto *bg = box->addComponent<cc::Sprite>();
-            bg->setSize(400.f, h);
-            bg->setColor(cc::Color(60, 62, 80, 255));
 
+            // EditBox auto-adds a background Sprite; set its tint after.
             auto *eb = box->addComponent<cc::EditBox>();
             eb->setFont(_font.get());
             eb->setPlaceholder(placeholder);
-            eb->setPasswordMode(passwordMode);
-            eb->setMultiLine(multiLine);
-            eb->setOnTextChanged([name](cc::EditBox *, const ccstd::string &t) {
-                CC_LOG_INFO("[EditBox:%s] text='%s'", name, t.c_str());
+            eb->setInputMode(mode);
+            eb->setInputFlag(flag);
+            eb->setMaxLength(200);
+            eb->addTextChangedHandler([name](cc::EditBox *b) {
+                CC_LOG_INFO("[EditBox:%s] text='%s'", name, b->getString().c_str());
             });
+            eb->addEditingReturnHandler([name](cc::EditBox *b) {
+                CC_LOG_INFO("[EditBox:%s] return pressed (text='%s')",
+                            name, b->getString().c_str());
+            });
+            if (auto *bg = eb->getBackgroundSprite()) {
+                bg->setSize(400.f, h);
+                bg->setColor(cc::Color(60, 62, 80, 255));
+            }
             _root->addChild(box);
             return eb;
         };
 
-        makeBox("username", 120.f, 50.f,  "username",           false, false);
-        makeBox("password",  60.f, 50.f,  "password (hidden)",  true,  false);
-        makeBox("notes",    -60.f, 120.f, "multi-line notes\n(Enter for newline)",
-                false, true);
+        makeBox("username", 120.f, 50.f, "username",
+                cc::EditBox::InputMode::SINGLE_LINE, cc::EditBox::InputFlag::DEFAULT);
+        makeBox("password",  60.f, 50.f, "password (hidden)",
+                cc::EditBox::InputMode::SINGLE_LINE, cc::EditBox::InputFlag::PASSWORD);
+        makeBox("notes",    -60.f, 120.f, "multi-line notes (Enter for newline)",
+                cc::EditBox::InputMode::ANY, cc::EditBox::InputFlag::DEFAULT);
 
         cc::NodeActivator::get().activateNode(_root, true);
         CC_LOG_INFO("[EditBoxScene] click in a field to start typing. "

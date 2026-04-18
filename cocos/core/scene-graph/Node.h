@@ -77,6 +77,12 @@ struct NodeTouchEventArg {
     uint32_t touchId{0};
 };
 
+// EditBox (cc.EditBox) forward decl — the four edit-box events below
+// carry a pointer to the component that emitted them so handlers can
+// query the current string / focus state. Matches Creator's TS
+// `node.emit(EditBoxEventType.TEXT_CHANGED, this)` convention.
+class EditBox;
+
 class Node : public CCObject {
     CC_CLASS_DECL(Node, void)
     IMPL_EVENT_TARGET_WITH_PARENT(Node, getParent)
@@ -93,6 +99,15 @@ class Node : public CCObject {
     TARGET_EVENT_ARG1(MouseLeave,  NodeMouseEventArg)
     TARGET_EVENT_ARG0(KeyDown)
     TARGET_EVENT_ARG0(KeyUp)
+    // EditBox — four event channels matching Creator's TS EditBoxEventType.
+    // Each carries the emitting EditBox so handlers can read its current
+    // state (`getString()`, `isFocused()`, ...). Users can also subscribe
+    // via the component-level `editingDidBegan` / `textChanged` / ...
+    // callback vectors for a Cocos-Creator-inspector-style registration.
+    TARGET_EVENT_ARG1(EditBoxBegan,       EditBox *)
+    TARGET_EVENT_ARG1(EditBoxEnded,       EditBox *)
+    TARGET_EVENT_ARG1(EditBoxTextChanged, EditBox *)
+    TARGET_EVENT_ARG1(EditBoxReturn,      EditBox *)
     TARGET_EVENT_ARG0(DeviceMotion)
     TARGET_EVENT_ARG1(TransformChanged, TransformBit)
     TARGET_EVENT_ARG0(SceneChangedForPersist)
