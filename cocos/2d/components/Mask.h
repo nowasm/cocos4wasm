@@ -1,5 +1,6 @@
 #pragma once
 
+#include "base/std/container/vector.h"
 #include "cocos/2d/framework/UIRenderer.h"
 #include "math/Vec2.h"
 
@@ -23,19 +24,34 @@ class Mask : public UIRenderer {
 public:
     enum class Type : uint8_t {
         RECT = 0,
-        // ELLIPSE  — P2f-b
-        // GRAPHICS — P2f-b
+        ELLIPSE,
+        GRAPHICS,     // user-supplied polygon path (CONVEX only)
     };
 
     Mask();
     ~Mask() override;
 
+    // Shape selection. For RECT and ELLIPSE the size property drives the
+    // geometry; for GRAPHICS the user builds the path via moveTo/lineTo.
     void setType(Type t);
     Type getType() const { return _type; }
 
     void setSize(float w, float h);
     const Vec2 &getSize() const { return _size; }
 
+    // Segment count for ELLIPSE tessellation — more = smoother.
+    void setEllipseSegments(int n);
+    int  getEllipseSegments() const { return _ellipseSegments; }
+
+    // GRAPHICS path builders. Only single convex subpath is supported —
+    // triangle-fan tessellation assumes convex. moveTo resets the path.
+    void graphicsClear();
+    void graphicsMoveTo(float x, float y);
+    void graphicsLineTo(float x, float y);
+
+    // Inverted mode — when true the visible region becomes the COMPLEMENT
+    // of the shape. Implemented via StencilStage ENTER_LEVEL_INVERTED
+    // (func=NEVER, failOp=ZERO instead of REPLACE).
     void setInverted(bool v);
     bool isInverted() const { return _inverted; }
 
@@ -47,9 +63,17 @@ protected:
     ccstd::vector<gfx::Attribute> vertexAttributes() const override;
 
 private:
-    Type  _type{Type::RECT};
-    Vec2  _size{200.0f, 200.0f};
-    bool  _inverted{false};  // placeholder; wired in P2f-b alongside ELLIPSE
+    void buildRectPath();
+    void buildEllipsePath();
+    void emitPolygonFan();
+
+    Type _type{Type::RECT};
+    Vec2 _size{200.0f, 200.0f};
+    int  _ellipseSegments{32};
+    bool _inverted{false};
+
+    ccstd::vector<Vec2> _graphicsPath;   // user path when Type::GRAPHICS
+    ccstd::vector<Vec2> _path;           // actual emit source (rebuilt from type)
 };
 
 }  // namespace cc
