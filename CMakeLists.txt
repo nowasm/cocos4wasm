@@ -2331,6 +2331,8 @@ cocos_source_files(
     cocos/asset/Prefab.cpp
     cocos/asset/PrefabLoader.h
     cocos/asset/PrefabLoader.cpp
+    cocos/asset/EffectLoader.h
+    cocos/asset/EffectLoader.cpp
 
     cocos/core/assets/Asset.cpp
     cocos/core/assets/Asset.h

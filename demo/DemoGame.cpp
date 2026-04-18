@@ -2,6 +2,7 @@
 #include "base/Log.h"
 #include "cocos/2d/renderer/UIBatcher2d.h"
 #include "cocos/asset/AssetManager.h"
+#include "cocos/asset/EffectLoader.h"
 #include "cocos/asset/MaterialLoader.h"
 #include "cocos/asset/PrefabLoader.h"
 #include "core/Root.h"
@@ -44,6 +45,15 @@ static void registerAssetLoaders() {
             -> IntrusivePtr<Asset> {
             auto *pre = PrefabLoader::loadFromFile(absPath);
             return IntrusivePtr<Asset>(pre);
+        });
+
+    // .effect → EffectAsset. MVP looks up the builtin registry by name;
+    // full shader-blob parsing is deferred (see EffectLoader.h).
+    AssetManager::get().registerLoader(".effect",
+        [](const ccstd::string &absPath, const ccstd::string & /*uuid*/)
+            -> IntrusivePtr<Asset> {
+            auto *fx = EffectLoader::loadFromFile(absPath);
+            return IntrusivePtr<Asset>(fx);
         });
 }
 

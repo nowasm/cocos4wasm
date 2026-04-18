@@ -4,6 +4,7 @@
 #include "cocos/asset/AssetManager.h"
 #include "cocos/asset/Prefab.h"
 #include "cocos/serialization/JsonDeserializer.h"
+#include "core/assets/EffectAsset.h"
 #include "core/assets/Material.h"
 #include "core/component/NodeActivator.h"
 #include "core/scene-graph/Node.h"
@@ -69,6 +70,16 @@ public:
                         mat->getEffectName().c_str(), mat->getTechniqueIndex());
         } else {
             CC_LOG_WARNING("[EditorSceneLoadScene] .mtl probe failed");
+        }
+
+        // P3+c smoke probe: resolve a .effect via the builtin-shortcut loader.
+        auto fx = cc::AssetManager::get().load<cc::EffectAsset>(
+            "3fffffff-eeee-dddd-cccc-bbbbbbbbbbbb");
+        if (fx) {
+            CC_LOG_INFO("[EditorSceneLoadScene] .effect probe ok — name='%s'",
+                        fx->getName().c_str());
+        } else {
+            CC_LOG_WARNING("[EditorSceneLoadScene] .effect probe failed");
         }
 
         // P3-7 smoke probe: resolve a .prefab, instantiate it twice, and

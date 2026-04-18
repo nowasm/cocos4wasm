@@ -6,9 +6,13 @@
     "_defines": [
       { "USE_TEXTURE": false, "USE_VERTEX_COLOR": true }
     ],
+    "_states": [
+      { "priority": 128 }
+    ],
     "_props": [
       {
-        "mainColor": { "r": 255, "g": 255, "b": 255, "a": 255 }
+        "mainColor": { "r": 255, "g": 255, "b": 255, "a": 255 },
+        "someRotation": { "__type__": "cc.Quat", "x": 0, "y": 0, "z": 0, "w": 1 }
       }
     ]
   }

@@ -1103,6 +1103,7 @@ void Node::_decSkewCompCount() {
 // and activation state are added as later phases require them.
 
 CC_IMPLEMENT_ROOT_CLASS(Node, "cc.Node")
+    .property("_name",      &Node::_name)
     .property("children",   &Node::_children)
     .property("components", &Node::_components)
 CC_END_CLASS(Node);

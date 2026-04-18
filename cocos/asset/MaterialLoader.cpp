@@ -8,6 +8,7 @@
 #include "core/assets/EffectAsset.h"
 #include "core/assets/TextureBase.h"
 #include "math/Color.h"
+#include "math/Quaternion.h"
 #include "math/Vec2.h"
 #include "math/Vec3.h"
 #include "math/Vec4.h"
@@ -83,7 +84,21 @@ void applyProp(Material *mat, const ccstd::string &name, const JsonValue &v, int
             if (tex) mat->setPropertyTextureBase(name, tex.get(), passIdx);
             return;
         }
-        // Heuristic: r/g/b/a keys ⇒ Color; x/y[/z[/w]] ⇒ Vec*.
+        // Disambiguate by __type__ tag when authored; fall back to the
+        // key-presence heuristic for hand-crafted fixtures.
+        const char *ttag = nullptr;
+        if (v.HasMember("__type__") && v["__type__"].IsString()) {
+            ttag = v["__type__"].GetString();
+        }
+        if (ttag && std::strcmp(ttag, "cc.Quat") == 0) {
+            const float qx = v.HasMember("x") ? asFloat(v["x"]) : 0.0f;
+            const float qy = v.HasMember("y") ? asFloat(v["y"]) : 0.0f;
+            const float qz = v.HasMember("z") ? asFloat(v["z"]) : 0.0f;
+            const float qw = v.HasMember("w") ? asFloat(v["w"]) : 1.0f;
+            mat->setPropertyQuaternion(name, Quaternion{qx, qy, qz, qw}, passIdx);
+            return;
+        }
+        // Heuristic: r/g/b/a keys ⇒ Color; x/y[/z[/w]] ⇒ Vec* (or Quat if tagged).
         if (v.HasMember("r") && v.HasMember("g") && v.HasMember("b")) {
             Color c;
             decodeColor(v, c);
@@ -107,11 +122,26 @@ void applyProp(Material *mat, const ccstd::string &name, const JsonValue &v, int
             mat->setPropertyVec2(name, Vec2{asFloat(v["x"]), asFloat(v["y"])}, passIdx);
             return;
         }
+        // Mat4 authoring is rare; reaches here only for unknown object shapes.
+        // Add a cc.Mat4 / array-of-16 decoder when a fixture actually needs it.
     }
     CC_LOG_WARNING("[MaterialLoader] unsupported prop shape for '%s'", name.c_str());
 }
 
 // Parse one macro record: { "KEY": true | 1 | "VALUE" } → MacroRecord.
+// Minimal PassOverrides parser. Handles `priority` only for now — enough
+// to express cc.Mask's draw-order overrides in authored materials. Blend
+// state / depth-stencil / rasterizer need enum-by-name decoding; add them
+// behind further JSON-schema work when a fixture needs it.
+PassOverrides parseStates(const JsonValue &obj) {
+    PassOverrides out;
+    if (!obj.IsObject()) return out;
+    if (obj.HasMember("priority") && obj["priority"].IsInt()) {
+        out.priority = obj["priority"].GetInt();
+    }
+    return out;
+}
+
 MacroRecord parseDefines(const JsonValue &obj) {
     MacroRecord out;
     if (!obj.IsObject()) return out;
@@ -205,6 +235,25 @@ Material *MaterialLoader::loadFromFile(const ccstd::string &absPath) {
             }
         } else if (defs.IsObject()) {
             info.defines = IMaterialInfo::DefinesType{parseDefines(defs)};
+        }
+    }
+
+    // ── Pass state overrides (priority only for now) ─────────────────────
+    if (matObj->HasMember("_states")) {
+        const JsonValue &sts = (*matObj)["_states"];
+        if (sts.IsArray()) {
+            if (sts.Size() == 1) {
+                info.states = IMaterialInfo::PassOverridesType{parseStates(sts[0])};
+            } else if (sts.Size() > 1) {
+                ccstd::vector<PassOverrides> vec;
+                vec.reserve(sts.Size());
+                for (rapidjson::SizeType i = 0; i < sts.Size(); ++i) {
+                    vec.emplace_back(parseStates(sts[i]));
+                }
+                info.states = IMaterialInfo::PassOverridesType{vec};
+            }
+        } else if (sts.IsObject()) {
+            info.states = IMaterialInfo::PassOverridesType{parseStates(sts)};
         }
     }
 
