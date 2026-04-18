@@ -58,16 +58,20 @@ cc::Node *buildNestedCluster(const cc::Vec3 &clusterPos, cc::Texture2D *tex) {
     auto *cluster = ccnew cc::Node("nested");
     cluster->setPosition(clusterPos);
 
+    // Deliberate size mismatch so the nesting is visually obvious: outer
+    // rect is short and wide (letterbox), inner ellipse is larger so it
+    // pokes out top and bottom — the intersection becomes a horizontal
+    // "band / lens" shape that only exists because BOTH shapes clip.
     auto *outerMaskNode = ccnew cc::Node("outer-rect-mask");
     auto *outerMask = outerMaskNode->addComponent<cc::Mask>();
     outerMask->setType(cc::Mask::Type::RECT);
-    outerMask->setSize(220.0f, 220.0f);
+    outerMask->setSize(220.0f, 120.0f);
     cluster->addChild(outerMaskNode);
 
     auto *innerMaskNode = ccnew cc::Node("inner-ellipse-mask");
     auto *innerMask = innerMaskNode->addComponent<cc::Mask>();
     innerMask->setType(cc::Mask::Type::ELLIPSE);
-    innerMask->setSize(160.0f, 160.0f);
+    innerMask->setSize(200.0f, 200.0f);
     outerMaskNode->addChild(innerMaskNode);
 
     auto *spriteNode = ccnew cc::Node("sprite");
