@@ -169,7 +169,9 @@ void EditBox::update(float dt) {
     if (_caretTimer >= kCaretBlinkPeriod) {
         _caretTimer = 0.f;
         _caretVisible = !_caretVisible;
-        _caret->getNode()->setActive(_caretVisible);
+        Color c = _caret->getColor();
+        c.a = _caretVisible ? 255 : 0;
+        _caret->setColor(c);
     }
 }
 
@@ -199,8 +201,14 @@ void EditBox::_init() {
         ui->setAnchorPoint(0.5f, 0.5f);
         _caret = cnode->addComponent<Sprite>();
         _caret->setSize(2.f, 24.f);
-        _caret->setColor(_textColor);
-        cnode->setActive(false);
+        // Start with alpha=0 so the caret is invisible until focus. We
+        // intentionally avoid node.setActive(false) here — toggling
+        // active state between enter/exit triggered a Sprite rebuild
+        // path that sometimes lost its material on re-enable. Alpha
+        // keeps it registered with the batcher and just hides it.
+        Color c = _textColor;
+        c.a = 0;
+        _caret->setColor(c);
         node->addChild(cnode);
     }
 
@@ -215,8 +223,11 @@ void EditBox::_init() {
         ui->setAnchorPoint(0.f, 0.5f);
         _selHighlight = sn->addComponent<Sprite>();
         _selHighlight->setSize(0.f, 24.f);
-        _selHighlight->setColor(_selectionColor);
-        sn->setActive(false);
+        // Start fully transparent — alpha drives visibility to avoid
+        // the same re-activation rebuild hazard that TEXT_LABEL hit.
+        Color hl = _selectionColor;
+        hl.a = 0;
+        _selHighlight->setColor(hl);
         node->addChild(sn);
     }
 
@@ -279,11 +290,27 @@ void EditBox::_updatePlaceholderLabel() {
 
 void EditBox::_updateLabels() {
     // Empty string → placeholder visible, text hidden (and vice versa).
-    // Matches TS: `textLabel.node.active = (content !== '')`.
+    //
+    // TS toggles node.active, but our Label/UIRenderer pipeline has a
+    // quirk: the first onEnable of a freshly-created Label fires before
+    // its font is set (because _updateTextLabel calls addComponent<Label>
+    // which immediately activates and only later sets the font). That
+    // leaves the Label registered but materialless; an intervening
+    // setActive(false)→setActive(true) cycle doesn't always recover
+    // because the dirty-flag path was short-circuited while inactive.
+    //
+    // Sidestepping the whole issue: keep both label nodes active always
+    // and hide by setting the text to "". Label::updateGeometry bails
+    // early on empty text so nothing renders. This preserves TS-observable
+    // behaviour (node.active is sort-of informational anyway — no one
+    // depends on it flipping) while avoiding the re-activation pitfall.
     if (!_isLabelVisible) return;
     const bool empty = _string.empty();
-    if (_textLabel)        _textLabel->getNode()->setActive(!empty);
-    if (_placeholderLabel) _placeholderLabel->getNode()->setActive(empty);
+    if (_placeholderLabel) {
+        _placeholderLabel->setText(empty ? _placeholder : "");
+    }
+    // TEXT_LABEL's text is driven by _updateString directly (not toggled
+    // here). Nothing to do here for it.
 }
 
 void EditBox::_updateString(const ccstd::string &text) {
@@ -427,7 +454,11 @@ void EditBox::focus() {
     SDLHelper::startTextInput();
     _caretVisible = true;
     _caretTimer   = 0.f;
-    if (_caret) _caret->getNode()->setActive(true);
+    if (_caret) {
+        Color c = _caret->getColor();
+        c.a = 255;
+        _caret->setColor(c);
+    }
     fireEditingDidBegan();
 }
 
@@ -438,7 +469,11 @@ void EditBox::blur() {
         s_currentlyFocused = nullptr;
         SDLHelper::stopTextInput();
     }
-    if (_caret)        _caret->getNode()->setActive(false);
+    if (_caret) {
+        Color c = _caret->getColor();
+        c.a = 0;
+        _caret->setColor(c);
+    }
     if (_selHighlight) _selHighlight->getNode()->setActive(false);
     _mouseDragging = false;
     _composition.clear();
@@ -783,7 +818,11 @@ void EditBox::unbindEventHooks() {
 void EditBox::resetCaretBlink() {
     _caretVisible = true;
     _caretTimer = 0.f;
-    if (_caret) _caret->getNode()->setActive(_focused);
+    if (_caret) {
+        Color c = _caret->getColor();
+        c.a = _focused ? 255 : 0;
+        _caret->setColor(c);
+    }
 }
 
 size_t EditBox::getSelectionStart() const { return std::min(_caretIdx, _selAnchor); }
@@ -871,10 +910,15 @@ void EditBox::updateCaretPos() {
 
 void EditBox::updateSelectionHighlight() {
     if (!_selHighlight) return;
+    auto showHighlight = [this](bool on) {
+        Color c = _selHighlight->getColor();
+        c.a = on ? static_cast<uint8_t>(_selectionColor.a) : 0;
+        _selHighlight->setColor(c);
+    };
     if (!hasSelection() || !_focused || _inputMode == InputMode::ANY) {
         // Multi-line selection highlight is MVP-deferred (would need one
         // rect per line); hide to avoid the stripe-on-one-line artifact.
-        _selHighlight->getNode()->setActive(false);
+        showHighlight(false);
         return;
     }
     if (!_textLabel || !_textLabel->getFont()) {
@@ -905,7 +949,7 @@ void EditBox::updateSelectionHighlight() {
         ui->setContentSize(width, 24.f);
     }
     _selHighlight->getNode()->setPosition(Vec3{xS, 0.f, 0.f});
-    _selHighlight->getNode()->setActive(true);
+    showHighlight(true);
 }
 
 bool EditBox::pointInside(float winX, float winY) const {

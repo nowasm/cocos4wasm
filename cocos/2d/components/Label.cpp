@@ -3,6 +3,7 @@
 #include "base/Log.h"
 #include "base/std/container/unordered_map.h"
 #include "cocos/2d/text/BmfFont.h"
+#include "core/scene-graph/Node.h"
 #include "core/assets/EffectAsset.h"
 #include "core/assets/Material.h"
 #include "core/assets/Texture2D.h"
@@ -170,7 +171,11 @@ void Label::updateGeometry() {
 
 IntrusivePtr<Material> Label::resolveMaterial() {
     if (!_font || !_font->getAtlas() || !_font->getAtlas()->getGFXTexture()) {
-        CC_LOG_WARNING("[Label] font/atlas not ready — no material built");
+        // Font's atlas GFX texture may not be ready yet during the Label's
+        // very first onEnable (EditBox auto-creates a Label child, whose
+        // addComponent triggers onEnable before the caller gets a chance
+        // to pass the font in). The next lateUpdate rebuilds once the
+        // parent has called setFont, so this is informational only.
         return nullptr;
     }
 
