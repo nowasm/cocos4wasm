@@ -33,7 +33,16 @@ void Graphics::updateGeometry() {
     // counts maintained in those emitters. Nothing else to do.
 }
 
+namespace {
+// One Graphics Material shared across every instance — all per-vertex
+// colour, no per-instance uniform, so Graphics instances anywhere in the
+// tree batch together when they carry matching stencil state.
+IntrusivePtr<Material> g_graphicsMaterial;
+}  // namespace
+
 IntrusivePtr<Material> Graphics::resolveMaterial() {
+    if (g_graphicsMaterial) return g_graphicsMaterial;
+
     auto *effect = EffectAsset::get("builtin-unlit");
     if (!effect) {
         CC_LOG_ERROR("[Graphics] builtin-unlit effect missing");
@@ -50,7 +59,8 @@ IntrusivePtr<Material> Graphics::resolveMaterial() {
     mat->initialize(info);
     // mainColor stays white (default) so vertex-colour survives unchanged;
     // fragment shader multiplies mainColor * v_color.
-    return mat;
+    g_graphicsMaterial = mat;
+    return g_graphicsMaterial;
 }
 
 // ─── path building ─────────────────────────────────────────────────────────

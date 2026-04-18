@@ -39,6 +39,7 @@ protected:
     void updateGeometry() override;
     IntrusivePtr<Material> resolveMaterial() override;
     ccstd::vector<gfx::Attribute> vertexAttributes() const override;
+    gfx::Texture *resolveBatchTexture() const override;
 
 private:
     BmfFont      *_font{nullptr};

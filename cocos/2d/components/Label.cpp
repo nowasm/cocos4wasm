@@ -1,9 +1,12 @@
 #include "cocos/2d/components/Label.h"
 
 #include "base/Log.h"
+#include "base/std/container/unordered_map.h"
 #include "cocos/2d/text/BmfFont.h"
 #include "core/assets/EffectAsset.h"
 #include "core/assets/Material.h"
+#include "core/assets/Texture2D.h"
+#include "renderer/gfx-base/GFXTexture.h"
 
 namespace cc {
 
@@ -12,8 +15,34 @@ CC_IMPLEMENT_CLASS(Label, "cc.Label", UIRenderer)
     .property("color", &Label::_color, Color{255, 255, 255, 255})
 CC_END_CLASS(Label);
 
+namespace {
+// Shared per-atlas Material cache. Two Labels using the same BmfFont
+// share the same atlas Texture2D → same Material → same batch key.
+ccstd::unordered_map<Texture2D *, IntrusivePtr<Material>> g_labelMatCache;
+
+IntrusivePtr<Material> buildLabelMat(Texture2D *atlas) {
+    auto *effect = EffectAsset::get("builtin-unlit");
+    if (!effect) return nullptr;
+
+    MacroRecord defines{
+        {"USE_TEXTURE",      true},
+        {"USE_VERTEX_COLOR", true},
+    };
+    IMaterialInfo info;
+    info.effectAsset = effect;
+    info.technique   = 1u;  // transparent
+    info.defines     = IMaterialInfo::DefinesType{defines};
+
+    auto *mat = ccnew Material();
+    mat->initialize(info);
+    mat->setPropertyTextureBase("mainTexture", atlas);
+    // mainColor stays white — per-label tint rides on vertex colour.
+    return IntrusivePtr<Material>(mat);
+}
+}  // namespace
+
 Label::Label() {
-    _vertexStrideFloats = 5;  // position(3) + uv(2)
+    _vertexStrideFloats = 9;  // position(3) + uv(2) + colour(4)
 }
 
 Label::~Label() = default;
@@ -39,11 +68,18 @@ ccstd::vector<gfx::Attribute> Label::vertexAttributes() const {
     return {
         gfx::Attribute{gfx::ATTR_NAME_POSITION,  gfx::Format::RGB32F},
         gfx::Attribute{gfx::ATTR_NAME_TEX_COORD, gfx::Format::RG32F},
+        gfx::Attribute{gfx::ATTR_NAME_COLOR,     gfx::Format::RGBA32F},
     };
 }
 
+gfx::Texture *Label::resolveBatchTexture() const {
+    if (!_font) return nullptr;
+    auto *atlas = _font->getAtlas();
+    return (atlas && atlas->getGFXTexture()) ? atlas->getGFXTexture() : nullptr;
+}
+
 void Label::updateGeometry() {
-    _vertexStrideFloats = 5;
+    _vertexStrideFloats = 9;
     _vertexData.clear();
     _indexData.clear();
     _vertexCount = 0;
@@ -55,55 +91,57 @@ void Label::updateGeometry() {
     const auto atlasH = static_cast<float>(_font->getAtlasHeight());
     if (atlasW <= 0.0f || atlasH <= 0.0f) return;
 
-    // First pass: compute total width to centre the label horizontally.
+    const float r = _color.r / 255.0f;
+    const float g = _color.g / 255.0f;
+    const float b = _color.b / 255.0f;
+    const float a = _color.a / 255.0f;
+
+    // First pass: total advance to centre horizontally.
     float totalAdvance = 0.0f;
     for (unsigned char c : _text) {
-        const auto *g = _font->getGlyph(static_cast<uint32_t>(c));
-        if (!g) continue;
-        totalAdvance += static_cast<float>(g->xadvance);
+        const auto *gl = _font->getGlyph(static_cast<uint32_t>(c));
+        if (!gl) continue;
+        totalAdvance += static_cast<float>(gl->xadvance);
     }
-
-    // Pen origin at (-totalAdvance/2, 0). BMFont yoffset is measured from
-    // the top of the line downward; our world Y points up, so glyph top
-    // is -yoffset (i.e. yoffset 5 means glyph starts 5 units BELOW 0).
     float penX = -totalAdvance * 0.5f;
 
     _vertexData.reserve(_text.size() * 4 * _vertexStrideFloats);
     _indexData.reserve(_text.size() * 6);
 
     for (unsigned char c : _text) {
-        const auto *g = _font->getGlyph(static_cast<uint32_t>(c));
-        if (!g) {
-            continue;
-        }
+        const auto *gl = _font->getGlyph(static_cast<uint32_t>(c));
+        if (!gl) continue;
 
-        if (g->w > 0 && g->h > 0) {
-            const float x0 = penX + static_cast<float>(g->xoffset);
-            const float x1 = x0 + static_cast<float>(g->w);
-            const float y0 = -static_cast<float>(g->yoffset);        // top in world-Y-up
-            const float y1 = y0 - static_cast<float>(g->h);          // bottom
+        if (gl->w > 0 && gl->h > 0) {
+            const float x0 = penX + static_cast<float>(gl->xoffset);
+            const float x1 = x0 + static_cast<float>(gl->w);
+            const float y0 = -static_cast<float>(gl->yoffset);        // top in world-Y-up
+            const float y1 = y0 - static_cast<float>(gl->h);          // bottom
 
-            const float u0 = static_cast<float>(g->x) / atlasW;
-            const float u1 = static_cast<float>(g->x + g->w) / atlasW;
-            const float v0 = static_cast<float>(g->y) / atlasH;
-            const float v1 = static_cast<float>(g->y + g->h) / atlasH;
+            const float u0 = static_cast<float>(gl->x) / atlasW;
+            const float u1 = static_cast<float>(gl->x + gl->w) / atlasW;
+            const float v0 = static_cast<float>(gl->y) / atlasH;
+            const float v1 = static_cast<float>(gl->y + gl->h) / atlasH;
 
             const auto base = static_cast<uint16_t>(_vertexCount);
-            // quad: BL, BR, TR, TL
-            _vertexData.insert(_vertexData.end(), {x0, y1, 0.0f, u0, v1});
-            _vertexData.insert(_vertexData.end(), {x1, y1, 0.0f, u1, v1});
-            _vertexData.insert(_vertexData.end(), {x1, y0, 0.0f, u1, v0});
-            _vertexData.insert(_vertexData.end(), {x0, y0, 0.0f, u0, v0});
+            _vertexData.insert(_vertexData.end(), {x0, y1, 0.0f, u0, v1, r, g, b, a});
+            _vertexData.insert(_vertexData.end(), {x1, y1, 0.0f, u1, v1, r, g, b, a});
+            _vertexData.insert(_vertexData.end(), {x1, y0, 0.0f, u1, v0, r, g, b, a});
+            _vertexData.insert(_vertexData.end(), {x0, y0, 0.0f, u0, v0, r, g, b, a});
 
             _indexData.insert(_indexData.end(), {
-                base, static_cast<uint16_t>(base + 1), static_cast<uint16_t>(base + 2),
-                base, static_cast<uint16_t>(base + 2), static_cast<uint16_t>(base + 3),
+                base,
+                static_cast<uint16_t>(base + 1),
+                static_cast<uint16_t>(base + 2),
+                base,
+                static_cast<uint16_t>(base + 2),
+                static_cast<uint16_t>(base + 3),
             });
             _vertexCount += 4;
             _indexCount  += 6;
         }
 
-        penX += static_cast<float>(g->xadvance);
+        penX += static_cast<float>(gl->xadvance);
     }
 }
 
@@ -113,22 +151,12 @@ IntrusivePtr<Material> Label::resolveMaterial() {
         return nullptr;
     }
 
-    auto *effect = EffectAsset::get("builtin-unlit");
-    if (!effect) {
-        CC_LOG_ERROR("[Label] builtin-unlit effect missing");
-        return nullptr;
-    }
+    auto *atlas = _font->getAtlas();
+    auto it = g_labelMatCache.find(atlas);
+    if (it != g_labelMatCache.end()) return it->second;
 
-    MacroRecord defines{{"USE_TEXTURE", true}};
-    IMaterialInfo info;
-    info.effectAsset = effect;
-    info.technique   = 1u;  // transparent — src_alpha / one_minus_src_alpha
-    info.defines     = IMaterialInfo::DefinesType{defines};
-
-    auto *mat = ccnew Material();
-    mat->initialize(info);
-    mat->setPropertyTextureBase("mainTexture", _font->getAtlas());
-    mat->setPropertyColor("mainColor", _color);
+    auto mat = buildLabelMat(atlas);
+    if (mat) g_labelMatCache[atlas] = mat;
     return mat;
 }
 

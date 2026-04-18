@@ -1,10 +1,12 @@
 #include "cocos/2d/components/Sprite.h"
 
 #include "base/Log.h"
+#include "base/std/container/unordered_map.h"
 #include "core/assets/EffectAsset.h"
 #include "core/assets/Material.h"
 #include "game/MaterialFactory.h"
 #include "renderer/core/PassUtils.h"
+#include "renderer/gfx-base/GFXTexture.h"
 
 namespace cc {
 
@@ -13,8 +15,37 @@ CC_IMPLEMENT_CLASS(Sprite, "cc.Sprite", UIRenderer)
     .property("size",  &Sprite::_size,  Vec2{100.0f, 100.0f})
 CC_END_CLASS(Sprite);
 
+namespace {
+// Material cache keyed by Texture2D pointer. Same texture → same Material
+// pointer → UIRenderer's batch key matches → batches fold together. Tint
+// now comes from per-vertex colour, so the Material stays per-texture
+// only (not per-colour).
+ccstd::unordered_map<Texture2D *, IntrusivePtr<Material>> g_spriteTexturedCache;
+IntrusivePtr<Material> g_spriteUntexturedFallback;
+
+IntrusivePtr<Material> buildTexturedMat(Texture2D *tex) {
+    auto *effect = EffectAsset::get("builtin-unlit");
+    if (!effect) return nullptr;
+
+    MacroRecord defines{
+        {"USE_TEXTURE",       true},
+        {"USE_VERTEX_COLOR",  true},
+    };
+    IMaterialInfo info;
+    info.effectAsset = effect;
+    info.technique   = 1u;  // transparent
+    info.defines     = IMaterialInfo::DefinesType{defines};
+
+    auto *mat = ccnew Material();
+    mat->initialize(info);
+    mat->setPropertyTextureBase("mainTexture", tex);
+    // mainColor stays white — per-sprite tint rides on vertex colour.
+    return IntrusivePtr<Material>(mat);
+}
+}  // namespace
+
 Sprite::Sprite() {
-    _vertexStrideFloats = 5;  // position(3) + uv(2) — builtin-unlit
+    _vertexStrideFloats = 9;  // position(3) + uv(2) + colour(4)
 }
 
 Sprite::~Sprite() = default;
@@ -39,19 +70,29 @@ ccstd::vector<gfx::Attribute> Sprite::vertexAttributes() const {
     return {
         gfx::Attribute{gfx::ATTR_NAME_POSITION,  gfx::Format::RGB32F},
         gfx::Attribute{gfx::ATTR_NAME_TEX_COORD, gfx::Format::RG32F},
+        gfx::Attribute{gfx::ATTR_NAME_COLOR,     gfx::Format::RGBA32F},
     };
 }
 
+gfx::Texture *Sprite::resolveBatchTexture() const {
+    return (_texture && _texture->getGFXTexture()) ? _texture->getGFXTexture() : nullptr;
+}
+
 void Sprite::updateGeometry() {
-    _vertexStrideFloats = 5;
+    _vertexStrideFloats = 9;
     const float hx = _size.x * 0.5f;
     const float hy = _size.y * 0.5f;
+    const float r  = _color.r / 255.0f;
+    const float g  = _color.g / 255.0f;
+    const float b  = _color.b / 255.0f;
+    const float a  = _color.a / 255.0f;
+
     // UV convention: (0,0) top-left of image; engine pre-flips Y on load.
     _vertexData = {
-        -hx, -hy, 0.0f,   0.0f, 1.0f,  // bottom-left
-         hx, -hy, 0.0f,   1.0f, 1.0f,  // bottom-right
-         hx,  hy, 0.0f,   1.0f, 0.0f,  // top-right
-        -hx,  hy, 0.0f,   0.0f, 0.0f,  // top-left
+        -hx, -hy, 0.0f,   0.0f, 1.0f,   r, g, b, a,   // bottom-left
+         hx, -hy, 0.0f,   1.0f, 1.0f,   r, g, b, a,   // bottom-right
+         hx,  hy, 0.0f,   1.0f, 0.0f,   r, g, b, a,   // top-right
+        -hx,  hy, 0.0f,   0.0f, 0.0f,   r, g, b, a,   // top-left
     };
     _indexData = {0, 1, 2, 0, 2, 3};
     _vertexCount = 4;
@@ -60,32 +101,18 @@ void Sprite::updateGeometry() {
 
 IntrusivePtr<Material> Sprite::resolveMaterial() {
     if (!_texture || !_texture->getGFXTexture()) {
-        // No texture — flat-coloured fallback for debugging.
-        return game::MaterialFactory::createUnlit(_color);
+        // Shared un-textured fallback so mis-configured sprites still batch.
+        if (!g_spriteUntexturedFallback) {
+            g_spriteUntexturedFallback = game::MaterialFactory::createUnlit(Color{255, 255, 255, 255});
+        }
+        return g_spriteUntexturedFallback;
     }
 
-    // builtin-unlit has four techniques: 0=opaque, 1=transparent, 2=add,
-    // 3=alpha-blend. Technique 1 enables src_alpha / one_minus_src_alpha
-    // blending and disables depth write — what we need for UI sprites.
-    // cc_spriteTexture on the `for2d/builtin-sprite` shader is a builtin
-    // sampler bound by Batcher2d and can't be set as a material property,
-    // so unlit is the simpler path for now.
-    auto *effect = EffectAsset::get("builtin-unlit");
-    if (!effect) {
-        CC_LOG_ERROR("[Sprite] builtin-unlit effect missing");
-        return nullptr;
-    }
+    auto it = g_spriteTexturedCache.find(_texture.get());
+    if (it != g_spriteTexturedCache.end()) return it->second;
 
-    MacroRecord defines{{"USE_TEXTURE", true}};
-    IMaterialInfo info;
-    info.effectAsset = effect;
-    info.technique   = 1u;  // transparent
-    info.defines     = IMaterialInfo::DefinesType{defines};
-
-    auto *mat = ccnew Material();
-    mat->initialize(info);
-    mat->setPropertyTextureBase("mainTexture", _texture.get());
-    mat->setPropertyColor("mainColor", _color);
+    auto mat = buildTexturedMat(_texture.get());
+    if (mat) g_spriteTexturedCache[_texture.get()] = mat;
     return mat;
 }
 

@@ -121,12 +121,18 @@ void Mask::updateGeometry() {
     emitPolygonFan();
 }
 
+namespace {
+// Shared across every Mask instance. Mask shape fragments never reach the
+// colour buffer (ENTER_LEVEL stencil forces them to fail), so one Material
+// with no per-instance state is plenty. The batcher's stencilCache then
+// splits this base by (depth, isMask) — identical masks at the same depth
+// collapse into one batch.
+IntrusivePtr<Material> g_maskBaseMaterial;
+}  // namespace
+
 IntrusivePtr<Material> Mask::resolveMaterial() {
-    // The mask's own shader never writes colour (the ENTER_LEVEL stencil
-    // stage forces every fragment to fail the stencil test, which cancels
-    // the colour write but still lets failOp run to stamp our stencil bit).
-    // Any pass-through shader works; we keep builtin-unlit for uniformity
-    // with other UIRenderers in this scene.
+    if (g_maskBaseMaterial) return g_maskBaseMaterial;
+
     auto *effect = EffectAsset::get("builtin-unlit");
     if (!effect) {
         CC_LOG_ERROR("[Mask] builtin-unlit effect missing");
@@ -139,7 +145,8 @@ IntrusivePtr<Material> Mask::resolveMaterial() {
 
     auto *mat = ccnew Material();
     mat->initialize(info);
-    return mat;
+    g_maskBaseMaterial = mat;
+    return g_maskBaseMaterial;
 }
 
 }  // namespace cc
