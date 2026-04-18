@@ -54,6 +54,11 @@ private:
 
     ccstd::vector<Canvas *> _canvases;
 
+    // Last node currently under the mouse cursor (nullptr = no node hovered).
+    // Compared each mouse event to emit MouseLeave on the old and MouseEnter
+    // on the new when the hover target changes.
+    Node *_hoveredNode{nullptr};
+
     bool _running{false};
 };
 

@@ -172,10 +172,19 @@ int DemoGame::init() {
 
     // Start on the last-registered scene — that's usually the newest milestone
     // we care about verifying. Arrow keys cycle to earlier scenes.
-    // Start on the ClickableScene so P4 is visually verifiable out of the box.
+    // Boot into the newest visually-verifiable scene. Order of preference:
+    // WidgetScene (P5) → ClickableScene (P4) → last-registered.
     int startIdx = static_cast<int>(reg.size()) - 1;
-    for (size_t i = 0; i < reg.size(); ++i) {
-        if (reg[i].name == "ClickableScene") { startIdx = static_cast<int>(i); break; }
+    bool found = false;
+    for (const char *prefer : {"WidgetScene", "ClickableScene"}) {
+        for (size_t i = 0; i < reg.size(); ++i) {
+            if (reg[i].name == prefer) {
+                startIdx = static_cast<int>(i);
+                found = true;
+                break;
+            }
+        }
+        if (found) break;
     }
     if (!reg.empty()) _pendingSceneIdx = startIdx;
 

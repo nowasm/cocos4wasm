@@ -2338,6 +2338,10 @@ cocos_source_files(
     cocos/input/InputEventDispatcher.h
     cocos/input/InputEventDispatcher.cpp
 
+    # ui widgets (P5)
+    cocos/ui/components/Button.h
+    cocos/ui/components/Button.cpp
+
     cocos/core/assets/Asset.cpp
     cocos/core/assets/Asset.h
     cocos/core/assets/AssetEnum.h

@@ -33,6 +33,11 @@ void InputEventDispatcher::registerCanvas(Canvas *c) {
 void InputEventDispatcher::unregisterCanvas(Canvas *c) {
     _canvases.erase(std::remove(_canvases.begin(), _canvases.end(), c),
                     _canvases.end());
+    // A canvas leaving the screen takes its children with it. We can't check
+    // the hovered node's ancestry cheaply here, so the pragmatic choice is
+    // to drop the cached hover — a one-frame "MouseLeave missed" on scene
+    // teardown is acceptable; a dangling pointer is not.
+    _hoveredNode = nullptr;
 }
 
 namespace {
@@ -120,23 +125,42 @@ void InputEventDispatcher::start() {
         });
 
         Vec2 local;
+        Node *hit = nullptr;
         for (auto *c : sorted) {
-            Node *root = c->getNode();
-            Node *hit = hitTestDFS(root, wx, wy, local);
-            if (!hit) continue;
+            hit = hitTestDFS(c->getNode(), wx, wy, local);
+            if (hit) break;
+        }
 
-            NodeMouseEventArg arg;
-            arg.x = ev.x;
-            arg.y = ev.y;
-            arg.localX = local.x;
-            arg.localY = local.y;
-            arg.button = ev.button;
-            if (ev.type == MouseEvent::Type::WHEEL) {
-                arg.wheelDx = ev.xDelta;
-                arg.wheelDy = ev.yDelta;
+        // Build the payload once — Enter/Leave use the same screen coords,
+        // and when Enter fires the "local" values belong to the new hit
+        // node (the same ones MouseDown/Move on it will see).
+        NodeMouseEventArg arg;
+        arg.x = ev.x;
+        arg.y = ev.y;
+        arg.localX = local.x;
+        arg.localY = local.y;
+        arg.button = ev.button;
+        if (ev.type == MouseEvent::Type::WHEEL) {
+            arg.wheelDx = ev.xDelta;
+            arg.wheelDy = ev.yDelta;
+        }
+
+        // Hover transitions: fire Leave on the old target, Enter on the
+        // new. These happen on every mouse event — MOVE is the common case
+        // but DOWN/UP also count so hover state stays consistent with
+        // clicks that arrive on a node we haven't moved over yet.
+        if (hit != _hoveredNode) {
+            if (_hoveredNode) {
+                _hoveredNode->dispatchEvent<Node::MouseLeave>(arg);
             }
+            _hoveredNode = hit;
+            if (_hoveredNode) {
+                _hoveredNode->dispatchEvent<Node::MouseEnter>(arg);
+            }
+        }
+
+        if (hit) {
             dispatchMouse(hit, ev, arg);
-            return;  // first hit wins — don't fall through to lower canvases
         }
     });
 
