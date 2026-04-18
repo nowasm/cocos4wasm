@@ -5,6 +5,7 @@
 #include "cocos/2d/framework/Canvas.h"
 #include "cocos/2d/framework/UITransform.h"
 #include "cocos/ui/components/Button.h"
+#include "cocos/ui/components/Layout.h"
 #include "cocos/ui/components/Widget.h"
 #include "core/component/NodeActivator.h"
 #include "core/scene-graph/Node.h"
@@ -120,8 +121,67 @@ public:
                  20, 0, 40, 40, cc::Color(100, 180, 230, 255),
                  /*w=*/0, /*h=*/40);  // width will be overwritten by stretch
 
+        // ── P5c layout demo: a horizontal row at the bottom-left + a
+        //     3×N grid bottom-right. Each container is a sized UITransform
+        //     with Widget-anchoring to its parent, and Layout handles the
+        //     children placement — no manual positions needed per cell.
+        auto addColorTile = [](cc::Node *parent, const cc::Color &c, float w, float h) {
+            auto *n = ccnew cc::Node("tile");
+            auto *ui = n->addComponent<cc::UITransform>();
+            ui->setContentSize(w, h);
+            ui->setAnchorPoint(0.5f, 0.5f);
+            auto *sp = n->addComponent<cc::Sprite>();
+            sp->setSize(w, h);
+            sp->setColor(c);
+            parent->addChild(n);
+            return n;
+        };
+
+        // Horizontal row: 5 tiles at bottom-left, LEFT_TO_RIGHT flow.
+        auto *row = ccnew cc::Node("h-row");
+        {
+            auto *ui = row->addComponent<cc::UITransform>();
+            ui->setContentSize(440.0f, 60.0f);
+            ui->setAnchorPoint(0.5f, 0.5f);
+            auto *w_ = row->addComponent<cc::Widget>();
+            w_->setAlign(cc::Widget::BOTTOM | cc::Widget::LEFT);
+            w_->setBottomMargin(120);
+            w_->setLeftMargin(20);
+            auto *lay = row->addComponent<cc::Layout>();
+            lay->setType(cc::Layout::Type::HORIZONTAL);
+            lay->setSpacing(8.f, 0.f);
+            lay->setPadding(0, 0, 4, 4);
+            _root->addChild(row);
+        }
+        for (int i = 0; i < 5; ++i) {
+            const uint8_t v = static_cast<uint8_t>(80 + i * 30);
+            addColorTile(row, cc::Color(v, 200, 255 - v, 255), 80.f, 52.f);
+        }
+
+        // Grid: 3×3 tiles at bottom-right.
+        auto *grid = ccnew cc::Node("grid");
+        {
+            auto *ui = grid->addComponent<cc::UITransform>();
+            ui->setContentSize(260.0f, 260.0f);
+            ui->setAnchorPoint(0.5f, 0.5f);
+            auto *w_ = grid->addComponent<cc::Widget>();
+            w_->setAlign(cc::Widget::BOTTOM | cc::Widget::RIGHT);
+            w_->setBottomMargin(120);
+            w_->setRightMargin(20);
+            auto *lay = grid->addComponent<cc::Layout>();
+            lay->setType(cc::Layout::Type::GRID);
+            lay->setCellSize(80.f, 80.f);
+            lay->setSpacing(4.f, 4.f);
+            lay->setPadding(4, 4, 4, 4);
+            _root->addChild(grid);
+        }
+        for (int i = 0; i < 9; ++i) {
+            const uint8_t g = static_cast<uint8_t>(60 + (i * 20));
+            addColorTile(grid, cc::Color(g, 90, g, 255), 80.f, 80.f);
+        }
+
         cc::NodeActivator::get().activateNode(_root, true);
-        CC_LOG_INFO("[WidgetScene] armed: 3 buttons + 4 badges + 1 banner");
+        CC_LOG_INFO("[WidgetScene] armed: 3 buttons + 4 badges + 1 banner + 5-row + 3x3 grid");
     }
 
     void onExit() override {

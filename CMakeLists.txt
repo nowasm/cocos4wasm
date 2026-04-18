@@ -2343,6 +2343,8 @@ cocos_source_files(
     cocos/ui/components/Button.cpp
     cocos/ui/components/Widget.h
     cocos/ui/components/Widget.cpp
+    cocos/ui/components/Layout.h
+    cocos/ui/components/Layout.cpp
 
     cocos/core/assets/Asset.cpp
     cocos/core/assets/Asset.h
