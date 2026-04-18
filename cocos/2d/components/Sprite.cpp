@@ -1,7 +1,10 @@
 #include "cocos/2d/components/Sprite.h"
 
+#include "base/Log.h"
+#include "core/assets/EffectAsset.h"
 #include "core/assets/Material.h"
 #include "game/MaterialFactory.h"
+#include "renderer/core/PassUtils.h"
 
 namespace cc {
 
@@ -59,17 +62,31 @@ void Sprite::updateGeometry() {
 }
 
 IntrusivePtr<Material> Sprite::resolveMaterial() {
-    IntrusivePtr<Material> mat;
-    if (_texture && _texture->getGFXTexture()) {
-        mat = game::MaterialFactory::createUnlitTextured(_texture.get());
-        if (mat) {
-            mat->setPropertyColor("mainColor", _color);
-        }
-    } else {
+    if (!_texture || !_texture->getGFXTexture()) {
         // No texture assigned — fall back to a flat-coloured quad so the
         // component is still visible for debugging.
-        mat = game::MaterialFactory::createUnlit(_color);
+        return game::MaterialFactory::createUnlit(_color);
     }
+
+    // Build the material with USE_TEXTURE pre-baked into the defines so the
+    // shader compiles with the texture-sampling branch enabled. Setting
+    // defines only at initialize() time avoids the runtime recompileShaders
+    // path that deadlocks in this configuration.
+    auto *effect = EffectAsset::get("builtin-unlit");
+    if (!effect) {
+        CC_LOG_ERROR("[Sprite] builtin-unlit effect missing; builtin effects loaded?");
+        return nullptr;
+    }
+
+    MacroRecord defines{{"USE_TEXTURE", true}};
+    IMaterialInfo info;
+    info.effectAsset = effect;
+    info.defines = IMaterialInfo::DefinesType{defines};
+
+    auto *mat = ccnew Material();
+    mat->initialize(info);
+    mat->setPropertyTextureBase("mainTexture", _texture.get());
+    mat->setPropertyColor("mainColor", _color);
     return mat;
 }
 
