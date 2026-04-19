@@ -172,11 +172,12 @@ int DemoGame::init() {
 
     // Start on the last-registered scene — that's usually the newest milestone
     // we care about verifying. Arrow keys cycle to earlier scenes.
-    // Boot into the newest visually-verifiable scene. Order of preference:
-    // ScrollViewScene (P5d) → WidgetScene (P5a-c) → ClickableScene (P4).
+    // Preference list — the first scene present wins.
     int startIdx = static_cast<int>(reg.size()) - 1;
     bool found = false;
-    for (const char *prefer : {"EditBoxScene", "ScrollViewScene", "WidgetScene", "ClickableScene"}) {
+    for (const char *prefer : {"LabelTestScene", "EditBoxScene",
+                                 "ScrollViewScene", "WidgetScene",
+                                 "ClickableScene"}) {
         for (size_t i = 0; i < reg.size(); ++i) {
             if (reg[i].name == prefer) {
                 startIdx = static_cast<int>(i);

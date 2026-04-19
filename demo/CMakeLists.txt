@@ -33,6 +33,7 @@ set(DEMO_SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/scenes/ColoredQuadScene.cpp
     ${CMAKE_CURRENT_LIST_DIR}/scenes/SpriteScene.cpp
     ${CMAKE_CURRENT_LIST_DIR}/scenes/LabelScene.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/scenes/LabelTestScene.cpp
     ${CMAKE_CURRENT_LIST_DIR}/scenes/GraphicsScene.cpp
     ${CMAKE_CURRENT_LIST_DIR}/scenes/MaskScene.cpp
     ${CMAKE_CURRENT_LIST_DIR}/scenes/EditorSceneLoadScene.cpp
@@ -56,6 +57,11 @@ if(MSVC)
         WIN32 _WIN32 _WINDOWS
         NOMINMAX UNICODE _UNICODE _USE_MATH_DEFINES
         _CRT_SECURE_NO_WARNINGS _SCL_SECURE_NO_WARNINGS
+        # Force-attach a console window at WinMain entry so stdout from
+        # CC_LOG_* is visible even when the exe is launched by double-
+        # click (not just from a terminal). AllocConsole in
+        # WindowsPlatform.cpp is gated on this.
+        USE_WIN32_CONSOLE
     )
     target_compile_options(CocosDemo PRIVATE /MP /bigobj
         /wd4018 /wd4221 /wd4244 /wd4267 /wd4305 /wd4309 /wd4819 /wd4996 /wd4098 /wd4099
