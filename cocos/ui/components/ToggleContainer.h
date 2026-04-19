@@ -2,9 +2,11 @@
 
 #include <functional>
 
+#include "base/Ptr.h"
 #include "base/std/container/vector.h"
 #include "core/component/Component.h"
 #include "core/reflection/Reflection.h"
+#include "core/scene-graph/ComponentEventHandler.h"
 
 namespace cc {
 
@@ -41,13 +43,23 @@ public:
     // checked, checks the first available toggle.
     void ensureValidState();
 
-    // checkEvents handler vector — fires for every toggle-group change.
-    void addCheckListener(Handler fn) { _checkEvents.push_back(std::move(fn)); }
-    void clearCheckListeners() { _checkEvents.clear(); }
+    // C++ runtime subscribers — fires for every toggle-group change after
+    // Editor-authored handlers.
+    void addCheckListener(Handler fn) { _runtimeCheckListeners.push_back(std::move(fn)); }
+    void clearCheckListeners()        { _runtimeCheckListeners.clear(); }
+
+    // Editor-authored check-group handlers, serialized as `checkEvents`.
+    ccstd::vector<IntrusivePtr<ComponentEventHandler>>       &getCheckEvents()       { return _checkEvents; }
+    const ccstd::vector<IntrusivePtr<ComponentEventHandler>> &getCheckEvents() const { return _checkEvents; }
 
 private:
     bool _allowSwitchOff{false};
-    ccstd::vector<Handler> _checkEvents;
+
+    // Editor-serialized handler list (`cc.ClickEvent[]` in JSON).
+    ccstd::vector<IntrusivePtr<ComponentEventHandler>> _checkEvents;
+
+    // C++ runtime subscribers.
+    ccstd::vector<Handler> _runtimeCheckListeners;
 };
 
 }  // namespace cc

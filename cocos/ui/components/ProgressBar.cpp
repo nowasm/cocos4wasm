@@ -9,6 +9,7 @@
 namespace cc {
 
 CC_IMPLEMENT_CLASS(ProgressBar, "cc.ProgressBar", Component)
+    .property("_barSprite",   &ProgressBar::_barSprite)
     .property("_mode",        &ProgressBar::_mode,        Mode::HORIZONTAL)
     .property("_totalLength", &ProgressBar::_totalLength, 1.f)
     .property("_progress",    &ProgressBar::_progress,    0.1f)

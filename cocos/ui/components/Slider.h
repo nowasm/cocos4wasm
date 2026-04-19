@@ -2,9 +2,11 @@
 
 #include <functional>
 
+#include "base/Ptr.h"
 #include "base/std/container/vector.h"
 #include "core/component/Component.h"
 #include "core/reflection/Reflection.h"
+#include "core/scene-graph/ComponentEventHandler.h"
 
 namespace cc {
 
@@ -40,10 +42,14 @@ public:
     float getProgress() const { return _progress; }
     void  setProgress(float v);  // clamps to [0,1]
 
-    // slideEvents handler vector — fires on every progress change from
-    // drag (and programmatic setProgress). Mirrors TS `slideEvents[]`.
-    void addSlideListener(Handler fn) { _slideEvents.push_back(std::move(fn)); }
-    void clearSlideListeners() { _slideEvents.clear(); }
+    // C++ runtime subscribers — fires after the serialized `slideEvents`
+    // array on every progress change.
+    void addSlideListener(Handler fn) { _runtimeSlideListeners.push_back(std::move(fn)); }
+    void clearSlideListeners()        { _runtimeSlideListeners.clear(); }
+
+    // Editor-authored slide handlers, serialized as `slideEvents`.
+    ccstd::vector<IntrusivePtr<ComponentEventHandler>>       &getSlideEvents()       { return _slideEvents; }
+    const ccstd::vector<IntrusivePtr<ComponentEventHandler>> &getSlideEvents() const { return _slideEvents; }
 
 private:
     void _applyProgress();
@@ -53,7 +59,11 @@ private:
     Direction _direction{Direction::Horizontal};
     float     _progress{0.1f};
 
-    ccstd::vector<Handler> _slideEvents;
+    // Editor-serialized handler list (`cc.ClickEvent[]` in JSON).
+    ccstd::vector<IntrusivePtr<ComponentEventHandler>> _slideEvents;
+
+    // C++ runtime subscribers.
+    ccstd::vector<Handler> _runtimeSlideListeners;
 
     struct Hooks;
     Hooks *_hooks{nullptr};

@@ -8,10 +8,14 @@
 
 namespace cc {
 
+// Upstream page-view-indicator.ts: `public spacing` (no underscore);
+// `_direction` / `_cellSize` are protected fields. `_spriteFrame` needs
+// SpriteFrame asset support (Task #7) — deferred. `_pageView` is populated
+// by the owning PageView at onEnable, not serialized.
 CC_IMPLEMENT_CLASS(PageViewIndicator, "cc.PageViewIndicator", Component)
     .property("_direction", &PageViewIndicator::_direction, Direction::HORIZONTAL)
     .property("_cellSize",  &PageViewIndicator::_cellSize,  Vec2{20.f, 20.f})
-    .property("_spacing",   &PageViewIndicator::_spacing,   0.f)
+    .property("spacing",    &PageViewIndicator::_spacing,   0.f)
 CC_END_CLASS(PageViewIndicator);
 
 void PageViewIndicator::onLoad() { _refresh(); }

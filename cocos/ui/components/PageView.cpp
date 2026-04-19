@@ -8,13 +8,19 @@
 
 namespace cc {
 
+// Name alignment with upstream page-view.ts: `public autoPageTurningThreshold`
+// and `public pageTurningSpeed` have no underscore in JSON; `_direction` is
+// the protected backing field (not our C++ name `_pageDirection`); `_indicator`
+// is a serialized ref to the PageViewIndicator child.
 CC_IMPLEMENT_CLASS(PageView, "cc.PageView", ScrollView)
     .property("_sizeMode",                &PageView::_sizeMode,                SizeMode::Unified)
-    .property("_pageDirection",           &PageView::_pageDirection,           PageViewDirection::HORIZONTAL)
+    .property("_direction",               &PageView::_pageDirection,           PageViewDirection::HORIZONTAL)
     .property("_scrollThreshold",         &PageView::_scrollThreshold,         0.5f)
     .property("_pageTurningEventTiming",  &PageView::_pageTurningEventTiming,  0.1f)
-    .property("_autoPageTurningThreshold",&PageView::_autoPageTurningThreshold,100.f)
-    .property("_pageTurningSpeed",        &PageView::_pageTurningSpeed,        0.3f)
+    .property("autoPageTurningThreshold", &PageView::_autoPageTurningThreshold,100.f)
+    .property("pageTurningSpeed",         &PageView::_pageTurningSpeed,        0.3f)
+    .property("_indicator",               &PageView::_indicator)
+    .property("pageEvents",               &PageView::_pageEvents)
 CC_END_CLASS(PageView);
 
 void PageView::onLoad() {
@@ -111,7 +117,11 @@ void PageView::scrollToPage(int32_t idx, float timeInSecond) {
 }
 
 void PageView::_firePageTurning() {
-    auto snap = _pageEvents;
+    reflection::MethodArgs args;
+    args.push_back(reflection::MethodArg::makePointer(this));
+    ComponentEventHandler::emitEvents(_pageEvents, args);
+
+    auto snap = _runtimePageListeners;
     for (auto &fn : snap) fn(this);
     if (_indicator) _indicator->setPageView(this);
 }

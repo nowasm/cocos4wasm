@@ -6,6 +6,7 @@
 #include "base/std/container/vector.h"
 #include "core/component/Component.h"
 #include "core/reflection/Reflection.h"
+#include "core/scene-graph/ComponentEventHandler.h"
 #include "math/Vec2.h"
 
 namespace cc {
@@ -99,9 +100,14 @@ public:
     // UITransform, which defines the clipping rectangle Mask uses.
     UITransform *getView() const;
 
-    // ── scrollEvents handler vector ──────────────────────────────────────
-    void addScrollListener(Handler fn) { _scrollEvents.push_back(std::move(fn)); }
-    void clearScrollListeners() { _scrollEvents.clear(); }
+    // ── scrollEvents ────────────────────────────────────────────────────
+    // Editor-authored handlers (serialized as `scrollEvents`) fire first,
+    // then C++ runtime subscribers. Both receive (ScrollView*, EventType).
+    void addScrollListener(Handler fn) { _runtimeScrollListeners.push_back(std::move(fn)); }
+    void clearScrollListeners()        { _runtimeScrollListeners.clear(); }
+
+    ccstd::vector<IntrusivePtr<ComponentEventHandler>>       &getScrollEvents()       { return _scrollEvents; }
+    const ccstd::vector<IntrusivePtr<ComponentEventHandler>> &getScrollEvents() const { return _scrollEvents; }
 
     // ── Scroll methods (match TS signatures) ─────────────────────────────
     void scrollToBottom(float timeInSecond = 0.f, bool attenuated = true);
@@ -177,7 +183,11 @@ private:
     bool  _edgeRightFired{false};
     float _scrollEndedThreshold{50.f};
 
-    ccstd::vector<Handler> _scrollEvents;
+    // Editor-serialized handler list (`cc.ClickEvent[]` in JSON).
+    ccstd::vector<IntrusivePtr<ComponentEventHandler>> _scrollEvents;
+
+    // C++ runtime subscribers.
+    ccstd::vector<Handler> _runtimeScrollListeners;
 };
 
 }  // namespace cc

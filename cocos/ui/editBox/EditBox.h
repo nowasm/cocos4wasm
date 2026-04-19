@@ -2,12 +2,14 @@
 
 #include <functional>
 
+#include "base/Ptr.h"
 #include "base/std/container/string.h"
 #include "base/std/container/vector.h"
 #include "cocos/ui/editBox/Types.h"
 #include "core/component/Component.h"
 #include "core/event/EventTarget.h"
 #include "core/reflection/Reflection.h"
+#include "core/scene-graph/ComponentEventHandler.h"
 #include "math/Color.h"
 
 namespace cc {
@@ -64,9 +66,11 @@ public:
         static constexpr const char *EDITING_RETURN    = "editing-return";
     };
 
-    // Component-level callback handler. TS exposes `ComponentEventHandler[]`
-    // arrays; here they're stored as `std::function` vectors that fire
-    // in registration order.
+    // Component-level callback handler. Each edit-event channel has two
+    // parallel lists:
+    //   • serialized `ComponentEventHandler[]` — populated from Editor JSON
+    //   • runtime `std::function` listeners — registered programmatically
+    // Both fire on every event, serialized first.
     using Handler = std::function<void(EditBox *)>;
 
     EditBox() { _wantsUpdate = true; }
@@ -132,16 +136,26 @@ public:
     size_t getSelectionEnd() const;
     void   clearSelection();
 
-    // ── Event subscription ──────────────────────────────────────────────
-    void addEditingDidBeganHandler(Handler fn) { _editingDidBegan.push_back(std::move(fn)); }
-    void addTextChangedHandler(Handler fn)     { _textChanged.push_back(std::move(fn)); }
-    void addEditingDidEndedHandler(Handler fn) { _editingDidEnded.push_back(std::move(fn)); }
-    void addEditingReturnHandler(Handler fn)   { _editingReturn.push_back(std::move(fn)); }
+    // ── Event subscription (C++ runtime listeners) ──────────────────────
+    void addEditingDidBeganHandler(Handler fn) { _runtimeEditingDidBegan.push_back(std::move(fn)); }
+    void addTextChangedHandler(Handler fn)     { _runtimeTextChanged.push_back(std::move(fn)); }
+    void addEditingDidEndedHandler(Handler fn) { _runtimeEditingDidEnded.push_back(std::move(fn)); }
+    void addEditingReturnHandler(Handler fn)   { _runtimeEditingReturn.push_back(std::move(fn)); }
 
-    void clearEditingDidBeganHandlers() { _editingDidBegan.clear(); }
-    void clearTextChangedHandlers()     { _textChanged.clear(); }
-    void clearEditingDidEndedHandlers() { _editingDidEnded.clear(); }
-    void clearEditingReturnHandlers()   { _editingReturn.clear(); }
+    void clearEditingDidBeganHandlers() { _runtimeEditingDidBegan.clear(); }
+    void clearTextChangedHandlers()     { _runtimeTextChanged.clear(); }
+    void clearEditingDidEndedHandlers() { _runtimeEditingDidEnded.clear(); }
+    void clearEditingReturnHandlers()   { _runtimeEditingReturn.clear(); }
+
+    // ── Editor-authored event arrays (serialized) ───────────────────────
+    ccstd::vector<IntrusivePtr<ComponentEventHandler>>       &getEditingDidBeganEvents()       { return _editingDidBegan; }
+    const ccstd::vector<IntrusivePtr<ComponentEventHandler>> &getEditingDidBeganEvents() const { return _editingDidBegan; }
+    ccstd::vector<IntrusivePtr<ComponentEventHandler>>       &getTextChangedEvents()       { return _textChanged; }
+    const ccstd::vector<IntrusivePtr<ComponentEventHandler>> &getTextChangedEvents() const { return _textChanged; }
+    ccstd::vector<IntrusivePtr<ComponentEventHandler>>       &getEditingDidEndedEvents()       { return _editingDidEnded; }
+    const ccstd::vector<IntrusivePtr<ComponentEventHandler>> &getEditingDidEndedEvents() const { return _editingDidEnded; }
+    ccstd::vector<IntrusivePtr<ComponentEventHandler>>       &getEditingReturnEvents()       { return _editingReturn; }
+    const ccstd::vector<IntrusivePtr<ComponentEventHandler>> &getEditingReturnEvents() const { return _editingReturn; }
 
     // ── Impl hooks — public because the Impl needs to call them, TS
     //    uses the same `@deprecated public` pattern ──────────────────────
@@ -212,11 +226,18 @@ private:
     int32_t            _maxLength{20};
     int32_t            _tabIndex{0};
 
-    // ── Callback vectors (TS inspector-editable arrays) ─────────────────
-    ccstd::vector<Handler> _editingDidBegan;
-    ccstd::vector<Handler> _textChanged;
-    ccstd::vector<Handler> _editingDidEnded;
-    ccstd::vector<Handler> _editingReturn;
+    // ── Editor-serialized event arrays — match upstream `@serializable`
+    //    names exactly (editingDidBegan / textChanged / ...) ──────────────
+    ccstd::vector<IntrusivePtr<ComponentEventHandler>> _editingDidBegan;
+    ccstd::vector<IntrusivePtr<ComponentEventHandler>> _textChanged;
+    ccstd::vector<IntrusivePtr<ComponentEventHandler>> _editingDidEnded;
+    ccstd::vector<IntrusivePtr<ComponentEventHandler>> _editingReturn;
+
+    // ── C++ runtime subscribers ─────────────────────────────────────────
+    ccstd::vector<Handler> _runtimeEditingDidBegan;
+    ccstd::vector<Handler> _runtimeTextChanged;
+    ccstd::vector<Handler> _runtimeEditingDidEnded;
+    ccstd::vector<Handler> _runtimeEditingReturn;
 
     // ── Runtime ─────────────────────────────────────────────────────────
     EditBoxImplBase *_impl{nullptr};

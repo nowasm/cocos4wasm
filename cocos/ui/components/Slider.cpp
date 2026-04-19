@@ -10,8 +10,10 @@
 namespace cc {
 
 CC_IMPLEMENT_CLASS(Slider, "cc.Slider", Component)
-    .property("_direction", &Slider::_direction, Direction::Horizontal)
-    .property("_progress",  &Slider::_progress,  0.1f)
+    .property("_handle",     &Slider::_handle)
+    .property("_direction",  &Slider::_direction, Direction::Horizontal)
+    .property("_progress",   &Slider::_progress,  0.1f)
+    .property("slideEvents", &Slider::_slideEvents)
 CC_END_CLASS(Slider);
 
 struct Slider::Hooks {
@@ -117,7 +119,11 @@ void Slider::_applyProgress() {
 }
 
 void Slider::_emitSlide() {
-    auto snap = _slideEvents;
+    reflection::MethodArgs args;
+    args.push_back(reflection::MethodArg::makePointer(this));
+    ComponentEventHandler::emitEvents(_slideEvents, args);
+
+    auto snap = _runtimeSlideListeners;
     for (auto &fn : snap) fn(this);
 }
 

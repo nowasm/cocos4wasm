@@ -12,13 +12,19 @@
 namespace cc {
 
 CC_IMPLEMENT_CLASS(EditBox, "cc.EditBox", Component)
-    .property("_string",      &EditBox::_string)
-    .property("_placeholder", &EditBox::_placeholder)
-    .property("_inputFlag",   &EditBox::_inputFlag,   InputFlag::DEFAULT)
-    .property("_inputMode",   &EditBox::_inputMode,   InputMode::ANY)
-    .property("_returnType",  &EditBox::_returnType,  KeyboardReturnType::DEFAULT)
-    .property("_maxLength",   &EditBox::_maxLength,   20)
-    .property("_tabIndex",    &EditBox::_tabIndex,    0)
+    .property("_string",          &EditBox::_string)
+    .property("_placeholder",     &EditBox::_placeholder)
+    .property("_inputFlag",       &EditBox::_inputFlag,   InputFlag::DEFAULT)
+    .property("_inputMode",       &EditBox::_inputMode,   InputMode::ANY)
+    .property("_returnType",      &EditBox::_returnType,  KeyboardReturnType::DEFAULT)
+    .property("_maxLength",       &EditBox::_maxLength,   20)
+    .property("_tabIndex",        &EditBox::_tabIndex,    0)
+    // Editor-authored event arrays — names match upstream verbatim so
+    // JSON round-trips cleanly.
+    .property("editingDidBegan",  &EditBox::_editingDidBegan)
+    .property("textChanged",      &EditBox::_textChanged)
+    .property("editingDidEnded",  &EditBox::_editingDidEnded)
+    .property("editingReturn",    &EditBox::_editingReturn)
 CC_END_CLASS(EditBox);
 
 // Node-event subscription bundle. Heap-allocated so the header doesn't
@@ -424,7 +430,11 @@ void EditBox::clearSelection() {
 // ────────────────────────────────────────────────────────────────────────
 
 void EditBox::_editBoxEditingDidBegan() {
-    auto snap = _editingDidBegan;
+    reflection::MethodArgs args;
+    args.push_back(reflection::MethodArg::makePointer(this));
+    ComponentEventHandler::emitEvents(_editingDidBegan, args);
+
+    auto snap = _runtimeEditingDidBegan;
     for (auto &fn : snap) fn(this);
     if (auto *n = getNode()) n->dispatchEvent<Node::EditBoxBegan>(this);
 }
@@ -433,7 +443,11 @@ void EditBox::_editBoxEditingDidEnded(const ccstd::string * /*text*/) {
     // The optional `text` param carries a platform-filtered string on
     // ByteDance minigame; desktop gets nullptr. Both the handler vector
     // and the Node event fire in the TS-documented order.
-    auto snap = _editingDidEnded;
+    reflection::MethodArgs args;
+    args.push_back(reflection::MethodArg::makePointer(this));
+    ComponentEventHandler::emitEvents(_editingDidEnded, args);
+
+    auto snap = _runtimeEditingDidEnded;
     for (auto &fn : snap) fn(this);
     if (auto *n = getNode()) n->dispatchEvent<Node::EditBoxEnded>(this);
 }
@@ -447,13 +461,24 @@ void EditBox::_editBoxTextChanged(const ccstd::string &text) {
     // a no-op if the string is unchanged from the impl's last write.
     setString(styled);
 
-    auto snap = _textChanged;
+    // Upstream textChanged.emit signature: (text, this) — text is the first
+    // positional. Runtime C++ listeners still use the (EditBox*) shape.
+    reflection::MethodArgs args;
+    args.push_back(reflection::MethodArg::makeString(_string));
+    args.push_back(reflection::MethodArg::makePointer(this));
+    ComponentEventHandler::emitEvents(_textChanged, args);
+
+    auto snap = _runtimeTextChanged;
     for (auto &fn : snap) fn(this);
     if (auto *n = getNode()) n->dispatchEvent<Node::EditBoxTextChanged>(this);
 }
 
 void EditBox::_editBoxEditingReturn(const ccstd::string * /*text*/) {
-    auto snap = _editingReturn;
+    reflection::MethodArgs args;
+    args.push_back(reflection::MethodArg::makePointer(this));
+    ComponentEventHandler::emitEvents(_editingReturn, args);
+
+    auto snap = _runtimeEditingReturn;
     for (auto &fn : snap) fn(this);
     if (auto *n = getNode()) n->dispatchEvent<Node::EditBoxReturn>(this);
 }

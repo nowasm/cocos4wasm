@@ -11,6 +11,8 @@
 namespace cc {
 
 CC_IMPLEMENT_CLASS(ScrollBar, "cc.ScrollBar", Component)
+    .property("_scrollView",     &ScrollBar::_scrollView)
+    .property("_handle",         &ScrollBar::_handle)
     .property("_direction",      &ScrollBar::_direction,      Direction::HORIZONTAL)
     .property("_enableAutoHide", &ScrollBar::_enableAutoHide, false)
     .property("_autoHideTime",   &ScrollBar::_autoHideTime,   1.f)

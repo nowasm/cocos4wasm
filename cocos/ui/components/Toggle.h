@@ -2,8 +2,10 @@
 
 #include <functional>
 
+#include "base/Ptr.h"
 #include "base/std/container/vector.h"
 #include "cocos/ui/components/Button.h"
+#include "core/scene-graph/ComponentEventHandler.h"
 
 namespace cc {
 
@@ -17,7 +19,8 @@ class ToggleContainer;
 // Event model matches TS:
 //   • 'toggle' fires on node whenever the checked state changes (both
 //     via user click AND programmatic setIsChecked).
-//   • `checkEvents[]` handler vector fires alongside the Node event.
+//   • `checkEvents[]` handler vector fires alongside the Node event —
+//     Editor-authored handlers run before C++ runtime subscribers.
 class Toggle : public Button {
     CC_CLASS_DECL(Toggle, Button)
 public:
@@ -45,9 +48,14 @@ public:
         static constexpr const char *TOGGLE = "toggle";
     };
 
-    // checkEvents handler vector (matches TS `checkEvents[]`).
-    void addCheckListener(Handler fn) { _checkEvents.push_back(std::move(fn)); }
-    void clearCheckListeners() { _checkEvents.clear(); }
+    // C++ runtime subscribers — fired after the serialized `checkEvents`
+    // array. Order within each group is registration order.
+    void addCheckListener(Handler fn) { _runtimeCheckListeners.push_back(std::move(fn)); }
+    void clearCheckListeners()        { _runtimeCheckListeners.clear(); }
+
+    // Editor-authored check handlers, serialized as `checkEvents`.
+    ccstd::vector<IntrusivePtr<ComponentEventHandler>>       &getCheckEvents()       { return _checkEvents; }
+    const ccstd::vector<IntrusivePtr<ComponentEventHandler>> &getCheckEvents() const { return _checkEvents; }
 
     // Called by ToggleContainer to register/deregister. Not part of the
     // public inspector surface — mirrors TS private wiring.
@@ -63,7 +71,11 @@ private:
     Sprite          *_checkMark{nullptr};
     ToggleContainer *_container{nullptr};
 
-    ccstd::vector<Handler> _checkEvents;
+    // Editor-serialized handler list (`cc.ClickEvent[]` in JSON).
+    ccstd::vector<IntrusivePtr<ComponentEventHandler>> _checkEvents;
+
+    // C++ runtime subscribers.
+    ccstd::vector<Handler> _runtimeCheckListeners;
 
     struct ToggleHooks;
     ToggleHooks *_tHooks{nullptr};

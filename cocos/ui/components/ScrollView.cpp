@@ -11,14 +11,23 @@
 
 namespace cc {
 
+// Property names match upstream exactly. Seven of them are public fields
+// in scroll-view.ts (no underscore, e.g. `public bounceDuration = 1`), so
+// JSON stores them without underscore. The last three (`_content`,
+// `_horizontalScrollBar`, `_verticalScrollBar`) are protected backing
+// fields — these keep the underscore.
 CC_IMPLEMENT_CLASS(ScrollView, "cc.ScrollView", Component)
-    .property("_bounceDuration",   &ScrollView::_bounceDuration,   1.f)
-    .property("_brake",            &ScrollView::_brake,            0.5f)
-    .property("_elastic",          &ScrollView::_elastic,          true)
-    .property("_inertia",          &ScrollView::_inertia,          true)
-    .property("_horizontal",       &ScrollView::_horizontal,       true)
-    .property("_vertical",         &ScrollView::_vertical,         true)
-    .property("_cancelInnerEvents",&ScrollView::_cancelInnerEvents,true)
+    .property("bounceDuration",      &ScrollView::_bounceDuration,   1.f)
+    .property("brake",               &ScrollView::_brake,            0.5f)
+    .property("elastic",             &ScrollView::_elastic,          true)
+    .property("inertia",             &ScrollView::_inertia,          true)
+    .property("horizontal",          &ScrollView::_horizontal,       true)
+    .property("vertical",            &ScrollView::_vertical,         true)
+    .property("cancelInnerEvents",   &ScrollView::_cancelInnerEvents,true)
+    .property("scrollEvents",        &ScrollView::_scrollEvents)
+    .property("_content",            &ScrollView::_content)
+    .property("_horizontalScrollBar",&ScrollView::_hScrollBar)
+    .property("_verticalScrollBar",  &ScrollView::_vScrollBar)
 CC_END_CLASS(ScrollView);
 
 struct ScrollView::Impl {
@@ -338,8 +347,16 @@ void ScrollView::stopAutoScroll() {
 // ────────────────────────────────────────────────────────────────────────
 
 void ScrollView::fireScrollEvent(EventType t) {
-    auto snap = _scrollEvents;
+    // Upstream: ComponentEventHandler.emitEvents(scrollEvents, this, eventMap[event])
+    // — first positional is the ScrollView, second is the event-type enum.
+    reflection::MethodArgs args;
+    args.push_back(reflection::MethodArg::makePointer(this));
+    args.push_back(reflection::MethodArg::makeInt(static_cast<int32_t>(t)));
+    ComponentEventHandler::emitEvents(_scrollEvents, args);
+
+    auto snap = _runtimeScrollListeners;
     for (auto &fn : snap) fn(this, t);
+
     if (auto *n = getNode()) {
         NodeScrollEventArg arg{this, static_cast<uint32_t>(t)};
         n->dispatchEvent<Node::ScrollEvent>(arg);

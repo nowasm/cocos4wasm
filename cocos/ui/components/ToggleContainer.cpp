@@ -7,6 +7,7 @@ namespace cc {
 
 CC_IMPLEMENT_CLASS(ToggleContainer, "cc.ToggleContainer", Component)
     .property("_allowSwitchOff", &ToggleContainer::_allowSwitchOff, false)
+    .property("checkEvents",     &ToggleContainer::_checkEvents)
 CC_END_CLASS(ToggleContainer);
 
 void ToggleContainer::onEnable() {
@@ -64,7 +65,11 @@ void ToggleContainer::notifyToggleCheck(Toggle *toggle, bool emitEvent) {
     }
 
     if (emitEvent) {
-        auto snap = _checkEvents;
+        reflection::MethodArgs args;
+        args.push_back(reflection::MethodArg::makePointer(toggle));
+        ComponentEventHandler::emitEvents(_checkEvents, args);
+
+        auto snap = _runtimeCheckListeners;
         for (auto &fn : snap) fn(toggle);
     }
 }

@@ -7,7 +7,9 @@
 namespace cc {
 
 CC_IMPLEMENT_CLASS(Toggle, "cc.Toggle", Button)
-    .property("_isChecked", &Toggle::_isChecked, true)
+    .property("_isChecked",  &Toggle::_isChecked, true)
+    .property("_checkMark",  &Toggle::_checkMark)
+    .property("checkEvents", &Toggle::_checkEvents)
 CC_END_CLASS(Toggle);
 
 // Toggle's own hooks live beside the inherited Button hooks. Button's
@@ -65,17 +67,15 @@ void Toggle::_syncMark() {
 }
 
 void Toggle::_fireToggle() {
-    auto snap = _checkEvents;
+    // Upstream order: node.emit(TOGGLE, this) → checkEvents.emit → (Container).
+    // Node event is still reserved for a future TARGET_EVENT(ToggleChanged);
+    // for now we fire the two handler vectors, Editor-authored first.
+    reflection::MethodArgs args;
+    args.push_back(reflection::MethodArg::makePointer(this));
+    ComponentEventHandler::emitEvents(_checkEvents, args);
+
+    auto snap = _runtimeCheckListeners;
     for (auto &fn : snap) fn(this);
-    if (auto *n = getNode()) {
-        // We don't have a ToggleClick typed Node event — fire a generic
-        // ButtonClick so any existing subscribers still see the change
-        // (Creator's Toggle dispatches a string-keyed 'toggle' event via
-        // node.emit; our closest equivalent without adding another Node
-        // event is the per-component handler vector, which most callers
-        // use in practice).
-        (void)n;  // reserved for a future TARGET_EVENT(ToggleChanged)
-    }
 }
 
 void Toggle::_onOwnClick() {

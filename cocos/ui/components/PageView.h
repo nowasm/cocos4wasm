@@ -2,8 +2,10 @@
 
 #include <functional>
 
+#include "base/Ptr.h"
 #include "base/std/container/vector.h"
 #include "cocos/ui/components/ScrollView.h"
+#include "core/scene-graph/ComponentEventHandler.h"
 
 namespace cc {
 
@@ -78,9 +80,14 @@ public:
 
     void scrollToPage(int32_t idx, float timeInSecond = 0.3f);
 
-    // pageEvents handler vector — fires on PAGE_TURNING.
-    void addPageListener(PageHandler fn) { _pageEvents.push_back(std::move(fn)); }
-    void clearPageListeners() { _pageEvents.clear(); }
+    // C++ runtime subscribers — fires on PAGE_TURNING after Editor-authored
+    // handlers.
+    void addPageListener(PageHandler fn) { _runtimePageListeners.push_back(std::move(fn)); }
+    void clearPageListeners()            { _runtimePageListeners.clear(); }
+
+    // Editor-authored page-turn handlers, serialized as `pageEvents`.
+    ccstd::vector<IntrusivePtr<ComponentEventHandler>>       &getPageEvents()       { return _pageEvents; }
+    const ccstd::vector<IntrusivePtr<ComponentEventHandler>> &getPageEvents() const { return _pageEvents; }
 
 private:
     void _firePageTurning();
@@ -94,7 +101,12 @@ private:
     int32_t           _curPageIdx{0};
 
     PageViewIndicator *_indicator{nullptr};
-    ccstd::vector<PageHandler> _pageEvents;
+
+    // Editor-serialized handler list (`cc.ClickEvent[]` in JSON).
+    ccstd::vector<IntrusivePtr<ComponentEventHandler>> _pageEvents;
+
+    // C++ runtime subscribers.
+    ccstd::vector<PageHandler> _runtimePageListeners;
 };
 
 }  // namespace cc
