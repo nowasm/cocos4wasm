@@ -795,6 +795,8 @@ if(WINDOWS)
             cocos/platform/win32/modules/SystemWindow.h
             cocos/platform/win32/modules/SystemWindowManager.cpp
             cocos/platform/win32/modules/SystemWindowManager.h
+            cocos/platform/win32/RawInputHook.cpp
+            cocos/platform/win32/RawInputHook.h
         )
     endif()
 elseif(OPENHARMONY)

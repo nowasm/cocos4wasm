@@ -24,13 +24,46 @@
 
 #include "platform/win32/modules/SystemWindow.h"
 #include <Windows.h>
+#include <imm.h>
 #include <functional>
 #include "base/Log.h"
 #include "engine/EngineEvents.h"
 #include "platform/SDLHelper.h"
+#include "platform/win32/RawInputHook.h"
 #include "platform/win32/WindowsPlatform.h"
 
+// Linked here rather than through CMake so the imm32 dependency stays
+// local to the win32 platform module.
+#pragma comment(lib, "imm32.lib")
+
 namespace cc {
+
+namespace {
+
+// SDL on Windows associates the window with the IME context by default.
+// When a Chinese IME is active (even without SDL_StartTextInput), the
+// IME pre-filters WM_KEYDOWN for printable characters — shortcut keys
+// like `1`, `A`, `T` never reach our Keyboard bus. Disassociating the
+// IME context makes printable keys flow through unchanged. EditBox can
+// call reattachIMEContext() later when it wants Chinese input; we hold
+// on to the original HIMC so the restore is exact.
+//
+// GLFW-based engines (axmol, cocos2d-x desktop) don't hit this because
+// GLFW never attaches the main window to an IME context; the IME layer
+// only sees a dedicated invisible input window. Our SDL-based build has
+// to opt out manually.
+void detachIMEContextFromWindow(HWND hwnd) {
+    if (!hwnd) {
+        CC_LOG_WARNING("[win32] IME detach skipped: null HWND");
+        return;
+    }
+    HIMC prev = ImmAssociateContext(hwnd, nullptr);
+    CC_LOG_INFO("[win32] IME detached from HWND=%p (prev HIMC=%p)",
+                hwnd, prev);
+}
+
+}  // namespace
+
 SystemWindow::SystemWindow(uint32_t windowId, void *externalHandle)
 : _windowId(windowId) {
     if (externalHandle) {
@@ -53,6 +86,11 @@ bool SystemWindow::createWindow(const char *title,
     _width = w;
     _height = h;
     _windowHandle = SDLHelper::getWindowHandle(_window);
+    detachIMEContextFromWindow(reinterpret_cast<HWND>(_windowHandle));
+    // Install the Raw Input bypass — detaching the IME context handles
+    // well-behaved IMEs, Raw Input covers the rest (Sogou, QQ, etc. that
+    // install a global WH_KEYBOARD_LL hook).
+    RawInputHook::install(_windowHandle);
     return true;
 }
 
@@ -67,7 +105,11 @@ bool SystemWindow::createWindow(const char *title,
     _width = w;
     _height = h;
     _windowHandle = SDLHelper::getWindowHandle(_window);
-
+    detachIMEContextFromWindow(reinterpret_cast<HWND>(_windowHandle));
+    // Install the Raw Input bypass — detaching the IME context handles
+    // well-behaved IMEs, Raw Input covers the rest (Sogou, QQ, etc. that
+    // install a global WH_KEYBOARD_LL hook).
+    RawInputHook::install(_windowHandle);
     return true;
 }
 
