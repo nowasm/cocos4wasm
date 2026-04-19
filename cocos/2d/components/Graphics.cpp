@@ -49,7 +49,10 @@ IntrusivePtr<Material> Graphics::resolveMaterial() {
         return nullptr;
     }
 
-    MacroRecord defines{{"USE_VERTEX_COLOR", true}};
+    MacroRecord defines{
+        {"USE_VERTEX_COLOR", true},
+        {"CC_USE_FOG",       4},  // disable scene fog on UI (see Label.cpp)
+    };
     IMaterialInfo info;
     info.effectAsset = effect;
     info.technique   = 1u;  // transparent — uniform alpha blend for both strokes and fills

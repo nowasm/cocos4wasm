@@ -139,9 +139,13 @@ IntrusivePtr<Material> Mask::resolveMaterial() {
         return nullptr;
     }
 
+    MacroRecord defines{
+        {"CC_USE_FOG", 4},  // disable scene fog on UI (see Label.cpp)
+    };
     IMaterialInfo info;
     info.effectAsset = effect;
     info.technique   = 1u;  // transparent (blend state harmless since fragments are discarded)
+    info.defines     = IMaterialInfo::DefinesType{defines};
 
     auto *mat = ccnew Material();
     mat->initialize(info);

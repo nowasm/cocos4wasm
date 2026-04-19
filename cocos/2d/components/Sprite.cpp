@@ -33,6 +33,8 @@ IntrusivePtr<Material> buildTexturedMat(Texture2D *tex) {
     MacroRecord defines{
         {"USE_TEXTURE",       true},
         {"USE_VERTEX_COLOR",  true},
+        // Disable scene fog on UI — see Label.cpp for the full note.
+        {"CC_USE_FOG",        4},
     };
     IMaterialInfo info;
     info.effectAsset = effect;
@@ -55,6 +57,7 @@ IntrusivePtr<Material> buildUntexturedVertexColorMat() {
 
     MacroRecord defines{
         {"USE_VERTEX_COLOR",  true},
+        {"CC_USE_FOG",        4},
     };
     IMaterialInfo info;
     info.effectAsset = effect;
