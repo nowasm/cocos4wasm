@@ -2310,6 +2310,7 @@ cocos_source_files(
     # reflection
     cocos/core/reflection/TypeId.h
     cocos/core/reflection/PropertyMeta.h
+    cocos/core/reflection/MethodMeta.h
     cocos/core/reflection/ClassMeta.h
     cocos/core/reflection/ClassBuilder.h
     cocos/core/reflection/ClassDB.h
@@ -2426,6 +2427,8 @@ cocos_source_files(
     cocos/core/scene-graph/Layers.h
     cocos/core/scene-graph/Node.cpp
     cocos/core/scene-graph/Node.h
+    cocos/core/scene-graph/ComponentEventHandler.cpp
+    cocos/core/scene-graph/ComponentEventHandler.h
     cocos/core/scene-graph/NodeEnum.h
     cocos/core/scene-graph/Scene.cpp
     cocos/core/scene-graph/Scene.h

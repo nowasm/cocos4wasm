@@ -8,6 +8,7 @@
 #include "ClassBuilder.h"
 #include "ClassDB.h"
 #include "ClassMeta.h"
+#include "MethodMeta.h"
 #include "PropertyMeta.h"
 #include "ReflectionMacros.h"
 #include "TypeId.h"

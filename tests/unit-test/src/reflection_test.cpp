@@ -26,6 +26,12 @@ public:
     cc::Color     _tint;
     Mood          _mood{Mood::HAPPY};
     Widget       *_partner{nullptr};
+
+    // Reflected methods — used by the method-invocation tests.
+    void bump(int32_t n)                       { _slot += n; }
+    void appendLabel(const ccstd::string &s)   { _label += s; }
+    void touch()                               { _enabled = true; }
+    void moveTo(Widget *other)                 { _partner = other; }
 };
 
 // The CC_CLASS_DECL macro injects a `virtual getClass()` that calls
@@ -43,17 +49,28 @@ CC_IMPLEMENT_ROOT_CLASS(Widget, "refl_test.Widget")
     .property("tint",     &Widget::_tint)
     .property("mood",     &Widget::_mood)
     .property("partner",  &Widget::_partner)
+    .method("bump",        &Widget::bump)
+    .method("appendLabel", &Widget::appendLabel)
+    .method("touch",       &Widget::touch)
+    .method("moveTo",      &Widget::moveTo)
 CC_END_CLASS(Widget);
 
-// Derived from Widget with one extra property.
+// Derived from Widget with one extra property and its own method.
 class Button : public Widget {
     CC_CLASS_DECL(Button, Widget)
 public:
     uint32_t _clickCount{0};
+
+    void click(Widget *sender, const ccstd::string &data) {
+        ++_clickCount;
+        _label = data;
+        _partner = sender;
+    }
 };
 
 CC_IMPLEMENT_CLASS(Button, "refl_test.Button", Widget)
     .property("clickCount", &Button::_clickCount)
+    .method("click", &Button::click)
 CC_END_CLASS(Button);
 
 // Second root-level class for ClassDB uniqueness tests.
@@ -320,6 +337,138 @@ TEST(Reflection, VirtualGetClass) {
 
     Widget w;
     EXPECT_EQ(w.getClass(), Widget::getStaticClass());
+}
+
+// ─── Method reflection ────────────────────────────────────────────────────
+
+TEST(Reflection, MethodRegistration) {
+    auto *meta = Widget::getStaticClass();
+    ASSERT_NE(meta, nullptr);
+    ASSERT_EQ(meta->methods.size(), 4u);
+    EXPECT_STREQ(meta->methods[0].name, "bump");
+    EXPECT_EQ(meta->methods[0].arity, 1u);
+    EXPECT_STREQ(meta->methods[1].name, "appendLabel");
+    EXPECT_EQ(meta->methods[1].arity, 1u);
+    EXPECT_STREQ(meta->methods[2].name, "touch");
+    EXPECT_EQ(meta->methods[2].arity, 0u);
+    EXPECT_STREQ(meta->methods[3].name, "moveTo");
+    EXPECT_EQ(meta->methods[3].arity, 1u);
+}
+
+TEST(Reflection, MethodLookupWalksBase) {
+    auto *btnMeta = Button::getStaticClass();
+    ASSERT_NE(btnMeta, nullptr);
+
+    // own method
+    EXPECT_NE(btnMeta->findMethod("click"), nullptr);
+
+    // inherited from Widget
+    EXPECT_NE(btnMeta->findMethod("bump"), nullptr);
+    EXPECT_NE(btnMeta->findMethod("appendLabel"), nullptr);
+
+    EXPECT_EQ(btnMeta->findMethod("ghost"), nullptr);
+    EXPECT_EQ(btnMeta->findMethod(nullptr), nullptr);
+}
+
+TEST(Reflection, InvokeNoArg) {
+    Widget w;
+    w._enabled = false;
+    MethodArgs none;
+    EXPECT_TRUE(Widget::getStaticClass()->invoke(&w, "touch", none));
+    EXPECT_TRUE(w._enabled);
+}
+
+TEST(Reflection, InvokeIntArg) {
+    Widget w;
+    w._slot = 10;
+    MethodArgs args;
+    args.push_back(MethodArg::makeInt(5));
+    EXPECT_TRUE(Widget::getStaticClass()->invoke(&w, "bump", args));
+    EXPECT_EQ(w._slot, 15);
+}
+
+TEST(Reflection, InvokeStringArg) {
+    Widget w;
+    w._label = "foo";
+    MethodArgs args;
+    args.push_back(MethodArg::makeString("bar"));
+    EXPECT_TRUE(Widget::getStaticClass()->invoke(&w, "appendLabel", args));
+    EXPECT_EQ(w._label, "foobar");
+}
+
+TEST(Reflection, InvokePointerArg) {
+    Widget a;
+    Widget b;
+    MethodArgs args;
+    args.push_back(MethodArg::makePointer(&b));
+    EXPECT_TRUE(Widget::getStaticClass()->invoke(&a, "moveTo", args));
+    EXPECT_EQ(a._partner, &b);
+}
+
+TEST(Reflection, InvokeTwoArgsPointerAndString) {
+    Button btn;
+    Widget sender;
+    MethodArgs args;
+    args.push_back(MethodArg::makePointer(&sender));
+    args.push_back(MethodArg::makeString("hello"));
+    EXPECT_TRUE(Button::getStaticClass()->invoke(&btn, "click", args));
+    EXPECT_EQ(btn._clickCount, 1u);
+    EXPECT_EQ(btn._label, "hello");
+    EXPECT_EQ(btn._partner, &sender);
+}
+
+TEST(Reflection, InvokeInheritedMethodOnDerived) {
+    Button btn;
+    btn._slot = 3;
+    MethodArgs args;
+    args.push_back(MethodArg::makeInt(2));
+    EXPECT_TRUE(Button::getStaticClass()->invoke(&btn, "bump", args));
+    EXPECT_EQ(btn._slot, 5);
+}
+
+TEST(Reflection, InvokeUnknownMethodReturnsFalse) {
+    Widget w;
+    MethodArgs none;
+    EXPECT_FALSE(Widget::getStaticClass()->invoke(&w, "doesNotExist", none));
+    EXPECT_FALSE(Widget::getStaticClass()->invoke(&w, nullptr, none));
+}
+
+TEST(Reflection, InvokeMissingArgsUsesDefaults) {
+    // Handler expects one int — caller forgets to pass it. Should not crash,
+    // and the int arg should default to 0 (no-op on _slot).
+    Widget w;
+    w._slot = 42;
+    MethodArgs none;
+    EXPECT_TRUE(Widget::getStaticClass()->invoke(&w, "bump", none));
+    EXPECT_EQ(w._slot, 42);  // 42 + 0
+
+    // Same for string
+    w._label = "x";
+    EXPECT_TRUE(Widget::getStaticClass()->invoke(&w, "appendLabel", none));
+    EXPECT_EQ(w._label, "x");  // x + "" = x
+}
+
+TEST(Reflection, InvokeExtraArgsAreIgnored) {
+    // JS semantics: extra positional args are silently dropped.
+    Widget w;
+    w._slot = 0;
+    MethodArgs args;
+    args.push_back(MethodArg::makeInt(7));
+    args.push_back(MethodArg::makeInt(999));   // ignored
+    args.push_back(MethodArg::makeString("noise"));  // ignored
+    EXPECT_TRUE(Widget::getStaticClass()->invoke(&w, "bump", args));
+    EXPECT_EQ(w._slot, 7);
+}
+
+TEST(Reflection, InvokeTypeMismatchFallsBackToDefault) {
+    // Caller passes a string where an int is expected — coercion returns 0,
+    // the callee runs harmlessly.
+    Widget w;
+    w._slot = 100;
+    MethodArgs args;
+    args.push_back(MethodArg::makeString("not-a-number"));
+    EXPECT_TRUE(Widget::getStaticClass()->invoke(&w, "bump", args));
+    EXPECT_EQ(w._slot, 100);  // +0
 }
 
 TEST(Reflection, TypeIdOfBasics) {

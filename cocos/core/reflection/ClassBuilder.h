@@ -1,4 +1,5 @@
 #pragma once
+#include <cstddef>
 #include <type_traits>
 #include <utility>
 #include "base/Ptr.h"
@@ -6,6 +7,7 @@
 #include "base/std/container/vector.h"
 #include "ClassDB.h"
 #include "ClassMeta.h"
+#include "MethodMeta.h"
 #include "TypeId.h"
 
 namespace cc {
@@ -18,6 +20,79 @@ struct HasRelease : std::false_type {};
 
 template <typename T>
 struct HasRelease<T, std::void_t<decltype(std::declval<T *>()->release())>> : std::true_type {};
+
+// ─── MethodArg → native-type coercion ────────────────────────────────────
+//
+// Upstream's ComponentEventHandler.emit() is duck-typed: the TS handler can
+// declare whatever arity it likes and JS silently drops or undefines missing
+// args. We emulate that with default-valued coercion — missing indices fall
+// back to a zero / empty value of the target type.
+
+template <typename T>
+struct ArgCoercer;
+
+template <>
+struct ArgCoercer<bool> {
+    static bool get(const MethodArgs &args, std::size_t i) {
+        return i < args.size() && args[i].kind == MethodArg::Kind::BOOL ? args[i].b : false;
+    }
+};
+
+template <>
+struct ArgCoercer<int32_t> {
+    static int32_t get(const MethodArgs &args, std::size_t i) {
+        return i < args.size() && args[i].kind == MethodArg::Kind::INT32 ? args[i].i : 0;
+    }
+};
+
+template <>
+struct ArgCoercer<uint32_t> {
+    static uint32_t get(const MethodArgs &args, std::size_t i) {
+        return i < args.size() && args[i].kind == MethodArg::Kind::INT32 ? static_cast<uint32_t>(args[i].i) : 0u;
+    }
+};
+
+template <>
+struct ArgCoercer<float> {
+    static float get(const MethodArgs &args, std::size_t i) {
+        return i < args.size() && args[i].kind == MethodArg::Kind::FLOAT ? args[i].f : 0.0f;
+    }
+};
+
+// Strings get a by-value copy to keep lifetime simple; the reference form
+// below avoids the copy when the callee takes `const ccstd::string&`.
+template <>
+struct ArgCoercer<ccstd::string> {
+    static ccstd::string get(const MethodArgs &args, std::size_t i) {
+        return i < args.size() && args[i].kind == MethodArg::Kind::STRING ? args[i].s : ccstd::string{};
+    }
+};
+
+template <>
+struct ArgCoercer<const ccstd::string &> {
+    static const ccstd::string &get(const MethodArgs &args, std::size_t i) {
+        static const ccstd::string kEmpty;
+        return (i < args.size() && args[i].kind == MethodArg::Kind::STRING) ? args[i].s : kEmpty;
+    }
+};
+
+// Any pointer-to-T arg pulls from MethodArg::p. We can't verify the concrete
+// pointee type at invocation time, so callers are responsible for pushing
+// pointers that match the declared handler signature (the Editor produces
+// these via target-uuid+component-name lookup, which is trustworthy).
+template <typename T>
+struct ArgCoercer<T *> {
+    static T *get(const MethodArgs &args, std::size_t i) {
+        return i < args.size() && args[i].kind == MethodArg::Kind::POINTER
+               ? static_cast<T *>(args[i].p) : nullptr;
+    }
+};
+
+template <typename ClassT, typename... Args, std::size_t... Is>
+void invokeWithArgs(ClassT *inst, void (ClassT::*fn)(Args...),
+                    const MethodArgs &args, std::index_sequence<Is...>) {
+    (inst->*fn)(ArgCoercer<Args>::get(args, Is)...);
+}
 }  // namespace detail
 
 // Per-class fluent builder for ClassMeta. One instance is created inside each
@@ -134,6 +209,30 @@ public:
             (static_cast<ClassT *>(inst)->*field).emplace_back(ptr);
         };
         _meta->properties.push_back(std::move(p));
+        return *this;
+    }
+
+    // Reflect a member method. The signature may take any combination of the
+    // supported arg kinds (bool / int32 / uint32 / float / ccstd::string /
+    // const ccstd::string& / pointer-to-T). At invoke time each positional
+    // arg is coerced from MethodArg; missing or type-mismatched args resolve
+    // to the target type's default value — matching the loose JS semantics of
+    // ComponentEventHandler.emit.
+    //
+    // Usage:
+    //   .method("onClick",       &MyComp::onClick)                 // void()
+    //   .method("onButtonClick", &MyComp::onButtonClick)           // void(Button*, const string&)
+    template <typename... Args>
+    ClassBuilder &method(const char *methodName, void (ClassT::*fn)(Args...)) {
+        MethodMeta m;
+        m.name = methodName;
+        m.arity = static_cast<uint32_t>(sizeof...(Args));
+        m.invoker = [fn](void *inst, const MethodArgs &args) {
+            detail::invokeWithArgs<ClassT, Args...>(
+                static_cast<ClassT *>(inst), fn, args,
+                std::index_sequence_for<Args...>{});
+        };
+        _meta->methods.push_back(std::move(m));
         return *this;
     }
 

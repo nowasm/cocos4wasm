@@ -8,6 +8,7 @@
 #include "core/assets/Texture2D.h"
 #include "core/component/Component.h"
 #include "core/reflection/Reflection.h"
+#include "core/scene-graph/ComponentEventHandler.h"
 #include "math/Color.h"
 #include "math/Vec3.h"
 
@@ -16,13 +17,18 @@ namespace cc {
 class Node;
 
 // Mirrors cocos/ui/button.ts — same enums, same property names, same
-// event semantics. The only deviations are:
+// event semantics. The only deviation is:
 //   • SpriteFrame → Texture2D * (the SpriteFrame asset wrapper isn't
 //     ported yet; when it lands the four state pointers change type
 //     without touching the rest of the API).
-//   • ComponentEventHandler[] → std::vector<Handler>. Creator's serialised
-//     (target+method-name) tuples aren't a useful pattern in pure C++;
-//     we subscribe std::function handlers programmatically.
+//
+// Click dispatch runs two vectors back-to-back:
+//   • `clickEvents` — serialized `ComponentEventHandler` list populated from
+//     Editor JSON (target + component + method-name tuples, resolved via
+//     reflection at fire time)
+//   • runtime listeners — std::function subscribers registered by C++ code
+//     through addClickListener(); this is the ergonomic path for game code
+//     that wants lambdas with captures
 //
 // Transitions:
 //   NONE   — no visual feedback beyond node.active changes
@@ -112,13 +118,21 @@ public:
     void setPressedSprite (Texture2D *t) { _pressedSprite  = t; }
     void setDisabledSprite(Texture2D *t) { _disabledSprite = t; }
 
-    // ── Click listeners ──────────────────────────────────────────────────
-    // Matches Creator's `clickEvents: ComponentEventHandler[]` — handlers
-    // fire in registration order, a handler can remove itself safely
-    // (iteration runs on a snapshot).
-    void addClickListener(Handler fn)       { _clickEvents.push_back(std::move(fn)); }
-    void clearClickListeners()              { _clickEvents.clear(); }
-    size_t getClickListenerCount() const    { return _clickEvents.size(); }
+    // ── Click listeners (C++ runtime subscribers) ────────────────────────
+    // Registers a lambda / function pointer invoked on each click. Fires
+    // after the serialized `clickEvents` array — order: Editor handlers
+    // first, then runtime listeners, both in registration order.
+    // A listener can remove itself safely during iteration because dispatch
+    // runs on a snapshot.
+    void   addClickListener(Handler fn)     { _runtimeClickListeners.push_back(std::move(fn)); }
+    void   clearClickListeners()            { _runtimeClickListeners.clear(); }
+    size_t getClickListenerCount() const    { return _runtimeClickListeners.size(); }
+
+    // ── Editor-authored click handlers ───────────────────────────────────
+    // Serialized as upstream `clickEvents: ComponentEventHandler[]`. Mutable
+    // access so game code can inspect or edit what Editor wired up.
+    ccstd::vector<IntrusivePtr<ComponentEventHandler>>       &getClickEvents()       { return _clickEvents; }
+    const ccstd::vector<IntrusivePtr<ComponentEventHandler>> &getClickEvents() const { return _clickEvents; }
 
 private:
     enum class State { NORMAL, HOVER, PRESSED, DISABLED };
@@ -152,7 +166,11 @@ private:
     IntrusivePtr<Texture2D> _pressedSprite;
     IntrusivePtr<Texture2D> _disabledSprite;
 
-    ccstd::vector<Handler> _clickEvents;
+    // Editor-serialized click-handler list (`cc.ClickEvent[]` in JSON).
+    ccstd::vector<IntrusivePtr<ComponentEventHandler>> _clickEvents;
+
+    // C++ runtime subscribers — not serialized, populated by addClickListener().
+    ccstd::vector<Handler> _runtimeClickListeners;
 
     // ── Runtime state ────────────────────────────────────────────────────
     State _state{State::NORMAL};

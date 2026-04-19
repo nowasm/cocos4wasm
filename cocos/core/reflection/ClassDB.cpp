@@ -52,6 +52,25 @@ const PropertyMeta *ClassMeta::findProperty(const char *propName) const {
     return nullptr;
 }
 
+const MethodMeta *ClassMeta::findMethod(const char *methodName) const {
+    if (!methodName) return nullptr;
+    const ClassMeta *cur = this;
+    while (cur) {
+        for (const auto &m : cur->methods) {
+            if (m.name && std::strcmp(m.name, methodName) == 0) return &m;
+        }
+        cur = cur->base;
+    }
+    return nullptr;
+}
+
+bool ClassMeta::invoke(void *instance, const char *methodName, const MethodArgs &args) const {
+    const MethodMeta *m = findMethod(methodName);
+    if (!m || !m->invoker) return false;
+    m->invoker(instance, args);
+    return true;
+}
+
 ClassDB &ClassDB::get() {
     static ClassDB instance;
     return instance;

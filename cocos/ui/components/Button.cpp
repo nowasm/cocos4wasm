@@ -17,6 +17,12 @@ CC_IMPLEMENT_CLASS(Button, "cc.Button", Component)
     .property("_disabledColor", &Button::_disabledColor, Color{124, 124, 124, 255})
     .property("_duration",      &Button::_duration,      0.1f)
     .property("_zoomScale",     &Button::_zoomScale,     1.2f)
+    .property("_target",        &Button::_target)
+    // Matches upstream — the array is declared public in TS (`clickEvents`)
+    // with no underscore, so JSON serializes it under that exact name.
+    .property("clickEvents",    &Button::_clickEvents)
+    // `_normalSprite` / `_hoverSprite` / `_pressedSprite` / `_disabledSprite`
+    // are registered by Task #7 once SpriteFrame asset lands.
 CC_END_CLASS(Button);
 
 struct Button::HandlerIds {
@@ -150,9 +156,19 @@ void Button::bindHandlers() {
             _pressed = false;
             transitionTo(_hovered ? State::HOVER : State::NORMAL);
             if (armed) {
-                // Emit on node (TS parity) + fire local vector.
+                // Three-way fan-out, matching upstream button.ts:
+                //   1. node event (for EventTarget listeners, TS parity)
+                //   2. `clickEvents` array (Editor-wired handlers)
+                //   3. runtime listeners (std::function subscribers)
                 self->dispatchEvent<Node::ButtonClick>(this);
-                auto snap = _clickEvents;
+
+                // ComponentEventHandler.emit expects args where the sender is
+                // the first positional; customEventData is appended inside.
+                reflection::MethodArgs eventArgs;
+                eventArgs.push_back(reflection::MethodArg::makePointer(this));
+                ComponentEventHandler::emitEvents(_clickEvents, eventArgs);
+
+                auto snap = _runtimeClickListeners;
                 for (auto &fn : snap) fn(this);
             }
         });
