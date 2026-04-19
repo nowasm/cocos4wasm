@@ -40,6 +40,12 @@ public:
     uint16_t   getAtlasHeight() const { return _atlasH; }
     uint16_t   getLineHeight() const { return _lineHeight; }
 
+    // Native glyph size from the .fnt <info size=...> attribute — the
+    // point-size the atlas was rasterised at. Label uses this as the
+    // reference size for its `fontSize` setter (e.g. fontSize 40 on a
+    // BMFont with size 20 renders the glyphs at 2× scale).
+    uint16_t   getBaseFontSize() const { return _baseFontSize; }
+
     const BmfGlyph *getGlyph(uint32_t code) const {
         auto it = _glyphs.find(code);
         return it == _glyphs.end() ? nullptr : &it->second;
@@ -50,6 +56,7 @@ private:
     uint16_t _atlasW{0};
     uint16_t _atlasH{0};
     uint16_t _lineHeight{0};
+    uint16_t _baseFontSize{0};  // from <info size=...>
     ccstd::unordered_map<uint32_t, BmfGlyph> _glyphs;
 };
 

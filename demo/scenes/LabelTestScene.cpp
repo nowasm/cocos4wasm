@@ -7,6 +7,7 @@
 
 #include "base/Log.h"
 #include "cocos/2d/components/Label.h"
+#include "cocos/2d/components/Sprite.h"
 #include "cocos/2d/framework/Canvas.h"
 #include "cocos/2d/framework/UITransform.h"
 #include "cocos/2d/renderer/UIBatcher2d.h"
@@ -76,6 +77,50 @@ Node *mkLabel(cc::BmfFont *font, const char *text, cc::Vec3 pos,
     lbl->setText(text);
     n->setPosition(pos);
     if (scale != 1.f) n->setScale(cc::Vec3{scale, scale, 1.f});
+    return n;
+}
+
+// Boxed alignment demo — a dark rectangle of size `box` with a Label
+// inside whose UITransform matches the box. Visible edges let you see
+// where LEFT/CENTER/RIGHT actually place the glyphs.
+Node *mkAlignBox(cc::BmfFont *font, const char *text, cc::Vec3 pos,
+                 cc::Vec2 box, Label::HorizontalAlign align) {
+    auto *parent = ccnew Node("align-box");
+    parent->setPosition(pos);
+    auto *pui = parent->addComponent<cc::UITransform>();
+    pui->setContentSize(box);
+    pui->setAnchorPoint(0.5f, 0.5f);
+
+    auto *bg = parent->addComponent<cc::Sprite>();
+    bg->setSize(box.x, box.y);
+    bg->setColor(cc::Color(45, 50, 70, 255));
+
+    auto *labelNode = ccnew Node("label");
+    auto *lui = labelNode->addComponent<cc::UITransform>();
+    lui->setContentSize(box);
+    lui->setAnchorPoint(0.5f, 0.5f);
+    auto *lbl = labelNode->addComponent<Label>();
+    lbl->setFont(font);
+    lbl->setColor(cc::Color(230, 230, 230, 255));
+    lbl->setText(text);
+    lbl->setHorizontalAlign(align);
+    parent->addChild(labelNode);
+    return parent;
+}
+
+// Label with a specific fontSize (in logical pixels). Useful for the
+// Transforms page's "crisp vs. node.scale-blurred" demo row.
+Node *mkSizedLabel(cc::BmfFont *font, const char *text, cc::Vec3 pos,
+                    float fontSize,
+                    cc::Color color = cc::Color(220, 220, 220, 255)) {
+    auto *n = ccnew Node();
+    n->addComponent<cc::UITransform>();
+    auto *lbl = n->addComponent<Label>();
+    lbl->setFont(font);
+    lbl->setColor(color);
+    lbl->setText(text);
+    lbl->setFontSize(fontSize);
+    n->setPosition(pos);
     return n;
 }
 
@@ -266,9 +311,9 @@ private:
             cc::Color(200, 230, 255, 255));
         page->addChild(title);
 
-        // 3×3 showcase grid (same content as the original scene)
+        // Row 0 + Row 1: content / colour variants.
         struct Probe { const char *text; cc::Color color; };
-        const Probe rows[3][3] = {
+        const Probe rows[2][3] = {
             {
                 {"single-line ASCII",              cc::Color(230, 230, 230, 255)},
                 {"two-line\nvia \\n",              cc::Color(230, 230, 230, 255)},
@@ -279,21 +324,37 @@ private:
                 {"50% alpha",                      cc::Color(230, 230, 230, 128)},
                 {"rgba(50,200,140)",               cc::Color( 50, 200, 140, 255)},
             },
-            {
-                {"no wrap: long line overflows ->",cc::Color(170, 170, 255, 255)},
-                {"horiz-align (NOT IMPL)",         cc::Color(170, 170, 170, 255)},
-                {"native outline (NOT IMPL)",      cc::Color(170, 170, 170, 255)},
-            },
         };
         const float colXs[3] = {-420.f, 0.f, 420.f};
-        const float rowYs[3] = { 200.f, 120.f, 40.f};
-        for (int r = 0; r < 3; ++r) {
+        const float rowYs[2] = { 220.f, 140.f };
+        for (int r = 0; r < 2; ++r) {
             for (int c = 0; c < 3; ++c) {
                 page->addChild(mkLabel(_font.get(), rows[r][c].text,
                                          cc::Vec3{colXs[c], rowYs[r], 0.f},
                                          rows[r][c].color));
             }
         }
+
+        // Row 2: horizontal alignment demo — one boxed Label per mode
+        // so the content box edges are visible.
+        const cc::Vec2 alignBox{260.f, 36.f};
+        page->addChild(mkAlignBox(_font.get(), "LEFT aligned",
+                                    cc::Vec3{colXs[0], 60.f, 0.f},
+                                    alignBox, Label::HorizontalAlign::LEFT));
+        page->addChild(mkAlignBox(_font.get(), "CENTER aligned",
+                                    cc::Vec3{colXs[1], 60.f, 0.f},
+                                    alignBox, Label::HorizontalAlign::CENTER));
+        page->addChild(mkAlignBox(_font.get(), "RIGHT aligned",
+                                    cc::Vec3{colXs[2], 60.f, 0.f},
+                                    alignBox, Label::HorizontalAlign::RIGHT));
+
+        // Wrap / outline / shadow — still not implemented, kept as
+        // callouts so the feature gap stays visible when flipping to
+        // this page.
+        page->addChild(mkLabel(_font.get(),
+            "no wrap / outline / shadow — NOT IMPL (see Effects page for workarounds)",
+            cc::Vec3{0.f, 8.f, 0.f},
+            cc::Color(170, 170, 170, 255)));
 
         // Live counter
         {
@@ -406,24 +467,42 @@ private:
         _pageRoots[3] = page;
 
         page->addChild(mkLabel(_font.get(),
-            "transforms  —  node.scale / node.rotation (Label has no fontSize property yet)",
+            "transforms  —  fontSize (crisp) vs node.scale (blurred) + rotation + animation",
             cc::Vec3{0.f, kContentTopY, 0.f},
             cc::Color(200, 230, 255, 255)));
 
-        // Scale row — 5 labels at 0.3 / 0.6 / 1.0 / 1.4 / 2.0
+        // fontSize row — native-resolution glyph layout at assorted
+        // point sizes. Crisp at every size since we scale the
+        // xadvance/xoffset math instead of resampling the atlas.
+        const float fontSizes[5] = {16.f, 24.f, 32.f, 48.f, 64.f};
+        const float fontSizeY = 215.f;
+        for (int i = 0; i < 5; ++i) {
+            const float x = -440.f + i * 220.f;
+            char buf[32];
+            std::snprintf(buf, sizeof(buf), "font %.0fpx", fontSizes[i]);
+            page->addChild(mkSizedLabel(_font.get(), buf,
+                                          cc::Vec3{x, fontSizeY, 0.f},
+                                          fontSizes[i],
+                                          cc::Color(220, 230, 255, 255)));
+        }
+
+        // Scale row — same glyph metrics at each, but with node.scale.
+        // Compare against the fontSize row above: the large scales
+        // here (e.g. 2×) pull stretched pixels out of the atlas, so
+        // text looks softer than the equivalent fontSize label.
         const float scales[5] = {0.3f, 0.6f, 1.0f, 1.4f, 2.0f};
-        const float scaleY = 190.f;
+        const float scaleY = 110.f;
         for (int i = 0; i < 5; ++i) {
             const float x = -440.f + i * 220.f;
             char buf[32];
             std::snprintf(buf, sizeof(buf), "scale %.1fx", scales[i]);
             page->addChild(mkLabel(_font.get(), buf, cc::Vec3{x, scaleY, 0.f},
-                                     cc::Color(220, 230, 255, 255), scales[i]));
+                                     cc::Color(220, 180, 180, 255), scales[i]));
         }
 
         // Rotation row — static snapshots at assorted angles.
         const float angles[7] = {-60.f, -30.f, -15.f, 0.f, 15.f, 30.f, 60.f};
-        const float rotY = 40.f;
+        const float rotY = -10.f;
         for (int i = 0; i < 7; ++i) {
             const float x = -510.f + i * 170.f;
             char buf[32];
@@ -434,11 +513,16 @@ private:
             page->addChild(n);
         }
 
-        // Animated spinner — one label rotating over time.
+        // Animated spinner — uses fontSize for a crisp large glyph run.
         {
-            auto *n = mkLabel(_font.get(), "SPIN",
-                               cc::Vec3{-300.f, -140.f, 0.f},
-                               cc::Color(170, 230, 200, 255), 1.5f);
+            auto *n = ccnew Node();
+            n->addComponent<cc::UITransform>();
+            auto *lbl = n->addComponent<Label>();
+            lbl->setFont(_font.get());
+            lbl->setText("SPIN");
+            lbl->setColor(cc::Color(170, 230, 200, 255));
+            lbl->setFontSize(30.f);
+            n->setPosition(cc::Vec3{-300.f, -150.f, 0.f});
             page->addChild(n);
             _transformsSpin = n;
         }
@@ -446,7 +530,7 @@ private:
         // Animated slider — label moving left-right.
         {
             auto *n = mkLabel(_font.get(), "slide",
-                               cc::Vec3{200.f, -140.f, 0.f},
+                               cc::Vec3{200.f, -150.f, 0.f},
                                cc::Color(230, 180, 200, 255));
             page->addChild(n);
             _transformsSlide = n;

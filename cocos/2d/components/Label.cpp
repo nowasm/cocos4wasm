@@ -2,6 +2,7 @@
 
 #include "base/Log.h"
 #include "base/std/container/unordered_map.h"
+#include "cocos/2d/framework/UITransform.h"
 #include "cocos/2d/text/BmfFont.h"
 #include "core/scene-graph/Node.h"
 #include "core/assets/EffectAsset.h"
@@ -12,8 +13,12 @@
 namespace cc {
 
 CC_IMPLEMENT_CLASS(Label, "cc.Label", UIRenderer)
-    .property("text",  &Label::_text)
-    .property("color", &Label::_color, Color{255, 255, 255, 255})
+    .property("text",        &Label::_text)
+    .property("color",       &Label::_color, Color{255, 255, 255, 255})
+    .property("_hAlign",     &Label::_hAlign,     Label::HorizontalAlign::CENTER)
+    .property("_vAlign",     &Label::_vAlign,     Label::VerticalAlign::CENTER)
+    .property("_fontSize",   &Label::_fontSize,   -1.f)
+    .property("_lineHeight", &Label::_lineHeight, -1.f)
 CC_END_CLASS(Label);
 
 namespace {
@@ -42,11 +47,43 @@ IntrusivePtr<Material> buildLabelMat(Texture2D *atlas) {
 }
 }  // namespace
 
+// Size-change subscription bundle. Heap-allocated so Label.h doesn't
+// need to pull in EventTarget.h template definitions just to declare a
+// listener ID.
+struct Label::SizeHook {
+    cc::event::TargetEventID<Node::SizeChanged> id;
+};
+
 Label::Label() {
     _vertexStrideFloats = 9;  // position(3) + uv(2) + colour(4)
 }
 
-Label::~Label() = default;
+Label::~Label() {
+    if (_sizeHook) {
+        delete _sizeHook;
+        _sizeHook = nullptr;
+    }
+}
+
+void Label::onEnable() {
+    UIRenderer::onEnable();
+    if (auto *node = getNode(); node && !_sizeHook) {
+        _sizeHook = new SizeHook();
+        _sizeHook->id = node->on<Node::SizeChanged>(
+            [this](Node *) { markDirty(); });
+    }
+}
+
+void Label::onDisable() {
+    if (_sizeHook) {
+        if (auto *node = getNode()) {
+            node->off<Node::SizeChanged>(_sizeHook->id);
+        }
+        delete _sizeHook;
+        _sizeHook = nullptr;
+    }
+    UIRenderer::onDisable();
+}
 
 void Label::setFont(BmfFont *font) {
     if (_font == font) return;
@@ -62,6 +99,30 @@ void Label::setText(const ccstd::string &text) {
 
 void Label::setColor(const Color &c) {
     _color = c;
+    markDirty();
+}
+
+void Label::setHorizontalAlign(HorizontalAlign v) {
+    if (_hAlign == v) return;
+    _hAlign = v;
+    markDirty();
+}
+
+void Label::setVerticalAlign(VerticalAlign v) {
+    if (_vAlign == v) return;
+    _vAlign = v;
+    markDirty();
+}
+
+void Label::setFontSize(float size) {
+    if (_fontSize == size) return;
+    _fontSize = size;
+    markDirty();
+}
+
+void Label::setLineHeight(float h) {
+    if (_lineHeight == h) return;
+    _lineHeight = h;
     markDirty();
 }
 
@@ -92,13 +153,25 @@ void Label::updateGeometry() {
     const auto atlasH = static_cast<float>(_font->getAtlasHeight());
     if (atlasW <= 0.0f || atlasH <= 0.0f) return;
 
+    // Resolve the font-size scale. Glyph metrics in the atlas are
+    // relative to `baseFontSize`; `_fontSize<=0` means "stay at
+    // native" (scale 1.0). Fallback to native lineHeight if the .fnt
+    // omitted <info size=>.
+    const float baseSize = static_cast<float>(_font->getBaseFontSize());
+    const float scale = (_fontSize > 0.f && baseSize > 0.f)
+                            ? (_fontSize / baseSize)
+                            : 1.f;
+
+    const float nativeLineH = static_cast<float>(_font->getLineHeight()) * scale;
+    const float lineH = (_lineHeight > 0.f) ? _lineHeight : nativeLineH;
+
     const float r = _color.r / 255.0f;
     const float g = _color.g / 255.0f;
     const float b = _color.b / 255.0f;
     const float a = _color.a / 255.0f;
 
-    // Split on explicit '\n' — auto-wrap is a later phase. Each segment
-    // becomes one baseline; the block is vertically centred on origin.
+    // Split on explicit '\n'. Each segment is one baseline; auto-wrap
+    // is deferred.
     ccstd::vector<std::pair<size_t, size_t>> lines;  // (startByte, byteLen)
     {
         size_t start = 0;
@@ -110,8 +183,58 @@ void Label::updateGeometry() {
         }
     }
     const int numLines = static_cast<int>(lines.size());
-    const float lineH = static_cast<float>(_font->getLineHeight());
-    const float blockTopBaselineY = (numLines - 1) * 0.5f * lineH;
+
+    // Content box for alignment — read from the Label's own Node
+    // UITransform. If it's missing (Label created without a UI parent),
+    // fall back to a (0,0) box which collapses alignment to CENTER —
+    // visually matches the previous MVP behaviour.
+    Vec2 contentSize{0.f, 0.f};
+    if (auto *node = getNode()) {
+        if (auto *ui = node->getComponent<UITransform>()) {
+            contentSize = ui->getContentSize();
+        }
+    }
+
+    // Pre-measure each line's advance so horizontal alignment can be
+    // applied in one pass. Each entry is the total pen-advance the
+    // line occupies *at the target scale*.
+    ccstd::vector<float> lineAdvances;
+    lineAdvances.reserve(numLines);
+    for (int li = 0; li < numLines; ++li) {
+        const size_t startByte = lines[li].first;
+        const size_t byteLen   = lines[li].second;
+        float adv = 0.f;
+        for (size_t i = 0; i < byteLen; ++i) {
+            const auto *gl = _font->getGlyph(
+                static_cast<uint32_t>(
+                    static_cast<unsigned char>(_text[startByte + i])));
+            if (gl) adv += gl->xadvance * scale;
+        }
+        lineAdvances.push_back(adv);
+    }
+
+    // Vertical: resolve the baseline Y of the TOP line. Subsequent
+    // lines march down by lineH.
+    //
+    // The coordinate frame is centred on the Label's node origin
+    // (standard UI local-space), so the content box spans
+    // [-h/2, h/2] × [-w/2, w/2]. "TOP aligned" means the first line's
+    // BASELINE sits lineH below the top edge (so ascenders stay
+    // inside the box); "BOTTOM" mirrors on the other side.
+    float topBaselineY;
+    switch (_vAlign) {
+        case VerticalAlign::TOP:
+            topBaselineY = contentSize.y * 0.5f - lineH * 0.5f;
+            break;
+        case VerticalAlign::BOTTOM:
+            topBaselineY = -contentSize.y * 0.5f
+                         + (static_cast<float>(numLines) - 0.5f) * lineH;
+            break;
+        case VerticalAlign::CENTER:
+        default:
+            topBaselineY = (numLines - 1) * 0.5f * lineH;
+            break;
+    }
 
     _vertexData.reserve(_text.size() * 4 * _vertexStrideFloats);
     _indexData.reserve(_text.size() * 6);
@@ -119,16 +242,23 @@ void Label::updateGeometry() {
     for (int li = 0; li < numLines; ++li) {
         const size_t startByte = lines[li].first;
         const size_t byteLen   = lines[li].second;
+        const float lineAdvance = lineAdvances[li];
 
-        // Horizontal centre per-line — ragged alignment.
-        float lineAdvance = 0.f;
-        for (size_t i = 0; i < byteLen; ++i) {
-            const auto *gl = _font->getGlyph(
-                static_cast<uint32_t>(static_cast<unsigned char>(_text[startByte + i])));
-            if (gl) lineAdvance += static_cast<float>(gl->xadvance);
+        // Horizontal: pen-start X.
+        float penX;
+        switch (_hAlign) {
+            case HorizontalAlign::LEFT:
+                penX = -contentSize.x * 0.5f;
+                break;
+            case HorizontalAlign::RIGHT:
+                penX = contentSize.x * 0.5f - lineAdvance;
+                break;
+            case HorizontalAlign::CENTER:
+            default:
+                penX = -lineAdvance * 0.5f;
+                break;
         }
-        float penX = -lineAdvance * 0.5f;
-        const float baselineY = blockTopBaselineY - li * lineH;
+        const float baselineY = topBaselineY - li * lineH;
 
         for (size_t i = 0; i < byteLen; ++i) {
             const auto *gl = _font->getGlyph(
@@ -136,10 +266,10 @@ void Label::updateGeometry() {
             if (!gl) continue;
 
             if (gl->w > 0 && gl->h > 0) {
-                const float x0 = penX + static_cast<float>(gl->xoffset);
-                const float x1 = x0 + static_cast<float>(gl->w);
-                const float y0 = baselineY - static_cast<float>(gl->yoffset);
-                const float y1 = y0 - static_cast<float>(gl->h);
+                const float x0 = penX + static_cast<float>(gl->xoffset) * scale;
+                const float x1 = x0 + static_cast<float>(gl->w) * scale;
+                const float y0 = baselineY - static_cast<float>(gl->yoffset) * scale;
+                const float y1 = y0 - static_cast<float>(gl->h) * scale;
 
                 const float u0 = static_cast<float>(gl->x) / atlasW;
                 const float u1 = static_cast<float>(gl->x + gl->w) / atlasW;
@@ -164,7 +294,7 @@ void Label::updateGeometry() {
                 _indexCount  += 6;
             }
 
-            penX += static_cast<float>(gl->xadvance);
+            penX += static_cast<float>(gl->xadvance) * scale;
         }
     }
 }

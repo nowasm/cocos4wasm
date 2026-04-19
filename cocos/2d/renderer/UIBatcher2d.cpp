@@ -93,8 +93,15 @@ void appendTransformed(const float *src, uint32_t vertCount, uint32_t stride,
 }  // namespace
 
 UIBatcher2d::Batch &UIBatcher2d::findOrAppendBatch(ccstd::hash_t key, UIRenderer *sample) {
+    // Reuse an existing batch only if it hasn't already closed out a
+    // sub-batch run this frame. Once a batch has been written to and
+    // then interrupted by another key, a later same-key renderer must
+    // go into a NEW batch positioned AFTER the interrupter — otherwise
+    // scene-graph draw order is violated (opaque sibling sprites end
+    // up painting over earlier labels even though the label came first
+    // in DFS).
     for (auto &b : _batches) {
-        if (b.key == key) return b;
+        if (b.key == key && !b.usedThisFrame) return b;
     }
     _batches.emplace_back();
     Batch &nb = _batches.back();
@@ -199,16 +206,21 @@ void UIBatcher2d::tick() {
     scene::RenderScene *scene = scenes.empty() ? nullptr : scenes[0].get();
 
     // Mark all batches as "not touched this frame" by clearing their CPU
-    // buffers. GPU resources live in the pool; we only rebuild when sizes
-    // exceed capacity.
+    // buffers and the usedThisFrame flag. GPU resources live in the
+    // pool; we only rebuild when sizes exceed capacity.
     for (auto &b : _batches) {
         b.vertexData.clear();
         b.indexData.clear();
         b.vertexCount = 0;
+        b.usedThisFrame = false;
     }
 
     // Walk registered UIRenderers in insertion (= scene-graph DFS) order,
-    // group consecutive same-batch-key into one batch.
+    // group consecutive same-batch-key into one batch. A batch becomes
+    // "closed" the moment we switch to a different key; subsequent
+    // renderers with that same original key must go into a fresh batch
+    // appended after the interrupter, not folded back into the closed
+    // one — that's what keeps draw order matching scene-graph order.
     Batch *current = nullptr;
     for (auto *r : _registered) {
         if (!r || !r->isRenderable()) continue;
@@ -217,6 +229,7 @@ void UIBatcher2d::tick() {
         if (!current || current->key != key) {
             current = &findOrAppendBatch(key, r);
         }
+        current->usedThisFrame = true;
 
         const Mat4 &worldMat = r->getNode()->getWorldMatrix();
         const uint32_t stride = r->getVertexStrideFloats();

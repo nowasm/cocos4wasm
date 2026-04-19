@@ -74,7 +74,13 @@ bool BmfFont::load(const ccstd::string &fntPath) {
         ccstd::string line(text, start, end - start);
         start = end + 1;
 
-        if (line.find("<common") != ccstd::string::npos) {
+        if (line.find("<info") != ccstd::string::npos &&
+            line.find("<infos") == ccstd::string::npos) {
+            // <info face="..." size="N" ...> — N is the point size the
+            // atlas was rasterised at. Non-fatal if missing (fallback
+            // to lineHeight as reference in Label).
+            _baseFontSize = static_cast<uint16_t>(readInt(line, "size"));
+        } else if (line.find("<common") != ccstd::string::npos) {
             _atlasW     = static_cast<uint16_t>(readInt(line, "scaleW"));
             _atlasH     = static_cast<uint16_t>(readInt(line, "scaleH"));
             _lineHeight = static_cast<uint16_t>(readInt(line, "lineHeight"));
@@ -113,8 +119,10 @@ bool BmfFont::load(const ccstd::string &fntPath) {
         return false;
     }
 
-    CC_LOG_INFO("[BmfFont] loaded '%s' — atlas %dx%d, %zu glyphs, lineHeight=%d",
-                fntResolved.c_str(), _atlasW, _atlasH, _glyphs.size(), _lineHeight);
+    CC_LOG_INFO("[BmfFont] loaded '%s' — atlas %dx%d, %zu glyphs, "
+                "lineHeight=%d baseSize=%d",
+                fntResolved.c_str(), _atlasW, _atlasH, _glyphs.size(),
+                _lineHeight, _baseFontSize);
     return true;
 }
 

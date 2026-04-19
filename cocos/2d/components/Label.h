@@ -7,22 +7,33 @@ namespace cc {
 
 class BmfFont;
 
-// Text component that renders one line via a BMFont atlas. Emits one
-// textured quad per glyph, stitched together using the glyph metrics and
-// the pen-advance model AngelCode .fnt describes.
+// Text component that renders text via a BMFont atlas. Emits one
+// textured quad per glyph, stitched together using the glyph metrics
+// and the pen-advance model AngelCode .fnt describes.
 //
-// Scope (P2d MVP):
-//   - Single-line, no wrap
-//   - Horizontal alignment: centred on the node's origin
-//   - Vertical alignment: baseline at origin Y
-//   - BMFont atlas only (TTF via FreeType deferred; see memory/p2 note)
+// Features:
+//   • Multi-line (explicit '\n' splits; auto-wrap is deferred to a
+//     later milestone, see LabelTestScene page 1)
+//   • Horizontal alignment — LEFT / CENTER / RIGHT, measured against
+//     the node's UITransform content rect
+//   • Vertical alignment — TOP / CENTER / BOTTOM, same rect
+//   • fontSize — independent of node.scale so text stays crisp at any
+//     size (no bilinear blur from scaling the sampled atlas)
+//   • BMFont atlas only (TTF via FreeType deferred)
 //
-// The caller owns the BmfFont and keeps it alive for the Label's lifetime
-// (scenes typically just hold it alongside the node). No reference
-// counting on BmfFont — it's a value-typed resource, not a CCObject.
+// The caller owns the BmfFont and keeps it alive for the Label's
+// lifetime (scenes typically just hold it alongside the node). No
+// reference counting on BmfFont — it's a value-typed resource, not a
+// CCObject.
 class Label : public UIRenderer {
     CC_CLASS_DECL(Label, UIRenderer)
 public:
+    // Mirrors cc.Label.HorizontalAlign / VerticalAlign from Cocos
+    // Creator TS — same numeric order so scene-file deserialisation
+    // produces identical behaviour.
+    enum class HorizontalAlign : uint32_t { LEFT = 0, CENTER = 1, RIGHT = 2 };
+    enum class VerticalAlign   : uint32_t { TOP  = 0, CENTER = 1, BOTTOM = 2 };
+
     Label();
     ~Label() override;
 
@@ -35,16 +46,52 @@ public:
     void setColor(const Color &c);
     const Color &getColor() const { return _color; }
 
+    // Alignment against the node's UITransform content box. Default is
+    // CENTER/CENTER — matches the MVP label's visual so existing
+    // scenes render unchanged until they opt in.
+    void setHorizontalAlign(HorizontalAlign v);
+    HorizontalAlign getHorizontalAlign() const { return _hAlign; }
+
+    void setVerticalAlign(VerticalAlign v);
+    VerticalAlign getVerticalAlign() const { return _vAlign; }
+
+    // Font size in logical pixels. `<= 0` (the default) means "use the
+    // font's native point size" (from BmfFont's `<info size=...>`).
+    // Independent from node.scale — scaling the node re-samples the
+    // atlas (bilinear blur); fontSize scales the pen-advance math
+    // so glyphs stay pixel-aligned at the atlas's native rate.
+    void setFontSize(float size);
+    float getFontSize() const { return _fontSize; }
+
+    // Line height override in logical pixels. `<= 0` means "use the
+    // font's native line height" (scaled by fontSize).
+    void setLineHeight(float h);
+    float getLineHeight() const { return _lineHeight; }
+
+    void onEnable() override;
+    void onDisable() override;
+
 protected:
     void updateGeometry() override;
     IntrusivePtr<Material> resolveMaterial() override;
     ccstd::vector<gfx::Attribute> vertexAttributes() const override;
     gfx::Texture *resolveBatchTexture() const override;
 
+    // Subscription handle for Node::SizeChanged — rebuilds geometry
+    // when the parent UITransform resizes (alignment math depends on
+    // contentSize). Heap-allocated so the header stays free of the
+    // EventTarget template machinery.
+    struct SizeHook;
+    SizeHook *_sizeHook{nullptr};
+
 private:
-    BmfFont      *_font{nullptr};
-    ccstd::string _text;
-    Color         _color{255, 255, 255, 255};
+    BmfFont        *_font{nullptr};
+    ccstd::string   _text;
+    Color           _color{255, 255, 255, 255};
+    HorizontalAlign _hAlign{HorizontalAlign::CENTER};
+    VerticalAlign   _vAlign{VerticalAlign::CENTER};
+    float           _fontSize{-1.f};    // <=0 → use font's native
+    float           _lineHeight{-1.f};  // <=0 → use font's native
 };
 
 }  // namespace cc

@@ -80,6 +80,14 @@ private:
         size_t ibCapacityBytes{0};
 
         bool attachedToScene{false};
+        // Flipped to true the first time a renderer is appended to this
+        // batch during the current tick. Prevents findOrAppendBatch
+        // from re-using a batch whose run of scene-graph-ordered
+        // renderers has already closed — without this flag, a
+        // same-material renderer arriving after an interleaving
+        // different-material batch would fold back into the earlier
+        // batch and end up rendered underneath.
+        bool usedThisFrame{false};
     };
 
     Batch &findOrAppendBatch(ccstd::hash_t key, UIRenderer *sample);
