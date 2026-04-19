@@ -102,7 +102,12 @@ bool BmfFont::load(const ccstd::string &fntPath) {
     }
 
     ccstd::string atlasPath = dirnameOf(fntResolved) + atlasFile;
-    _atlas = game::TextureLoader::loadFromFile(atlasPath);
+    // Font atlases are alpha masks — AngelCode's default export writes the
+    // glyph shape as L8/LA8 pixel intensity. Asking TextureLoader for
+    // ALPHA_MASK interpretation routes the intensity into the alpha channel
+    // and leaves RGB white, which is what the alpha-blend shader expects.
+    _atlas = game::TextureLoader::loadFromFile(
+        atlasPath, game::TextureLoader::Interpret::ALPHA_MASK);
     if (!_atlas) {
         CC_LOG_ERROR("[BmfFont] atlas PNG load failed: %s", atlasPath.c_str());
         return false;
