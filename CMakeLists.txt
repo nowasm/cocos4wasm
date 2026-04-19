@@ -2348,8 +2348,14 @@ cocos_source_files(
     cocos/ui/components/ScrollView.h
     cocos/ui/components/ScrollView.cpp
     cocos/ui/editBox/Types.h
+    cocos/ui/editBox/EditBox.h
+    cocos/ui/editBox/EditBox.cpp
+    cocos/ui/editBox/EditBoxImplBase.h
+    cocos/ui/editBox/EditBoxImpl.h
+    cocos/ui/editBox/EditBoxImpl.cpp
+    cocos/ui/editBox/TabIndexUtil.h
+    cocos/ui/editBox/TabIndexUtil.cpp
     cocos/ui/components/EditBox.h
-    cocos/ui/components/EditBox.cpp
     cocos/ui/components/BlockInputEvents.h
     cocos/ui/components/BlockInputEvents.cpp
     cocos/ui/components/ProgressBar.h
