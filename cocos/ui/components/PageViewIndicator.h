@@ -2,7 +2,7 @@
 
 #include "base/Ptr.h"
 #include "base/std/container/vector.h"
-#include "core/assets/Texture2D.h"
+#include "cocos/asset/SpriteFrame.h"
 #include "core/component/Component.h"
 #include "core/reflection/Reflection.h"
 #include "math/Vec2.h"
@@ -17,9 +17,8 @@ class Sprite;
 // count matches the attached PageView's page count; the dot matching the
 // current page is highlighted.
 //
-// SpriteFrame support is stubbed to Texture2D* until the SpriteFrame
-// asset lands. Dots render as plain coloured Sprites without a texture
-// when no frame is set.
+// The shared sprite frame is applied to every indicator dot. When null
+// the dots render as plain colored Sprites without a texture.
 class PageViewIndicator : public Component {
     CC_CLASS_DECL(PageViewIndicator, Component)
 public:
@@ -33,8 +32,8 @@ public:
 
     void onLoad() override;
 
-    Texture2D *getSpriteFrame() const { return _spriteFrame.get(); }
-    void       setSpriteFrame(Texture2D *t) { _spriteFrame = t; _refresh(); }
+    SpriteFrame *getSpriteFrame() const { return _spriteFrame.get(); }
+    void         setSpriteFrame(SpriteFrame *sf) { _spriteFrame = sf; _refresh(); }
 
     Direction getDirection() const { return _direction; }
     void      setDirection(Direction d) { _direction = d; _refresh(); }
@@ -54,7 +53,7 @@ private:
     void _refresh();
     Sprite *_createIndicatorNode(int index);
 
-    IntrusivePtr<Texture2D> _spriteFrame;
+    IntrusivePtr<SpriteFrame> _spriteFrame;
     Direction _direction{Direction::HORIZONTAL};
     Vec2      _cellSize{20.f, 20.f};
     float     _spacing{0.f};

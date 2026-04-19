@@ -18,11 +18,13 @@ CC_IMPLEMENT_CLASS(Button, "cc.Button", Component)
     .property("_duration",      &Button::_duration,      0.1f)
     .property("_zoomScale",     &Button::_zoomScale,     1.2f)
     .property("_target",        &Button::_target)
+    .property("_normalSprite",  &Button::_normalSprite)
+    .property("_hoverSprite",   &Button::_hoverSprite)
+    .property("_pressedSprite", &Button::_pressedSprite)
+    .property("_disabledSprite",&Button::_disabledSprite)
     // Matches upstream — the array is declared public in TS (`clickEvents`)
     // with no underscore, so JSON serializes it under that exact name.
     .property("clickEvents",    &Button::_clickEvents)
-    // `_normalSprite` / `_hoverSprite` / `_pressedSprite` / `_disabledSprite`
-    // are registered by Task #7 once SpriteFrame asset lands.
 CC_END_CLASS(Button);
 
 struct Button::HandlerIds {
@@ -201,7 +203,7 @@ Color Button::colorForState(State s) const {
     return _normalColor;
 }
 
-Texture2D *Button::spriteForState(State s) const {
+SpriteFrame *Button::spriteForState(State s) const {
     switch (s) {
         case State::NORMAL:   return _normalSprite.get();
         case State::HOVER:    return _hoverSprite.get();
@@ -222,7 +224,7 @@ void Button::applyInstantState(State s) {
             break;
         case Transition::SPRITE:
             if (auto *sp = resolveTargetSprite()) {
-                if (auto *tex = spriteForState(s)) sp->setTexture(tex);
+                if (auto *sf = spriteForState(s)) sp->setSpriteFrame(sf);
             }
             break;
         case Transition::SCALE:

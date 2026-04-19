@@ -32,10 +32,48 @@ void PageView::onLoad() {
 void PageView::onEnable() {
     ScrollView::onEnable();
     if (_indicator) _indicator->setPageView(this);
+
+    // Swipe-to-snap: when the user finishes a drag, bypass ScrollView's
+    // default inertia and snap to the nearest page.
+    addScrollListener([](ScrollView *sv, ScrollView::EventType t) {
+        if (t != ScrollView::EventType::TOUCH_UP) return;
+        static_cast<PageView *>(sv)->_snapToNearestPageOnRelease();
+    });
 }
 
 void PageView::onDisable() {
+    clearScrollListeners();
     ScrollView::onDisable();
+}
+
+void PageView::_snapToNearestPageOnRelease() {
+    auto pages = getPages();
+    if (pages.empty()) return;
+    Node *content = getContent();
+    if (!content) return;
+    auto *view = getView();
+    if (!view) return;
+    const Vec2 viewSize = view->getContentSize();
+    if (viewSize.x <= 0.f && viewSize.y <= 0.f) return;
+
+    // Convert current content position into a fractional page index. The
+    // drag direction (sign of _dragDelta) biases rounding so a shallow
+    // drag past `_scrollThreshold` advances a page even if displacement
+    // alone rounds back.
+    const Vec3 &pos = content->getPosition();
+    const bool horizontal = (_pageDirection == PageViewDirection::HORIZONTAL);
+    const float pageSize = horizontal ? viewSize.x : viewSize.y;
+    if (pageSize <= 0.f) return;
+
+    // horizontal: content.x = -pageIdx * pageSize. vertical: content.y = +pageIdx * pageSize.
+    const float raw = horizontal ? (-pos.x / pageSize) : (pos.y / pageSize);
+    int32_t target = _curPageIdx;
+    const float delta = raw - static_cast<float>(_curPageIdx);
+    if (std::abs(delta) >= _scrollThreshold) {
+        target = _curPageIdx + (delta > 0.f ? 1 : -1);
+    }
+    target = std::clamp(target, 0, static_cast<int32_t>(pages.size() - 1));
+    scrollToPage(target, _pageTurningSpeed);
 }
 
 void PageView::setIndicator(PageViewIndicator *i) {

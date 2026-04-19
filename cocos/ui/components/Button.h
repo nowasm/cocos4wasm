@@ -5,7 +5,7 @@
 #include "base/Ptr.h"
 #include "base/std/container/vector.h"
 #include "cocos/2d/components/Sprite.h"
-#include "core/assets/Texture2D.h"
+#include "cocos/asset/SpriteFrame.h"
 #include "core/component/Component.h"
 #include "core/reflection/Reflection.h"
 #include "core/scene-graph/ComponentEventHandler.h"
@@ -17,10 +17,7 @@ namespace cc {
 class Node;
 
 // Mirrors cocos/ui/button.ts — same enums, same property names, same
-// event semantics. The only deviation is:
-//   • SpriteFrame → Texture2D * (the SpriteFrame asset wrapper isn't
-//     ported yet; when it lands the four state pointers change type
-//     without touching the rest of the API).
+// event semantics.
 //
 // Click dispatch runs two vectors back-to-back:
 //   • `clickEvents` — serialized `ComponentEventHandler` list populated from
@@ -107,16 +104,16 @@ public:
     float getZoomScale() const { return _zoomScale; }
     void  setZoomScale(float v) { _zoomScale = v; }
 
-    // SPRITE transition — per-state textures. Null values fall back to
-    // whatever the target Sprite currently shows (no swap on that state).
-    Texture2D *getNormalSprite()   const { return _normalSprite.get();   }
-    Texture2D *getHoverSprite()    const { return _hoverSprite.get();    }
-    Texture2D *getPressedSprite()  const { return _pressedSprite.get();  }
-    Texture2D *getDisabledSprite() const { return _disabledSprite.get(); }
-    void setNormalSprite  (Texture2D *t) { _normalSprite   = t; }
-    void setHoverSprite   (Texture2D *t) { _hoverSprite    = t; }
-    void setPressedSprite (Texture2D *t) { _pressedSprite  = t; }
-    void setDisabledSprite(Texture2D *t) { _disabledSprite = t; }
+    // SPRITE transition — per-state SpriteFrames. Null values fall back
+    // to whatever the target Sprite currently shows (no swap on that state).
+    SpriteFrame *getNormalSprite()   const { return _normalSprite.get();   }
+    SpriteFrame *getHoverSprite()    const { return _hoverSprite.get();    }
+    SpriteFrame *getPressedSprite()  const { return _pressedSprite.get();  }
+    SpriteFrame *getDisabledSprite() const { return _disabledSprite.get(); }
+    void setNormalSprite  (SpriteFrame *t) { _normalSprite   = t; }
+    void setHoverSprite   (SpriteFrame *t) { _hoverSprite    = t; }
+    void setPressedSprite (SpriteFrame *t) { _pressedSprite  = t; }
+    void setDisabledSprite(SpriteFrame *t) { _disabledSprite = t; }
 
     // ── Click listeners (C++ runtime subscribers) ────────────────────────
     // Registers a lambda / function pointer invoked on each click. Fires
@@ -146,7 +143,7 @@ private:
     Sprite *resolveTargetSprite() const;  // Sprite on _target or own node
     void    applyInstantState(State s);   // jump directly to a state's visuals
     Color   colorForState(State s) const;
-    Texture2D *spriteForState(State s) const;
+    SpriteFrame *spriteForState(State s) const;
 
     // ── Serialisable state ──────────────────────────────────────────────
     Node *_target{nullptr};  // weak — no ref-count (matches TS target)
@@ -161,10 +158,10 @@ private:
     float _duration{0.1f};
     float _zoomScale{1.2f};
 
-    IntrusivePtr<Texture2D> _normalSprite;
-    IntrusivePtr<Texture2D> _hoverSprite;
-    IntrusivePtr<Texture2D> _pressedSprite;
-    IntrusivePtr<Texture2D> _disabledSprite;
+    IntrusivePtr<SpriteFrame> _normalSprite;
+    IntrusivePtr<SpriteFrame> _hoverSprite;
+    IntrusivePtr<SpriteFrame> _pressedSprite;
+    IntrusivePtr<SpriteFrame> _disabledSprite;
 
     // Editor-serialized click-handler list (`cc.ClickEvent[]` in JSON).
     ccstd::vector<IntrusivePtr<ComponentEventHandler>> _clickEvents;

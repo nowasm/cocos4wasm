@@ -92,6 +92,11 @@ public:
 private:
     void _firePageTurning();
 
+    // Called from the TOUCH_UP scroll listener — advances the page by
+    // one in the drag direction when release displacement crosses
+    // `_scrollThreshold`, otherwise snaps back to the current page.
+    void _snapToNearestPageOnRelease();
+
     SizeMode          _sizeMode{SizeMode::Unified};
     PageViewDirection _pageDirection{PageViewDirection::HORIZONTAL};
     float             _scrollThreshold{0.5f};

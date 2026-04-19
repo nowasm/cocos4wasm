@@ -13,9 +13,10 @@
 namespace cc {
 
 CC_IMPLEMENT_CLASS(Sprite, "cc.Sprite", UIRenderer)
-    .property("color",    &Sprite::_color,    Color{255, 255, 255, 255})
-    .property("size",     &Sprite::_size,     Vec2{100.0f, 100.0f})
-    .property("_texture", &Sprite::_texture)
+    .property("color",        &Sprite::_color,       Color{255, 255, 255, 255})
+    .property("size",         &Sprite::_size,        Vec2{100.0f, 100.0f})
+    // Matches upstream sprite.ts — `protected _spriteFrame: SpriteFrame`.
+    .property("_spriteFrame", &Sprite::_spriteFrame)
 CC_END_CLASS(Sprite);
 
 namespace {
@@ -115,9 +116,28 @@ void Sprite::syncSizeFromUITransform() {
     markDirty();
 }
 
+void Sprite::setSpriteFrame(SpriteFrame *sf) {
+    if (_spriteFrame.get() == sf) return;
+    _spriteFrame = sf;
+    markDirty();
+}
+
 void Sprite::setTexture(Texture2D *tex) {
-    if (_texture.get() == tex) return;
-    _texture = tex;
+    // Reuse an existing SpriteFrame if one is already attached — swapping
+    // out the backing texture is a common transition pattern (Button's
+    // state sprites, PageViewIndicator dot retint). Otherwise wrap the
+    // texture in a fresh full-rect SpriteFrame.
+    if (_spriteFrame) {
+        if (_spriteFrame->getTexture() == tex) return;
+        _spriteFrame->setTextureAndResetRect(tex);
+        markDirty();
+        return;
+    }
+    if (tex) {
+        auto *sf = ccnew SpriteFrame();
+        sf->setTextureAndResetRect(tex);
+        _spriteFrame = sf;
+    }
     markDirty();
 }
 
@@ -140,7 +160,8 @@ ccstd::vector<gfx::Attribute> Sprite::vertexAttributes() const {
 }
 
 gfx::Texture *Sprite::resolveBatchTexture() const {
-    return (_texture && _texture->getGFXTexture()) ? _texture->getGFXTexture() : nullptr;
+    Texture2D *tex = _spriteFrame ? _spriteFrame->getTexture() : nullptr;
+    return (tex && tex->getGFXTexture()) ? tex->getGFXTexture() : nullptr;
 }
 
 void Sprite::updateGeometry() {
@@ -165,7 +186,8 @@ void Sprite::updateGeometry() {
 }
 
 IntrusivePtr<Material> Sprite::resolveMaterial() {
-    if (!_texture || !_texture->getGFXTexture()) {
+    Texture2D *tex = _spriteFrame ? _spriteFrame->getTexture() : nullptr;
+    if (!tex || !tex->getGFXTexture()) {
         // Shared un-textured material — USE_VERTEX_COLOR=1 so each sprite's
         // setColor still shows up via the baked per-corner vertex tint.
         if (!g_spriteUntexturedFallback) {
@@ -174,11 +196,11 @@ IntrusivePtr<Material> Sprite::resolveMaterial() {
         return g_spriteUntexturedFallback;
     }
 
-    auto it = g_spriteTexturedCache.find(_texture.get());
+    auto it = g_spriteTexturedCache.find(tex);
     if (it != g_spriteTexturedCache.end()) return it->second;
 
-    auto mat = buildTexturedMat(_texture.get());
-    if (mat) g_spriteTexturedCache[_texture.get()] = mat;
+    auto mat = buildTexturedMat(tex);
+    if (mat) g_spriteTexturedCache[tex] = mat;
     return mat;
 }
 

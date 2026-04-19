@@ -5,6 +5,7 @@
 #include "cocos/asset/EffectLoader.h"
 #include "cocos/asset/MaterialLoader.h"
 #include "cocos/asset/PrefabLoader.h"
+#include "cocos/asset/SpriteFrameLoader.h"
 #include "cocos/input/InputEventDispatcher.h"
 #include "core/Root.h"
 #include "core/assets/Asset.h"
@@ -56,6 +57,18 @@ static void registerAssetLoaders() {
             auto *fx = EffectLoader::loadFromFile(absPath);
             return IntrusivePtr<Asset>(fx);
         });
+
+    // .json (SpriteFrame) — Editor exports sprite-frame metadata as a plain
+    // .json file sidecar to the texture. Treat .json as SpriteFrame for now;
+    // if other .json asset types appear (label-atlas, spine data) we'll
+    // sniff the `__type__` before dispatching.
+    auto sfLoader = [](const ccstd::string &absPath, const ccstd::string & /*uuid*/)
+        -> IntrusivePtr<Asset> {
+        auto *sf = SpriteFrameLoader::loadFromFile(absPath);
+        return IntrusivePtr<Asset>(sf);
+    };
+    AssetManager::get().registerLoader(".json", sfLoader);
+    AssetManager::get().registerLoader(".sf",   sfLoader);
 }
 
 bool DemoGame::initEngine() {
