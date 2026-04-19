@@ -3,7 +3,7 @@
 #include "base/Log.h"
 #include "base/std/container/unordered_map.h"
 #include "cocos/2d/framework/UITransform.h"
-#include "cocos/2d/text/BmfFont.h"
+#include "cocos/2d/text/TextFont.h"
 #include "core/scene-graph/Node.h"
 #include "core/assets/EffectAsset.h"
 #include "core/assets/Material.h"
@@ -22,7 +22,7 @@ CC_IMPLEMENT_CLASS(Label, "cc.Label", UIRenderer)
 CC_END_CLASS(Label);
 
 namespace {
-// Shared per-atlas Material cache. Two Labels using the same BmfFont
+// Shared per-atlas Material cache. Two Labels using the same TextFont
 // share the same atlas Texture2D → same Material → same batch key.
 ccstd::unordered_map<Texture2D *, IntrusivePtr<Material>> g_labelMatCache;
 
@@ -33,6 +33,13 @@ IntrusivePtr<Material> buildLabelMat(Texture2D *atlas) {
     MacroRecord defines{
         {"USE_TEXTURE",      true},
         {"USE_VERTEX_COLOR", true},
+        // Disable fog. builtin-unlit's CC_USE_FOG defaults to 0
+        // (CC_FOG_LINEAR); with `cc_fogBase` uniforms left at their
+        // scene defaults that produces a visible centre→edge radial
+        // darken that makes UI text look washed out / tinted. Setting
+        // 4 (CC_FOG_NONE) makes the vertex-side TRANSFER_FOG emit
+        // factor=1.0, and CC_APPLY_FOG's mix becomes a no-op.
+        {"CC_USE_FOG",       4},
     };
     IMaterialInfo info;
     info.effectAsset = effect;
@@ -85,7 +92,7 @@ void Label::onDisable() {
     UIRenderer::onDisable();
 }
 
-void Label::setFont(BmfFont *font) {
+void Label::setFont(TextFont *font) {
     if (_font == font) return;
     _font = font;
     markDirty();

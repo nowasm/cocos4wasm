@@ -6,7 +6,7 @@
 #include "cocos/2d/components/Label.h"
 #include "cocos/2d/components/Sprite.h"
 #include "cocos/2d/framework/UITransform.h"
-#include "cocos/2d/text/BmfFont.h"
+#include "cocos/2d/text/TextFont.h"
 #include "cocos/ui/editBox/EditBox.h"
 #include "cocos/ui/editBox/TabIndexUtil.h"
 #include "core/scene-graph/Node.h"
@@ -72,7 +72,7 @@ size_t byteOffsetOfCodepoint(const ccstd::string &s, size_t cp) {
 // Glyph-advance measurement — walks one rendered string (what the Label
 // draws, not the authoritative input string) and sums xadvance. Used for
 // both caret placement and click→index resolution.
-float measureAdvance(const BmfFont &font, const ccstd::string &s, size_t cutByte) {
+float measureAdvance(TextFont &font, const ccstd::string &s, size_t cutByte) {
     float out = 0.f;
     const size_t n = std::min(cutByte, s.size());
     for (size_t i = 0; i < n; ++i) {
@@ -239,7 +239,7 @@ void EditBoxImpl::onDelegateNodeClick(float localX, float localY) {
     // Translate local into caret index directly — localX is already
     // anchor-relative which is the same space the Label centres text on.
     // Reuse the multi-line helpers via line-range.
-    const auto *font = _delegate->getTextLabel() ? _delegate->getTextLabel()->getFont() : nullptr;
+    auto *font = _delegate->getTextLabel() ? _delegate->getTextLabel()->getFont() : nullptr;
     if (!font) {
         _caretIdx = _delegate->getString().size();
     } else if (_delegate->getInputMode() == InputMode::ANY) {
@@ -721,7 +721,7 @@ void EditBoxImpl::updateCaretPos() {
     if (!_caret || !_delegate) return;
     auto *label = _delegate->getTextLabel();
     if (!label) return;
-    const auto *font = label->getFont();
+    auto *font = label->getFont();
     if (!font) return;
     const ccstd::string &s = _delegate->getString();
 
@@ -783,7 +783,7 @@ void EditBoxImpl::updateSelectionHighlight() {
         setSelectionVisible(false);
         return;
     }
-    const auto *font = label->getFont();
+    auto *font = label->getFont();
     const ccstd::string &s = _delegate->getString();
     const ccstd::string renderedFull = renderForDisplay(_delegate, s, false);
     auto renderedPrefix = [&](size_t idx) {
@@ -829,7 +829,7 @@ size_t EditBoxImpl::windowPointToCaretIndex(float winX, float winY) const {
     if (!_delegate) return 0;
     auto *label = _delegate->getTextLabel();
     if (!label) return _delegate->getString().size();
-    const auto *font = label->getFont();
+    auto *font = label->getFont();
     const ccstd::string &s = _delegate->getString();
     if (!font || s.empty()) return 0;
 
@@ -925,7 +925,11 @@ float EditBoxImpl::columnAdvance(size_t lineStart, size_t byteIdx) const {
     if (!_delegate) return 0.f;
     auto *label = _delegate->getTextLabel();
     if (!label || !label->getFont()) return 0.f;
-    const auto *font = label->getFont();
+    // Font::getGlyph is non-const because TTF fonts lazily rasterise
+    // on first use; the physical caret math here doesn't care, it
+    // just needs the metrics. Casting away const keeps this helper's
+    // const-correctness at the caret-math level.
+    auto *font = label->getFont();
     const ccstd::string &s = _delegate->getString();
     float adv = 0.f;
     for (size_t i = lineStart; i < byteIdx && i < s.size(); ++i) {
@@ -940,7 +944,7 @@ size_t EditBoxImpl::byteIdxAtColumn(size_t lineStart, size_t lineLen, float targ
     if (!_delegate) return lineStart;
     auto *label = _delegate->getTextLabel();
     if (!label || !label->getFont()) return lineStart;
-    const auto *font = label->getFont();
+    auto *font = label->getFont();  // non-const: see columnAdvance note
     const ccstd::string &s = _delegate->getString();
 
     float lineAdv = 0.f;

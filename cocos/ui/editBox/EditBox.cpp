@@ -4,7 +4,7 @@
 #include "cocos/2d/components/Label.h"
 #include "cocos/2d/components/Sprite.h"
 #include "cocos/2d/framework/UITransform.h"
-#include "cocos/2d/text/BmfFont.h"
+#include "cocos/2d/text/TextFont.h"
 #include "cocos/ui/editBox/EditBoxImpl.h"
 #include "cocos/ui/editBox/EditBoxImplBase.h"
 #include "core/scene-graph/Node.h"
@@ -375,7 +375,7 @@ void EditBox::setTabIndex(int32_t v) {
     if (_impl) _impl->setTabIndex(v);
 }
 
-void EditBox::setFont(BmfFont *f) {
+void EditBox::setFont(TextFont *f) {
     _font = f;
     if (_textLabel)        _textLabel->setFont(f);
     if (_placeholderLabel) _placeholderLabel->setFont(f);

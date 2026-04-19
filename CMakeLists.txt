@@ -2221,8 +2221,14 @@ cocos_source_files(
     cocos/2d/components/Mask.cpp
 
     # text (P2d+)
+    cocos/2d/text/TextFont.h
+    cocos/2d/text/TextFont.cpp
     cocos/2d/text/BmfFont.h
     cocos/2d/text/BmfFont.cpp
+    cocos/2d/text/FontAtlas.h
+    cocos/2d/text/FontAtlas.cpp
+    cocos/2d/text/TtfFont.h
+    cocos/2d/text/TtfFont.cpp
 
     # new lightweight C++ batcher for path A (B2)
     cocos/2d/renderer/UIBatcher2d.h

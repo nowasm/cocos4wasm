@@ -5,7 +5,7 @@
 
 namespace cc {
 
-class BmfFont;
+class TextFont;
 
 // Text component that renders text via a BMFont atlas. Emits one
 // textured quad per glyph, stitched together using the glyph metrics
@@ -37,8 +37,8 @@ public:
     Label();
     ~Label() override;
 
-    void setFont(BmfFont *font);
-    BmfFont *getFont() const { return _font; }
+    void setFont(TextFont *font);
+    TextFont *getFont() const { return _font; }
 
     void setText(const ccstd::string &text);
     const ccstd::string &getText() const { return _text; }
@@ -85,7 +85,7 @@ protected:
     SizeHook *_sizeHook{nullptr};
 
 private:
-    BmfFont        *_font{nullptr};
+    TextFont       *_font{nullptr};
     ccstd::string   _text;
     Color           _color{255, 255, 255, 255};
     HorizontalAlign _hAlign{HorizontalAlign::CENTER};

@@ -12,9 +12,9 @@
 
 namespace cc {
 
-class BmfFont;
 class EditBoxImplBase;
 class Label;
+class TextFont;
 class Node;
 class Sprite;
 
@@ -116,7 +116,7 @@ public:
 
     // Convenience: font shared by both labels. Not in TS (which uses
     // fontFamily strings + TTF asset); exposed for C++ BMFont workflow.
-    void setFont(BmfFont *f);
+    void setFont(TextFont *f);
 
     // ── Focus control ───────────────────────────────────────────────────
     void setFocus();  // TS alias — delegates to impl.setFocus(true)
@@ -221,7 +221,7 @@ private:
     // ── Runtime ─────────────────────────────────────────────────────────
     EditBoxImplBase *_impl{nullptr};
     bool             _isLabelVisible{true};
-    BmfFont         *_font{nullptr};  // cached for later-created labels
+    TextFont        *_font{nullptr};  // cached for later-created labels
 
     Color _textColor{230, 230, 230, 255};
     Color _placeholderColor{130, 130, 130, 255};

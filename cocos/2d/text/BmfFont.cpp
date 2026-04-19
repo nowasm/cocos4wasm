@@ -88,7 +88,7 @@ bool BmfFont::load(const ccstd::string &fntPath) {
             readAttr(line, "file", atlasFile);  // e.g. "OpenSans-Regular_0.png"
         } else if (line.find("<char") != ccstd::string::npos &&
                    line.find("<chars") == ccstd::string::npos) {
-            BmfGlyph g;
+            FontLetterDef g;
             int id      = readInt(line, "id");
             g.x         = static_cast<uint16_t>(readInt(line, "x"));
             g.y         = static_cast<uint16_t>(readInt(line, "y"));

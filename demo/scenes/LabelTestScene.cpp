@@ -1,5 +1,6 @@
 #include "SceneRegistry.h"
 
+#include <array>
 #include <cmath>
 #include <cstdio>
 #include <memory>
@@ -12,6 +13,7 @@
 #include "cocos/2d/framework/UITransform.h"
 #include "cocos/2d/renderer/UIBatcher2d.h"
 #include "cocos/2d/text/BmfFont.h"
+#include "cocos/2d/text/TtfFont.h"
 #include "core/component/NodeActivator.h"
 #include "core/scene-graph/Node.h"
 #include "engine/EngineEvents.h"
@@ -108,18 +110,17 @@ Node *mkAlignBox(cc::BmfFont *font, const char *text, cc::Vec3 pos,
     return parent;
 }
 
-// Label with a specific fontSize (in logical pixels). Useful for the
-// Transforms page's "crisp vs. node.scale-blurred" demo row.
-Node *mkSizedLabel(cc::BmfFont *font, const char *text, cc::Vec3 pos,
-                    float fontSize,
-                    cc::Color color = cc::Color(220, 220, 220, 255)) {
+// Label with a given TextFont (TTF or BMFont). For TTF, rasterising
+// at the native `load()` size is crispest — no Label-side fontSize
+// multiplier is applied, and the existing metrics are used as-is.
+Node *mkTextFontLabel(cc::TextFont *font, const char *text, cc::Vec3 pos,
+                       cc::Color color = cc::Color(220, 220, 220, 255)) {
     auto *n = ccnew Node();
     n->addComponent<cc::UITransform>();
     auto *lbl = n->addComponent<Label>();
     lbl->setFont(font);
     lbl->setColor(color);
     lbl->setText(text);
-    lbl->setFontSize(fontSize);
     n->setPosition(pos);
     return n;
 }
@@ -167,6 +168,21 @@ public:
             CC_LOG_ERROR("[LabelTest] font load failed — scene will be blank");
             cc::NodeActivator::get().activateNode(_root, true);
             return;
+        }
+
+        // Load one TtfFont per size slot for the Page 3 comparison row.
+        // Native-size rasterisation keeps every label pixel-perfect —
+        // the point of the row is to show that `setFontSize` on a
+        // correctly-sized TTF beats scaling a fixed BMFont.
+        for (size_t i = 0; i < kTtfSizes.size(); ++i) {
+            auto ttf = std::make_unique<cc::TtfFont>();
+            if (!ttf->load("default_fonts/builtin-freetype/OpenSans-Regular.ttf",
+                            kTtfSizes[i])) {
+                CC_LOG_ERROR("[LabelTest] TTF load failed for size %u",
+                             kTtfSizes[i]);
+            } else {
+                _ttfs[i] = std::move(ttf);
+            }
         }
 
         buildTopStrip();
@@ -471,27 +487,76 @@ private:
             cc::Vec3{0.f, kContentTopY, 0.f},
             cc::Color(200, 230, 255, 255)));
 
-        // fontSize row — native-resolution glyph layout at assorted
-        // point sizes. Crisp at every size since we scale the
-        // xadvance/xoffset math instead of resampling the atlas.
-        const float fontSizes[5] = {16.f, 24.f, 32.f, 48.f, 64.f};
-        const float fontSizeY = 215.f;
+        // TTF fontSize row — native-resolution glyph layout at each
+        // target size. Each label uses its own TtfFont loaded at
+        // exactly that pixel size, so FreeType rasterises glyphs
+        // pixel-perfect — no scaling, no blur, even at 64px.
+        const float ttfSizeY = 215.f;
         for (int i = 0; i < 5; ++i) {
             const float x = -440.f + i * 220.f;
             char buf[32];
-            std::snprintf(buf, sizeof(buf), "font %.0fpx", fontSizes[i]);
-            page->addChild(mkSizedLabel(_font.get(), buf,
-                                          cc::Vec3{x, fontSizeY, 0.f},
-                                          fontSizes[i],
-                                          cc::Color(220, 230, 255, 255)));
+            std::snprintf(buf, sizeof(buf), "TTF %upx", kTtfSizes[i]);
+            if (_ttfs[i]) {
+                // Pure red — sanity check for the atlas colour pipeline.
+                // If the glyphs show as anything other than bright red
+                // on the dark clear colour, something's off in the
+                // alpha-mask → shader path and we need to look at
+                // SRGB conversion / vertex-colour multiplication.
+                page->addChild(mkTextFontLabel(_ttfs[i].get(), buf,
+                                                 cc::Vec3{x, ttfSizeY, 0.f},
+                                                 cc::Color(255, 0, 0, 255)));
+            } else {
+                page->addChild(mkLabel(_font.get(), "(load err)",
+                                         cc::Vec3{x, ttfSizeY, 0.f},
+                                         cc::Color(240, 100, 100, 255)));
+            }
         }
 
-        // Scale row — same glyph metrics at each, but with node.scale.
-        // Compare against the fontSize row above: the large scales
-        // here (e.g. 2×) pull stretched pixels out of the atlas, so
-        // text looks softer than the equivalent fontSize label.
+        // COLOUR COMPARISON ROW — same pure red `(255, 0, 0, 255)` as
+        // the TTF row above but rendered with BMFont. If both rows
+        // show the same red, the TTF atlas colour pipeline is fine
+        // and any perceived difference was antialiasing. If BMFont
+        // red looks obviously brighter, something's different about
+        // my FontAtlas's RGBA bytes on the GPU.
+        const float bmfRedY = 160.f;
+        for (int i = 0; i < 5; ++i) {
+            const float x = -440.f + i * 220.f;
+            char buf[32];
+            std::snprintf(buf, sizeof(buf), "BMF %upx", kTtfSizes[i]);
+            page->addChild(mkLabel(_font.get(), buf,
+                                     cc::Vec3{x, bmfRedY, 0.f},
+                                     cc::Color(255, 0, 0, 255)));
+        }
+
+        // Ground-truth baseline row — solid-colour Sprite rectangles
+        // at pure red. No text path, no atlas, no SRGB-sampled texture
+        // — just the same shader with USE_TEXTURE=0. If these show as
+        // pure `#FF0000` but the text above is darker, the distortion
+        // lives in the atlas-sampling leg of the pipeline, not in
+        // the vertex-colour leg. If these ARE also dark, the whole
+        // colour pipeline has a gamma mismatch.
+        const float spriteRedY = 55.f;
+        for (int i = 0; i < 5; ++i) {
+            const float x = -440.f + i * 220.f;
+            auto *sn = ccnew Node();
+            auto *ui = sn->addComponent<cc::UITransform>();
+            ui->setContentSize(180.f, 24.f);
+            ui->setAnchorPoint(0.5f, 0.5f);
+            auto *sp = sn->addComponent<cc::Sprite>();
+            sp->setSize(180.f, 24.f);
+            sp->setColor(cc::Color(255, 0, 0, 255));
+            sn->setPosition(cc::Vec3{x, spriteRedY, 0.f});
+            page->addChild(sn);
+        }
+
+        // Scale row — BMFont at assorted node.scale values. Contrast
+        // with the TTF row above: the large scales here (e.g. 2×)
+        // pull stretched pixels out of the BMFont atlas, so text
+        // blurs as the scale grows; the TTF row stays crisp because
+        // each label has its glyphs rasterised at the native target
+        // pixel size.
         const float scales[5] = {0.3f, 0.6f, 1.0f, 1.4f, 2.0f};
-        const float scaleY = 110.f;
+        const float scaleY = 10.f;
         for (int i = 0; i < 5; ++i) {
             const float x = -440.f + i * 220.f;
             char buf[32];
@@ -502,7 +567,7 @@ private:
 
         // Rotation row — static snapshots at assorted angles.
         const float angles[7] = {-60.f, -30.f, -15.f, 0.f, 15.f, 30.f, 60.f};
-        const float rotY = -10.f;
+        const float rotY = -80.f;
         for (int i = 0; i < 7; ++i) {
             const float x = -510.f + i * 170.f;
             char buf[32];
@@ -782,9 +847,13 @@ private:
     }
 
     // ── State ───────────────────────────────────────────────────────────
-    cc::Node                       *_root{nullptr};
-    std::unique_ptr<cc::BmfFont>    _font;
-    std::array<cc::Node *, 6>       _pageRoots{};  // index 1..5 used
+    cc::Node                                     *_root{nullptr};
+    std::unique_ptr<cc::BmfFont>                  _font;
+    // One TTF per Page 3 demo size. Indexed by the `kTtfSizes` slot,
+    // not by the size value itself.
+    static constexpr std::array<uint16_t, 5>      kTtfSizes{16, 24, 32, 48, 64};
+    std::array<std::unique_ptr<cc::TtfFont>, 5>   _ttfs{};
+    std::array<cc::Node *, 6>                     _pageRoots{};  // index 1..5 used
 
     Label  *_topStats{nullptr};
     Label  *_bottomHint{nullptr};
