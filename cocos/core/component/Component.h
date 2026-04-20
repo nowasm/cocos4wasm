@@ -1,5 +1,6 @@
 #pragma once
 
+#include "base/Ptr.h"
 #include "core/data/Object.h"
 #include "core/reflection/Reflection.h"
 
@@ -7,6 +8,7 @@ namespace cc {
 
 namespace serialization { class JsonDeserializer; }
 
+class CompPrefabInfo;
 class Node;
 
 // Component is the base class for all authoring-layer behaviors attached to a
@@ -30,8 +32,10 @@ class Node;
 class Component : public CCObject {
     CC_CLASS_DECL(Component, void)
 public:
-    Component() = default;
-    ~Component() override = default;
+    // Ctor / dtor are out-of-line so the IntrusivePtr<CompPrefabInfo>
+    // member only needs a forward declaration here.
+    Component();
+    ~Component() override;
 
     inline Node *getNode() const { return _node; }
 
@@ -61,6 +65,12 @@ protected:
 
     Node *_node{nullptr};
     bool  _enabled{true};
+
+    // Set on components that were authored inside a prefab. `__prefab.fileId`
+    // uniquely identifies the component within the master so prefab
+    // instance overrides can target it by name. Null on script-added
+    // components at runtime.
+    IntrusivePtr<CompPrefabInfo> __prefab;
 };
 
 }  // namespace cc

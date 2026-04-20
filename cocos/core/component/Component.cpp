@@ -1,12 +1,17 @@
 #include "Component.h"
 #include "NodeActivator.h"
+#include "cocos/asset/PrefabInfo.h"
 #include "core/scene-graph/Node.h"
 
 namespace cc {
 
 CC_IMPLEMENT_ROOT_CLASS(Component, "cc.Component")
-    .property("enabled", &Component::_enabled, true)
+    .property("enabled",  &Component::_enabled, true)
+    .property("__prefab", &Component::__prefab)
 CC_END_CLASS(Component);
+
+Component::Component()  = default;
+Component::~Component() = default;
 
 void Component::setEnabled(bool v) {
     if (_enabled == v) return;

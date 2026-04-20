@@ -187,6 +187,29 @@ public:
         return *this;
     }
 
+    // Reflect an array property stored as ccstd::vector<ccstd::string> —
+    // used by prefab TargetInfo.localID / PropertyOverrideInfo.propertyPath,
+    // where the serialized form is a JSON array of strings.
+    ClassBuilder &property(const char *propName,
+                           ccstd::vector<ccstd::string> ClassT::*field) {
+        PropertyMeta p;
+        p.name = propName;
+        p.typeId = TypeId::ARRAY;
+        p.elementTypeId = TypeId::STRING;
+        p.applyDefault = [field](void *inst) {
+            (static_cast<ClassT *>(inst)->*field).clear();
+        };
+        p.arrayClear = [field](void *inst) {
+            (static_cast<ClassT *>(inst)->*field).clear();
+        };
+        p.arrayAppend = [field](void *inst, void *elementValue) {
+            const ccstd::string *src = static_cast<const ccstd::string *>(elementValue);
+            (static_cast<ClassT *>(inst)->*field).push_back(*src);
+        };
+        _meta->properties.push_back(std::move(p));
+        return *this;
+    }
+
     // Reflect an array property stored as ccstd::vector<IntrusivePtr<ElemT>>.
     // Deserializer uses arrayClear + arrayAppend to rebuild the vector from a
     // JSON array. ElemT must be a reflected class.

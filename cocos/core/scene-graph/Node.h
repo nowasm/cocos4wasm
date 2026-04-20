@@ -688,6 +688,11 @@ public:
     // For deserialization
     ccstd::string _id;
     Node *_parent{nullptr};
+
+    // Set on prefab-instance root nodes. Carries the master asset ref,
+    // the instance's fileId, the PrefabInstance override bundle, and any
+    // cross-prefab targetOverrides. Null on plain scene-authored nodes.
+    IntrusivePtr<class PrefabInfo> _prefab;
     
 private:
     Scene *_scene{nullptr};

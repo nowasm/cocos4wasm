@@ -25,6 +25,7 @@
 #include "core/scene-graph/Node.h"
 #include "base/Log.h"
 #include "base/StringUtil.h"
+#include "cocos/asset/PrefabInfo.h"
 #include "core/component/Component.h"
 #include "core/component/NodeActivator.h"
 #include "core/data/Object.h"
@@ -1104,8 +1105,10 @@ void Node::_decSkewCompCount() {
 
 CC_IMPLEMENT_ROOT_CLASS(Node, "cc.Node")
     .property("_name",      &Node::_name)
+    .property("_id",        &Node::_id)
     .property("children",   &Node::_children)
     .property("components", &Node::_components)
+    .property("_prefab",    &Node::_prefab)
 CC_END_CLASS(Node);
 
 // ─── Component system ───────────────────────────────────────────────────

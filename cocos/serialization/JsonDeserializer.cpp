@@ -4,6 +4,7 @@
 
 #include "base/Log.h"
 #include "cocos/asset/AssetManager.h"
+#include "cocos/asset/PrefabInfo.h"
 #include "core/assets/Asset.h"
 #include "core/component/Component.h"
 #include "core/reflection/ClassDB.h"
@@ -17,6 +18,8 @@
 #include "math/Vec3.h"
 #include "math/Vec4.h"
 #include "rapidjson/document.h"
+#include "rapidjson/stringbuffer.h"
+#include "rapidjson/writer.h"
 
 namespace cc {
 namespace serialization {
@@ -179,6 +182,20 @@ bool decodeAndSet(void *inst, const PropertyMeta &prop, const JsonValue &v) {
 
 }  // namespace
 
+bool decodeJsonValueToProperty(void *instance,
+                               const reflection::PropertyMeta &prop,
+                               const ccstd::string &jsonText) {
+    if (!instance || jsonText.empty()) return false;
+    rapidjson::Document doc;
+    doc.Parse(jsonText.c_str(), jsonText.size());
+    if (doc.HasParseError()) {
+        CC_LOG_ERROR("[prefab override] value JSON parse error at offset %zu: %s",
+                     (size_t)doc.GetErrorOffset(), jsonText.c_str());
+        return false;
+    }
+    return decodeAndSet(instance, prop, doc);
+}
+
 // ─── JsonDeserializer impl ─────────────────────────────────────────────────
 
 void JsonDeserializer::reset() {
@@ -244,11 +261,26 @@ void *JsonDeserializer::deserialize(const char *jsonText, size_t jsonLength, siz
             if (std::strcmp(key, "__id__") == 0) continue;
 
             const PropertyMeta *prop = slot.meta->findProperty(key);
-            if (!prop) continue;  // unknown fields silently skipped — forward compat
+            if (!prop) {
+                // CCPropertyOverrideInfo.value has no C++ static type — its
+                // concrete shape depends on the target property being
+                // overridden, which we only know at override-apply time.
+                // Stringify the raw JSON fragment here and stash it on the
+                // PropertyOverrideInfo for later decoding.
+                if (std::strcmp(key, "value") == 0 &&
+                    std::strcmp(slot.meta->name, "CCPropertyOverrideInfo") == 0) {
+                    rapidjson::StringBuffer sb;
+                    rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
+                    it->value.Accept(writer);
+                    auto *pi = static_cast<PropertyOverrideInfo *>(slot.ptr);
+                    pi->valueJson.assign(sb.GetString(), sb.GetSize());
+                }
+                continue;  // unknown fields otherwise silently skipped
+            }
 
             const JsonValue &v = it->value;
 
-            // Array of pointer references
+            // Array of pointer references / scalar strings
             if (prop->typeId == TypeId::ARRAY) {
                 if (!v.IsArray()) continue;
                 if (prop->arrayClear) prop->arrayClear(slot.ptr);
@@ -259,8 +291,12 @@ void *JsonDeserializer::deserialize(const char *jsonText, size_t jsonLength, siz
                         if (id < 0 || id >= (int)_slots.size()) continue;
                         void *target = _slots[id].ptr;
                         if (prop->arrayAppend) prop->arrayAppend(slot.ptr, &target);
+                    } else if (prop->elementTypeId == TypeId::STRING) {
+                        if (!elemV.IsString()) continue;
+                        ccstd::string s(elemV.GetString(), elemV.GetStringLength());
+                        if (prop->arrayAppend) prop->arrayAppend(slot.ptr, &s);
                     }
-                    // non-pointer element types deferred
+                    // other element types (int, float, etc.) deferred
                 }
                 continue;
             }

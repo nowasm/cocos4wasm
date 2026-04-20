@@ -78,5 +78,22 @@ private:
     ccstd::vector<void *> _objects;  // parallel to _slots; pointer form only
 };
 
+// Decode an arbitrary JSON text fragment into the C++ field described by
+// `prop` on `instance`. Used by prefab override application to realise
+// `CCPropertyOverrideInfo.value` (stored as raw JSON text) against the
+// actual property type discovered via reflection.
+//
+// Returns true if the value was decoded and the setter ran; false on:
+//   - parse error
+//   - property type not supported by the scalar decoder (e.g. POINTER —
+//     UUID-to-asset resolution for override values isn't wired yet)
+//
+// The supported type set matches JsonDeserializer's scalar decode path:
+// bool / int32 / uint32 / float / double / string / Vec2..4 / Color / Quat
+// / enum. Array and pointer overrides are future work.
+bool decodeJsonValueToProperty(void *instance,
+                               const reflection::PropertyMeta &prop,
+                               const ccstd::string &jsonText);
+
 }  // namespace serialization
 }  // namespace cc
