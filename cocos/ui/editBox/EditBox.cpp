@@ -99,6 +99,12 @@ constexpr char kPasswordMask = '*';
 // Lifecycle
 // ────────────────────────────────────────────────────────────────────────
 
+bool EditBox::isAnyEditing() {
+    // EditBoxImpl tracks the singleton currently-focused impl. Read the
+    // static directly — no other state is needed here.
+    return EditBoxImpl::currentlyEditing() != nullptr;
+}
+
 EditBox::~EditBox() {
     // onDestroy should have run, but be safe for test harnesses that
     // tear down directly.

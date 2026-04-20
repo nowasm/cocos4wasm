@@ -76,6 +76,12 @@ public:
     EditBox() { _wantsUpdate = true; }
     ~EditBox() override;
 
+    // Returns true while any EditBox in the process is in the editing
+    // (focused) state. Lets scene-level handlers defer to the focused box
+    // for keys it wants to consume — arrow keys for caret movement,
+    // Enter / Escape, etc. — without having to track focus themselves.
+    static bool isAnyEditing();
+
     // ── Component lifecycle ─────────────────────────────────────────────
     void onLoad() override;
     void onEnable() override;

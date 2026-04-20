@@ -8,6 +8,7 @@
 #include "cocos/asset/SpriteFrameLoader.h"
 #include "cocos/misc/CameraComponent.h"
 #include "cocos/input/InputEventDispatcher.h"
+#include "cocos/ui/editBox/EditBox.h"
 #include "core/Root.h"
 #include "core/assets/Asset.h"
 #include "core/builtin/BuiltinResMgr.h"
@@ -223,6 +224,9 @@ int DemoGame::init() {
 
     _keyboardListener.bind([this](const KeyboardEvent &ev) {
         if (ev.action != KeyboardEvent::Action::PRESS) return;
+        // Don't steal arrow / escape keys while a text box is focused —
+        // they move the caret / close the text input inside the EditBox.
+        if (EditBox::isAnyEditing()) return;
         if (ev.key == static_cast<int>(KeyCode::ARROW_RIGHT)) {
             switchScene(_currentSceneIdx + 1);
         } else if (ev.key == static_cast<int>(KeyCode::ARROW_LEFT)) {

@@ -72,6 +72,9 @@ public:
     size_t getSelectionEnd() const;
     void   clearSelection();
 
+    // Returns the impl currently in the editing state, or null if none.
+    static EditBoxImpl *currentlyEditing() { return s_current; }
+
 private:
     // ── Child-sprite management ──────────────────────────────────────────
     // Caret + selection live as children of the delegate's node. Created
