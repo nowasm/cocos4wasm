@@ -232,10 +232,14 @@ void Label::updateGeometry() {
     // BASELINE sits lineH below the top edge (so ascenders stay
     // inside the box); "BOTTOM" mirrors on the other side.
     //
-    // For CENTER: glyph cells hang DOWN from the baseline (y0 = baseline
-    // - yoffset, y1 = y0 - h), so to centre the visible block over Y=0
-    // the top-line baseline sits half a cell above origin, and each
-    // extra line bumps it up by one lineH so the mid-block is at Y=0.
+    // For CENTER we want the VISIBLE glyph mass to straddle Y=0. Glyph
+    // tops land at `baseline + ascender` and the ascender metric tracks
+    // the real cap height, unlike `lineH` which inflates with line-gap.
+    // Placing a single line's baseline at `ascender/2` above origin
+    // puts ascender-topping glyphs at +ascender/2 and descender-lacking
+    // lowercase at ~baseline, both flanking Y=0 symmetrically. Extra
+    // lines march down by lineH so the whole stack stays centred.
+    const auto ascenderPx = static_cast<float>(_font->getAscender()) * scale;
     float topBaselineY;
     switch (_vAlign) {
         case VerticalAlign::TOP:
@@ -247,7 +251,8 @@ void Label::updateGeometry() {
             break;
         case VerticalAlign::CENTER:
         default:
-            topBaselineY = static_cast<float>(numLines) * 0.5f * lineH;
+            topBaselineY = (static_cast<float>(numLines) - 1.f) * 0.5f * lineH
+                         + ascenderPx * 0.5f;
             break;
     }
 
