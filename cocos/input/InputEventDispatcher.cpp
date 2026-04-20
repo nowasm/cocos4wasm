@@ -1,6 +1,7 @@
 #include "cocos/input/InputEventDispatcher.h"
 
 #include <algorithm>
+#include <cstdio>
 
 #include "application/ApplicationManager.h"
 #include "base/Log.h"
@@ -124,11 +125,32 @@ void InputEventDispatcher::start() {
             return a->getPriority() > b->getPriority();
         });
 
+        // windowToWorld returns centre-origin coords — valid when the
+        // Canvas node sits at world (0,0,0). Editor-authored prefabs
+        // typically put Canvas at (W/2, H/2) (matching the design
+        // resolution), so we add the Canvas node's world position to
+        // get hit-test-ready world coords for that canvas.
         Vec2 local;
         Node *hit = nullptr;
+        Vec2 testedXY{wx, wy};
         for (auto *c : sorted) {
-            hit = hitTestDFS(c->getNode(), wx, wy, local);
+            const Vec3 canvasWP = c->getNode()->getWorldPosition();
+            const float cwx = wx + canvasWP.x;
+            const float cwy = wy + canvasWP.y;
+            testedXY.set(cwx, cwy);
+            hit = hitTestDFS(c->getNode(), cwx, cwy, local);
             if (hit) break;
+        }
+
+        if (ev.type == MouseEvent::Type::DOWN) {
+            CC_LOG_INFO("[InputDbg] DOWN (%.0f,%.0f) world=(%.0f,%.0f) hit=%s "
+                        "local=(%.1f,%.1f) canvases=%zu",
+                        ev.x, ev.y, testedXY.x, testedXY.y,
+                        hit ? (hit->getName().empty() ? "<unnamed>"
+                                                       : hit->getName().c_str())
+                            : "NONE",
+                        local.x, local.y, _canvases.size());
+            std::fflush(stdout); std::fflush(stderr);
         }
 
         // Build the payload once — Enter/Leave use the same screen coords,
@@ -182,7 +204,8 @@ void InputEventDispatcher::start() {
         Vec2 local;
         for (auto *c : sorted) {
             Node *root = c->getNode();
-            Node *hit = hitTestDFS(root, wx, wy, local);
+            const Vec3 canvasWP = root->getWorldPosition();
+            Node *hit = hitTestDFS(root, wx + canvasWP.x, wy + canvasWP.y, local);
             if (!hit) continue;
 
             NodeTouchEventArg arg;

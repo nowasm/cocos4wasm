@@ -121,6 +121,11 @@ void EditBox::onEnable() {
     _registerEvent();
     _ensureBackgroundSprite();
     if (_impl) _impl->onEnable();
+    CC_LOG_INFO("[EditBox DBG] onEnable node='%s' bg=%p bgTexture=%s",
+                getNode() ? getNode()->getName().c_str() : "(null)",
+                (void *)_background,
+                (_background && _background->getTexture()) ? "OK" : "NULL");
+    std::fflush(stdout); std::fflush(stderr);
 }
 
 void EditBox::onDisable() {
