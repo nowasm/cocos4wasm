@@ -62,6 +62,14 @@ public:
     // Pen advance between successive baselines in atlas pixels.
     virtual uint16_t getLineHeight() const = 0;
 
+    // Distance from baseline to top of tallest ascender, in atlas pixels.
+    // Used by Label vertical-centre alignment to position the visible
+    // glyph band symmetrically around the content-box centre. For
+    // backends that don't track ascender explicitly this can fall back
+    // to ~0.8 × lineHeight (typical for Latin fonts), but a real metric
+    // is preferred.
+    virtual uint16_t getAscender() const = 0;
+
     // Reference point size the glyph metrics are quoted in, used by
     // Label::fontSize to compute a scale factor. For TtfFont this is
     // the size passed to load(); for BmfFont this is the

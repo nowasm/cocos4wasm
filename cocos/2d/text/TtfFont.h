@@ -49,6 +49,7 @@ public:
     uint16_t getAtlasHeight() const override { return _atlas ? _atlas->getHeight() : 0; }
 
     uint16_t getLineHeight()   const override { return _lineHeight; }
+    uint16_t getAscender()     const override { return _ascender; }
     uint16_t getBaseFontSize() const override { return _fontSize; }
 
 private:
@@ -71,6 +72,7 @@ private:
 
     uint16_t _fontSize{0};
     uint16_t _lineHeight{0};
+    uint16_t _ascender{0};
 };
 
 }  // namespace cc

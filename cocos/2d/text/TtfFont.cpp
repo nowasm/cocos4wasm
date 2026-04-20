@@ -88,6 +88,7 @@ bool TtfFont::load(const ccstd::string &ttfPath, uint16_t fontSize) {
     _fontSize = fontSize;
     // FT `metrics.height` is in 26.6 fixed point; shift right by 6 for pixels.
     _lineHeight = static_cast<uint16_t>(_impl->face->size->metrics.height >> 6);
+    _ascender   = static_cast<uint16_t>(_impl->face->size->metrics.ascender >> 6);
 
     _atlas = std::make_unique<FontAtlas>(/*w*/ 1024, /*h*/ 1024);
 

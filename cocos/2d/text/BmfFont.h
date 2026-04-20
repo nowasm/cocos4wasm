@@ -42,6 +42,12 @@ public:
     uint16_t   getAtlasWidth() const override { return _atlasW; }
     uint16_t   getAtlasHeight() const override { return _atlasH; }
     uint16_t   getLineHeight() const override { return _lineHeight; }
+    uint16_t   getAscender()   const override {
+        // Fallback to a conservative 0.8 × lineHeight if the .fnt omitted
+        // the `base` attribute (rare, but some tools drop it).
+        return _ascender > 0 ? _ascender
+                             : static_cast<uint16_t>(_lineHeight * 4 / 5);
+    }
     uint16_t   getBaseFontSize() const override { return _baseFontSize; }
 
 private:
@@ -49,6 +55,7 @@ private:
     uint16_t _atlasW{0};
     uint16_t _atlasH{0};
     uint16_t _lineHeight{0};
+    uint16_t _ascender{0};
     uint16_t _baseFontSize{0};  // from <info size=...>
     ccstd::unordered_map<uint32_t, FontLetterDef> _glyphs;
 };

@@ -84,6 +84,10 @@ bool BmfFont::load(const ccstd::string &fntPath) {
             _atlasW     = static_cast<uint16_t>(readInt(line, "scaleW"));
             _atlasH     = static_cast<uint16_t>(readInt(line, "scaleH"));
             _lineHeight = static_cast<uint16_t>(readInt(line, "lineHeight"));
+            // AngelCode BMFont's `base` = distance from line top to
+            // baseline = our ascender metric (distance from baseline to
+            // top of ascenders).
+            _ascender   = static_cast<uint16_t>(readInt(line, "base"));
         } else if (line.find("<page") != ccstd::string::npos) {
             readAttr(line, "file", atlasFile);  // e.g. "OpenSans-Regular_0.png"
         } else if (line.find("<char") != ccstd::string::npos &&
