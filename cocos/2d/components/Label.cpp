@@ -231,6 +231,11 @@ void Label::updateGeometry() {
     // [-h/2, h/2] × [-w/2, w/2]. "TOP aligned" means the first line's
     // BASELINE sits lineH below the top edge (so ascenders stay
     // inside the box); "BOTTOM" mirrors on the other side.
+    //
+    // For CENTER: glyph cells hang DOWN from the baseline (y0 = baseline
+    // - yoffset, y1 = y0 - h), so to centre the visible block over Y=0
+    // the top-line baseline sits half a cell above origin, and each
+    // extra line bumps it up by one lineH so the mid-block is at Y=0.
     float topBaselineY;
     switch (_vAlign) {
         case VerticalAlign::TOP:
@@ -242,7 +247,7 @@ void Label::updateGeometry() {
             break;
         case VerticalAlign::CENTER:
         default:
-            topBaselineY = (numLines - 1) * 0.5f * lineH;
+            topBaselineY = static_cast<float>(numLines) * 0.5f * lineH;
             break;
     }
 

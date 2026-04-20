@@ -43,9 +43,9 @@ private:
     void destroyCamera();
     void applyClearColor();
 
-    // Light blue for P2a visual verification — clearly distinct from the
-    // DemoGame's default dark-blue 3D background.
-    Color   _clearColor{80, 140, 210, 255};
+    // Matches Editor default — black clears let UI authoring
+    // previews look the same between Cocos Creator and our runtime.
+    Color   _clearColor{0, 0, 0, 255};
     int32_t _priority{1073741823};  // INT_MAX/2 — UI composites over 3D
 
     scene::Camera      *_camera{nullptr};
