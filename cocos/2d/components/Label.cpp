@@ -1,5 +1,7 @@
 #include "cocos/2d/components/Label.h"
 
+#include <limits>
+
 #include "base/Log.h"
 #include "base/std/container/unordered_map.h"
 #include "cocos/2d/framework/UITransform.h"
@@ -265,6 +267,17 @@ void Label::updateGeometry() {
     _vertexData.reserve(_text.size() * 4 * _vertexStrideFloats);
     _indexData.reserve(_text.size() * 6);
 
+    // For CENTER vertical-align: the formula above places the block at a
+    // textbook-conservative position that assumes every glyph spans a
+    // full lineHeight cell (ascender + descender). Real text rarely
+    // does — "button" has no descenders so the block visually rides
+    // low. After the first pass produces vertices we walk the buffer,
+    // find the true vertical span, and slide everything so that span
+    // centres on Y=0. TOP and BOTTOM aligns skip this adjustment
+    // because their anchor semantics (stick to the top / bottom edge
+    // of the content box) already don't depend on glyph content.
+    const size_t blockVertexStart = _vertexData.size();
+
     for (int li = 0; li < numLines; ++li) {
         const size_t startByte = lines[li].first;
         const size_t byteLen   = lines[li].second;
@@ -321,6 +334,28 @@ void Label::updateGeometry() {
             }
 
             penX += static_cast<float>(gl->xadvance) * scale;
+        }
+    }
+
+    // CENTER-align recentring: sweep Y components of every vertex just
+    // written, find the block's actual top/bottom, shift by the negated
+    // mean so the visible glyph mass straddles Y=0. Vertex layout per
+    // glyph is 4 consecutive verts at stride `_vertexStrideFloats`,
+    // with Y at offset 1.
+    if (_vAlign == VerticalAlign::CENTER && _vertexData.size() > blockVertexStart) {
+        const size_t stride = _vertexStrideFloats;
+        float minY = std::numeric_limits<float>::infinity();
+        float maxY = -std::numeric_limits<float>::infinity();
+        for (size_t i = blockVertexStart + 1; i < _vertexData.size(); i += stride) {
+            const float y = _vertexData[i];
+            if (y < minY) minY = y;
+            if (y > maxY) maxY = y;
+        }
+        if (minY <= maxY) {
+            const float shift = -(minY + maxY) * 0.5f;
+            for (size_t i = blockVertexStart + 1; i < _vertexData.size(); i += stride) {
+                _vertexData[i] += shift;
+            }
         }
     }
 }
