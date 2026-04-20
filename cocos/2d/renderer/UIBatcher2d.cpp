@@ -15,6 +15,8 @@
 #include "scene/Model.h"
 #include "scene/RenderScene.h"
 
+#include <cstdio>
+
 namespace cc {
 
 // Declared here at namespace scope so linker finds cc::uiRendererWrap...
@@ -205,6 +207,21 @@ void UIBatcher2d::tick() {
     const auto &scenes = root->getScenes();
     scene::RenderScene *scene = scenes.empty() ? nullptr : scenes[0].get();
 
+    // one-shot diagnostic: print on first tick where any renderer is registered.
+    static bool logged_once = false;
+    if (!logged_once && !_registered.empty()) {
+        logged_once = true;
+        size_t rc = 0, fc = 0;
+        for (auto *r : _registered) {
+            if (!r) { ++fc; continue; }
+            if (!r->isRenderable()) { ++fc; continue; }
+            ++rc;
+        }
+        CC_LOG_INFO("[UIBatcher2d FIRST-TICK] _registered=%zu renderable=%zu skipped=%zu",
+                    _registered.size(), rc, fc);
+        std::fflush(stdout); std::fflush(stderr);
+    }
+
     // Mark all batches as "not touched this frame" by clearing their CPU
     // buffers and the usedThisFrame flag. GPU resources live in the
     // pool; we only rebuild when sizes exceed capacity.
@@ -248,6 +265,8 @@ void UIBatcher2d::tick() {
     }
 
     size_t activeBatches = 0;
+    size_t renderableCount = 0;
+    for (auto *r : _registered) if (r && r->isRenderable()) ++renderableCount;
     for (auto &b : _batches) {
         uploadAndSubmit(b, scene);
         if (b.vertexCount > 0) ++activeBatches;
@@ -255,9 +274,11 @@ void UIBatcher2d::tick() {
 
     // Diagnostic: log when the count changes so we can observe batching
     // efficiency without spamming every frame.
-    if (activeBatches != _lastBatchCount) {
-        CC_LOG_INFO("[UIBatcher2d] renderers=%zu -> batches=%zu",
-                    _registered.size(), activeBatches);
+    if (activeBatches != _lastBatchCount || renderableCount != _lastRenderableCount) {
+        CC_LOG_INFO("[UIBatcher2d] renderers=%zu renderable=%zu -> batches=%zu",
+                    _registered.size(), renderableCount, activeBatches);
+        _lastRenderableCount = renderableCount;
+        std::fflush(stdout); std::fflush(stderr);
     }
     _lastBatchCount = activeBatches;
 }

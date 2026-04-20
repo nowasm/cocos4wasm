@@ -1,5 +1,8 @@
 #include "SceneRegistry.h"
 #include "base/Log.h"
+#include "cocos/2d/components/Sprite.h"
+#include "cocos/2d/framework/UIRenderer.h"
+#include "cocos/2d/framework/UITransform.h"
 #include "cocos/asset/AssetManager.h"
 #include "cocos/asset/Prefab.h"
 #include "cocos/asset/PrefabInfo.h"
@@ -54,6 +57,11 @@ public:
         CC_LOG_INFO("[PrefabLoadScene] tree activated — root='%s' children=%zu",
                     root->getName().c_str(), root->getChildren().size());
 
+        // Diagnostic: dump every UIRenderer's render-readiness + world
+        // position so we can tell whether the pipeline is seeing valid
+        // geometry or silently skipping it.
+        dumpRenderState(root);
+
         // Force-flush so the CLI capture sees our structural dump even when
         // the demo is killed shortly after startup. Cheap — only runs once.
         std::fflush(stdout);
@@ -88,6 +96,46 @@ private:
                     comps.empty() ? "(no components)" : comps.c_str());
         for (const auto &child : node->getChildren()) {
             dumpTree(child.get(), depth + 1);
+        }
+    }
+
+    // For each node under `root`, print any UIRenderer's state — material
+    // set? vertex count non-zero? world position? content size from
+    // UITransform? This is the post-activation snapshot; if nothing shows
+    // up visually, this tells us which field landed wrong.
+    static void dumpRenderState(cc::Node *root) {
+        walkRender(root, 0);
+    }
+    static void walkRender(cc::Node *node, int depth) {
+        if (!node) return;
+        ccstd::string indent(depth * 2, ' ');
+
+        auto *ui  = node->getComponent<cc::UITransform>();
+        cc::Vec2 size = ui ? ui->getContentSize() : cc::Vec2{-1.f, -1.f};
+        const cc::Vec3 &lp = node->getPosition();
+        const cc::Mat4 &wm = node->getWorldMatrix();
+
+        CC_LOG_INFO("[PrefabLoadScene] %s? '%s' lpos=(%.0f,%.0f,%.0f) world=(%.0f,%.0f) size=(%.0f,%.0f)",
+                    indent.c_str(),
+                    node->getName().empty() ? "<unnamed>" : node->getName().c_str(),
+                    lp.x, lp.y, lp.z,
+                    wm.m[12], wm.m[13],
+                    size.x, size.y);
+
+        for (auto &c : node->getComponentList()) {
+            auto *uir = dynamic_cast<cc::UIRenderer *>(c.get());
+            if (!uir) continue;
+            CC_LOG_INFO("[PrefabLoadScene] %s    %s: material=%s verts=%u idx=%u enabled=%d active=%d renderable=%d",
+                        indent.c_str(),
+                        uir->getClass() ? uir->getClass()->name : "?",
+                        uir->getMaterial() ? "OK" : "NULL",
+                        uir->getVertexCount(), uir->getIndexCount(),
+                        uir->isEnabled() ? 1 : 0,
+                        uir->isEnabledInHierarchy() ? 1 : 0,
+                        uir->isRenderable() ? 1 : 0);
+        }
+        for (auto &child : node->getChildren()) {
+            walkRender(child.get(), depth + 1);
         }
     }
 

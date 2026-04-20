@@ -109,6 +109,7 @@ private:
     ccstd::vector<UIRenderer *> _registered;
     ccstd::vector<Batch>        _batches;
     size_t                      _lastBatchCount{0};
+    size_t                      _lastRenderableCount{0};
     ccstd::unordered_map<StencilCacheKey, IntrusivePtr<Material>, StencilCacheKeyHash>
         _stencilCache;
 };
