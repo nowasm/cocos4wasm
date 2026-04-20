@@ -85,16 +85,27 @@ float measureAdvance(TextFont &font, const ccstd::string &s, size_t cutByte) {
     return out;
 }
 
-// Nearest UITransform walking up from `from` (inclusive of `from`).
+// Nearest UITransform walking up from `from` (skipping `from` itself).
 // Used for window→local math when the raw global mouse listener fires —
-// we still need to know the canvas size to recentre window coords.
-void nearestCanvasSize(Node *from, float &w, float &h) {
+// we need both the canvas size (to recentre window coords) and the
+// canvas node's world position (so the centred coords line up with
+// the same world space the main dispatcher's hit-tests run in).
+// Editor-authored prefabs usually put their Canvas node at the design-
+// resolution centre e.g. (640, 360); if we ignored that offset the
+// recentred coords would sit at origin and every pointInsideBox check
+// would miss the box.
+void nearestCanvasSize(Node *from, float &w, float &h,
+                       float &canvasWorldX, float &canvasWorldY) {
     w = 1280.f; h = 720.f;
+    canvasWorldX = 0.f; canvasWorldY = 0.f;
     Node *n = from ? from->getParent() : nullptr;
     for (; n; n = n->getParent()) {
         if (auto *ui = n->getComponent<UITransform>()) {
             w = ui->getContentSize().x;
             h = ui->getContentSize().y;
+            const Vec3 &wp = n->getWorldPosition();
+            canvasWorldX = wp.x;
+            canvasWorldY = wp.y;
             return;
         }
     }
@@ -827,10 +838,10 @@ bool EditBoxImpl::pointInsideBox(float winX, float winY) const {
     auto *ui = node->getComponent<UITransform>();
     if (!ui) return false;
 
-    float winW = 0, winH = 0;
-    nearestCanvasSize(node, winW, winH);
-    const float wx = winX - winW * 0.5f;
-    const float wy = winH * 0.5f - winY;
+    float winW = 0, winH = 0, cwx = 0, cwy = 0;
+    nearestCanvasSize(node, winW, winH, cwx, cwy);
+    const float wx = winX - winW * 0.5f + cwx;
+    const float wy = winH * 0.5f - winY + cwy;
     return ui->hitTestWorld(wx, wy);
 }
 
@@ -847,10 +858,10 @@ size_t EditBoxImpl::windowPointToCaretIndex(float winX, float winY) const {
 
     if (!_composition.empty()) return _caretIdx;  // don't reposition during IME
 
-    float winW = 0, winH = 0;
-    nearestCanvasSize(node, winW, winH);
-    const float wx = winX - winW * 0.5f;
-    const float wy = winH * 0.5f - winY;
+    float winW = 0, winH = 0, cwx = 0, cwy = 0;
+    nearestCanvasSize(node, winW, winH, cwx, cwy);
+    const float wx = winX - winW * 0.5f + cwx;
+    const float wy = winH * 0.5f - winY + cwy;
 
     const Mat4 boxInv = node->getWorldMatrix().getInversed();
     const float bx = boxInv.m[0] * wx + boxInv.m[4] * wy + boxInv.m[12];
