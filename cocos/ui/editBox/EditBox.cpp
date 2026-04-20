@@ -1,5 +1,7 @@
 #include "cocos/ui/editBox/EditBox.h"
 
+#include <cstdio>
+
 #include "base/Log.h"
 #include "cocos/2d/components/Label.h"
 #include "cocos/2d/components/Sprite.h"
@@ -191,8 +193,8 @@ void EditBox::_updateTextLabel() {
         _textLabel = existing->getComponent<Label>();
         if (!_textLabel) _textLabel = existing->addComponent<Label>();
         if (_font) _textLabel->setFont(_font);
-        _textLabel->setColor(_textColor);
         _textLabel->setText(_applyDisplayStyle(_string));
+        _ownsTextLabelNode = false;  // Editor-authored: respect its layout
         return;
     }
 
@@ -207,6 +209,7 @@ void EditBox::_updateTextLabel() {
     _textLabel->setColor(_textColor);
     _textLabel->setText(_applyDisplayStyle(_string));
     node->addChild(labelNode);
+    _ownsTextLabelNode = true;
 }
 
 void EditBox::_updatePlaceholderLabel() {
@@ -233,6 +236,7 @@ void EditBox::_updatePlaceholderLabel() {
         _placeholderLabel = existing->getComponent<Label>();
         if (!_placeholderLabel) _placeholderLabel = existing->addComponent<Label>();
         applyProgrammaticStyle(_placeholderLabel);
+        _ownsPlaceholderLabelNode = false;
         return;
     }
 
@@ -243,6 +247,7 @@ void EditBox::_updatePlaceholderLabel() {
     _placeholderLabel->setColor(_placeholderColor);
     _placeholderLabel->setText(_placeholder);
     node->addChild(labelNode);
+    _ownsPlaceholderLabelNode = true;
 }
 
 void EditBox::_updateLabels() {
@@ -299,21 +304,19 @@ void EditBox::_syncSize() {
         _background->setSize(sz.x, sz.y);
     }
 
-    // Labels centre on their node origin; placing the label node at (0,0)
-    // keeps the text centred inside the EditBox. TS left-aligns with
-    // LEFT_PADDING=2 against its horizontalAlign=LEFT Label, but our
-    // Label renders single-line-centred today. Centre is the least-bad
-    // approximation until Label gains alignment controls.
-    auto place = [&](Label *lbl) {
-        if (!lbl) return;
+    // Labels we CREATED (programmatic EditBox) get centred on the node
+    // origin and stretched to the EditBox content size. Editor-authored
+    // labels carry their own lpos / anchor / contentSize — respect them.
+    auto place = [&](Label *lbl, bool ownsNode) {
+        if (!lbl || !ownsNode) return;
         auto *ln = lbl->getNode();
         ln->setPosition(Vec3{0.f, 0.f, 0.f});
         if (auto *lui = ln->getComponent<UITransform>()) {
             lui->setContentSize(sz);
         }
     };
-    place(_textLabel);
-    place(_placeholderLabel);
+    place(_textLabel,        _ownsTextLabelNode);
+    place(_placeholderLabel, _ownsPlaceholderLabelNode);
 
     if (_impl) _impl->setSize(sz.x, sz.y);
 }
@@ -542,6 +545,9 @@ void EditBox::_unregisterEvent() {
 }
 
 void EditBox::_onNodeClick(float localX, float localY) {
+    CC_LOG_INFO("[EditBox DBG] click localX=%.1f localY=%.1f impl=%s",
+                localX, localY, _impl ? "ok" : "null");
+    std::fflush(stdout); std::fflush(stderr);
     if (auto *sdl = static_cast<EditBoxImpl *>(_impl)) {
         sdl->onDelegateNodeClick(localX, localY);
     }

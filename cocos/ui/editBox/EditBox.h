@@ -220,6 +220,12 @@ private:
     Label             *_textLabel{nullptr};
     Label             *_placeholderLabel{nullptr};
     Sprite            *_background{nullptr};
+    // True when EditBox itself created the child label node — only then
+    // does _syncSize own the label's layout. Editor-authored labels
+    // carry their own lpos / anchor / contentSize which we must not
+    // clobber.
+    bool               _ownsTextLabelNode{false};
+    bool               _ownsPlaceholderLabelNode{false};
     InputFlag          _inputFlag{InputFlag::DEFAULT};
     InputMode          _inputMode{InputMode::ANY};
     KeyboardReturnType _returnType{KeyboardReturnType::DEFAULT};
