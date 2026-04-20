@@ -69,25 +69,26 @@ IntrusivePtr<Asset> AssetManager::loadAsset(const ccstd::string &uuid) {
     auto cached = _cache.find(uuid);
     if (cached != _cache.end()) return cached->second;
 
-    // Editor-exported JSONs sometimes reference a sub-asset via the
-    // `<main-uuid>@<sub-id>` syntax (e.g. a SpriteFrame nested inside a
-    // texture bundle). For MVP we treat `@<sub-id>` as a lookup hint
-    // only — strip the suffix and try the base uuid. Assets that ship
-    // the sub-asset payload will resolve here; those that don't (built-
-    // in default sprite frames, etc.) still return null but with a
-    // clearer warning than "unknown uuid".
-    ccstd::string lookupKey = uuid;
+    // Editor-exported JSONs reference sub-assets via `<main-uuid>@<sub-id>`
+    // syntax (e.g. a SpriteFrame nested inside a texture bundle). We
+    // try the full uuid first — projects that ship explicit sub-asset
+    // JSON files register them that way. If that misses, strip the
+    // `@<sub-id>` and retry with the base uuid so a main-texture entry
+    // still satisfies sprite references that forgot their SpriteFrame
+    // sidecar.
+    auto pathIt = _uuidToPath.find(uuid);
     const auto at = uuid.find('@');
-    if (at != ccstd::string::npos) {
-        lookupKey = uuid.substr(0, at);
+    ccstd::string baseKey;
+    if (pathIt == _uuidToPath.end() && at != ccstd::string::npos) {
+        baseKey = uuid.substr(0, at);
+        pathIt = _uuidToPath.find(baseKey);
     }
 
-    auto pathIt = _uuidToPath.find(lookupKey);
     if (pathIt == _uuidToPath.end()) {
         if (at != ccstd::string::npos) {
             CC_LOG_WARNING("[AssetManager] sub-asset uuid unresolved: %s "
                            "(base '%s' not in uuid-map — built-in or unshipped asset?)",
-                           uuid.c_str(), lookupKey.c_str());
+                           uuid.c_str(), baseKey.c_str());
         } else {
             CC_LOG_ERROR("[AssetManager] unknown uuid: %s", uuid.c_str());
         }
