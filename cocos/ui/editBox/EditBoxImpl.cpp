@@ -2,7 +2,9 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 
+#include "base/Log.h"
 #include "cocos/2d/components/Label.h"
 #include "cocos/2d/components/Sprite.h"
 #include "cocos/2d/framework/UITransform.h"
@@ -347,10 +349,17 @@ void EditBoxImpl::ensureVisualChildren() {
 }
 
 void EditBoxImpl::setCaretVisible(bool on) {
-    if (!_caret) return;
+    if (!_caret) {
+        CC_LOG_INFO("[EditBox DBG] setCaretVisible(%d) but _caret is null", (int)on);
+        return;
+    }
     Color c = _caret->getColor();
     c.a = on ? static_cast<uint8_t>(_caretColor.a) : 0;
     _caret->setColor(c);
+    const Vec3 &p = _caret->getNode()->getPosition();
+    CC_LOG_INFO("[EditBox DBG] setCaretVisible(%d) alpha=%u pos=(%.1f,%.1f)",
+                (int)on, c.a, p.x, p.y);
+    std::fflush(stdout); std::fflush(stderr);
 }
 
 void EditBoxImpl::setSelectionVisible(bool on) {
