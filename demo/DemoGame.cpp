@@ -188,7 +188,7 @@ int DemoGame::init() {
     // Preference list — the first scene present wins.
     int startIdx = static_cast<int>(reg.size()) - 1;
     bool found = false;
-    for (const char *prefer : {"LabelTestScene", "EditBoxScene",
+    for (const char *prefer : {"PrefabLoadScene", "LabelTestScene", "EditBoxScene",
                                  "ScrollViewScene", "WidgetScene",
                                  "ClickableScene"}) {
         for (size_t i = 0; i < reg.size(); ++i) {

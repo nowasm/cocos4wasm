@@ -2,5 +2,6 @@
   "a1b2c3d4-e5f6-7890-1234-567890abcdef": "atom.png",
   "22222222-aaaa-bbbb-cccc-333333333333": "blue-sprite.prefab",
   "3fffffff-eeee-dddd-cccc-bbbbbbbbbbbb": "unlit-proxy.effect",
-  "11111111-2222-3333-4444-555555555555": "unlit-white.mtl"
+  "11111111-2222-3333-4444-555555555555": "unlit-white.mtl",
+  "ec7cc104-9842-4c07-93e2-3a12cf40e7f6": "prefab01.prefab"
 }

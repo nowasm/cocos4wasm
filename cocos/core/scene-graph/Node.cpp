@@ -1103,12 +1103,24 @@ void Node::_decSkewCompCount() {
 // needed by the P1c minimal deserializer are registered for now; transforms
 // and activation state are added as later phases require them.
 
+// Property names match upstream node.ts verbatim — Editor JSON uses the
+// underscore-prefixed field names for every @serializable protected
+// field. Notable omissions: `_active` (bitfield — can't take a field
+// pointer), `_parent` (rewired in phase 2.5 via modifyParent based on
+// the inverse `_children` walk; double-registering would just cause a
+// redundant write).
 CC_IMPLEMENT_ROOT_CLASS(Node, "cc.Node")
-    .property("_name",      &Node::_name)
-    .property("_id",        &Node::_id)
-    .property("children",   &Node::_children)
-    .property("components", &Node::_components)
-    .property("_prefab",    &Node::_prefab)
+    .property("_name",       &Node::_name)
+    .property("_id",         &Node::_id)
+    .property("_children",   &Node::_children)
+    .property("_components", &Node::_components)
+    .property("_prefab",     &Node::_prefab)
+    .property("_lpos",       &Node::_localPosition)
+    .property("_lrot",       &Node::_localRotation)
+    .property("_lscale",     &Node::_localScale)
+    .property("_euler",      &Node::_euler)
+    .property("_layer",      &Node::_layer)
+    .property("_mobility",   &Node::_mobility)
 CC_END_CLASS(Node);
 
 // ─── Component system ───────────────────────────────────────────────────
