@@ -1,8 +1,10 @@
 #include "SceneRegistry.h"
 #include "base/Log.h"
+#include "cocos/2d/components/Label.h"
 #include "cocos/2d/components/Sprite.h"
 #include "cocos/2d/framework/UIRenderer.h"
 #include "cocos/2d/framework/UITransform.h"
+#include "cocos/2d/text/TtfFont.h"
 #include "cocos/asset/AssetManager.h"
 #include "cocos/asset/Prefab.h"
 #include "cocos/asset/PrefabInfo.h"
@@ -10,6 +12,7 @@
 #include "core/scene-graph/Node.h"
 
 #include <cstdio>  // fflush — the log sink is buffered when stdout is piped
+#include <memory>
 
 // ─── P5.6 smoke test — load a real Editor-exported prefab ─────────────────
 //
@@ -53,6 +56,16 @@ public:
         // Structural dump to confirm the tree decoded as expected.
         dumpTree(root, 0);
 
+        // Labels in Editor JSON declare `_font: null + _isSystemFontUsed: true`
+        // and expect the engine to fall back to a platform default font.
+        // Our Label has no such fallback — it just renders nothing when
+        // _font is null. Temporary workaround: load OpenSans once, walk
+        // the tree pre-activation, and assign it to every Label that
+        // lacks a font. The proper fix is a Font::getDefault() service
+        // inside the engine.
+        ensureFontLoaded();
+        assignDefaultFonts(root);
+
         cc::NodeActivator::get().activateNode(root, true);
         CC_LOG_INFO("[PrefabLoadScene] tree activated — root='%s' children=%zu",
                     root->getName().c_str(), root->getChildren().size());
@@ -77,6 +90,27 @@ public:
     }
 
 private:
+    void ensureFontLoaded() {
+        if (_font) return;
+        _font = std::make_unique<cc::TtfFont>();
+        if (!_font->load("default_fonts/builtin-freetype/OpenSans-Regular.ttf", 24)) {
+            CC_LOG_ERROR("[PrefabLoadScene] default TTF load failed — labels will stay blank");
+            _font.reset();
+        }
+    }
+
+    // Walk the cloned tree; for every cc.Label without an assigned
+    // TextFont, hand it the demo default.
+    void assignDefaultFonts(cc::Node *n) {
+        if (!n) return;
+        if (auto *lbl = n->getComponent<cc::Label>()) {
+            if (!lbl->getFont() && _font) lbl->setFont(_font.get());
+        }
+        for (auto &child : n->getChildren()) {
+            assignDefaultFonts(child.get());
+        }
+    }
+
     // Walks the tree printing one line per node (depth-indented) with
     // component class names in brackets. Stops at 6 levels — our
     // prefab01 is shallow, but the guard avoids runaway logs if a cycle
@@ -140,6 +174,7 @@ private:
     }
 
     cc::Node *_root{nullptr};
+    std::unique_ptr<cc::TtfFont> _font;
 };
 
 REGISTER_DEMO_SCENE("PrefabLoadScene", PrefabLoadScene);

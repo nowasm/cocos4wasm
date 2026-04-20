@@ -88,6 +88,15 @@ void Canvas::createCamera() {
 
     _renderScene->addCamera(_camera);
 
+    // Force a first-time view-matrix compute. Camera::update() is called
+    // every frame but gates matrix rebuild on `node->getChangedFlags()`,
+    // which is zero after JSON deserialization — the reflection-driven
+    // `_localPosition` setter writes the field directly without bumping
+    // the node's dirty bit. Without this kick, prefab-loaded Canvas
+    // cameras stare at identity-matrix garbage and clip away every
+    // sprite in the tree.
+    _camera->update(/*forceUpdate*/ true);
+
     CC_LOG_INFO("[Canvas] camera created (priority=%d, orthoH=%.1f)",
                 _priority, orthoHeight);
 }
