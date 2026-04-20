@@ -22,6 +22,7 @@
 #include "base/Ptr.h"
 #include "base/std/container/string.h"
 #include "base/std/container/vector.h"
+#include "cocos/asset/Prefab.h"
 #include "core/data/Object.h"
 #include "core/reflection/Reflection.h"
 
@@ -29,7 +30,6 @@ namespace cc {
 
 class Node;
 class Component;
-class Prefab;
 
 // ─── TargetInfo ───────────────────────────────────────────────────────────
 // Path of fileIds used to locate a node or component inside a cloned

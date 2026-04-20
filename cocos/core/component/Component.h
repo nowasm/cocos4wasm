@@ -43,6 +43,15 @@ public:
     void setEnabled(bool v);
     bool isEnabledInHierarchy() const;
 
+    // Prefab-authored components carry a fileId here, used by
+    // prefab_utils to locate them during override apply. Returns null
+    // for components added at runtime. setPrefabInfo is mainly for test
+    // fixtures and manual-construction paths; the deserializer writes
+    // the field directly through reflection. Both out-of-line so the
+    // header can keep `CompPrefabInfo` as a forward declaration.
+    CompPrefabInfo *getPrefabInfo() const;
+    void            setPrefabInfo(CompPrefabInfo *v);
+
     virtual void onLoad() {}
     virtual void onEnable() {}
     virtual void start() {}

@@ -2340,6 +2340,8 @@ cocos_source_files(
     cocos/asset/Prefab.cpp
     cocos/asset/PrefabInfo.h
     cocos/asset/PrefabInfo.cpp
+    cocos/asset/prefab_utils.h
+    cocos/asset/prefab_utils.cpp
     cocos/asset/PrefabLoader.h
     cocos/asset/PrefabLoader.cpp
     cocos/asset/SpriteFrame.h

@@ -13,6 +13,9 @@ CC_END_CLASS(Component);
 Component::Component()  = default;
 Component::~Component() = default;
 
+CompPrefabInfo *Component::getPrefabInfo() const { return __prefab.get(); }
+void Component::setPrefabInfo(CompPrefabInfo *v) { __prefab = v; }
+
 void Component::setEnabled(bool v) {
     if (_enabled == v) return;
     _enabled = v;

@@ -4,6 +4,7 @@
 
 #include "base/Log.h"
 #include "cocos/asset/AssetManager.h"
+#include "cocos/asset/Prefab.h"
 #include "cocos/asset/PrefabInfo.h"
 #include "core/assets/Asset.h"
 #include "core/component/Component.h"
@@ -349,6 +350,25 @@ void *JsonDeserializer::deserialize(const char *jsonText, size_t jsonLength, siz
         }
         for (auto &child : node->getChildren()) {
             if (child) child->modifyParent(node);
+        }
+    }
+
+    // ── Phase 2.6: expand prefab instances.
+    // Scene JSON often contains Node slots whose `_prefab.instance` points
+    // at a live PrefabInstance bundle but the slot itself is an empty
+    // shell; the actual master content lives in a separate asset. Walking
+    // every Node slot here (bottom-up child-first) picks those up, fetches
+    // the master via AssetManager (already populated during POINTER-with-
+    // __uuid__ decode above) and transplants the cloned master into the
+    // shell, then applies the bundled overrides.
+    for (size_t i = 0; i < _slots.size(); ++i) {
+        auto &s = _slots[i];
+        if (!s.ptr || !s.meta) continue;
+        if (std::strcmp(s.meta->name, "cc.Node") != 0) continue;
+        auto *node = static_cast<Node *>(s.ptr);
+        if (node->_prefab && node->_prefab->asset && node->_prefab->instance &&
+            !node->_prefab->instance->expanded) {
+            node->_prefab->asset->expandInto(node);
         }
     }
 
