@@ -232,14 +232,20 @@ void Label::updateGeometry() {
     // BASELINE sits lineH below the top edge (so ascenders stay
     // inside the box); "BOTTOM" mirrors on the other side.
     //
-    // For CENTER we want the VISIBLE glyph mass to straddle Y=0. Glyph
-    // tops land at `baseline + ascender` and the ascender metric tracks
-    // the real cap height, unlike `lineH` which inflates with line-gap.
-    // Placing a single line's baseline at `ascender/2` above origin
-    // puts ascender-topping glyphs at +ascender/2 and descender-lacking
-    // lowercase at ~baseline, both flanking Y=0 symmetrically. Extra
-    // lines march down by lineH so the whole stack stays centred.
-    const auto ascenderPx = static_cast<float>(_font->getAscender()) * scale;
+    // For CENTER we mirror the upstream BMFont formula — expressed in
+    // upstream's bottom-left-origin space:
+    //   letterOffsetY = contentH/2 + actualFontSize/2   (for 1 line)
+    // In our centred-origin Y-up frame that's
+    //   baselineY = actualFontSize/2
+    // The ascender metric would be a few pixels larger (FT includes
+    // internal leading), and using it pushed the visible block above
+    // the centre. Using `actualFontSize` — the rendered em height —
+    // reproduces Cocos Creator's visual centring exactly: tall glyphs
+    // like `b` span ±fontSize/2 around Y=0, lowercase x-height glyphs
+    // ride through the middle.
+    const float actualFontSize = (_fontSize > 0.f)
+                                     ? _fontSize
+                                     : static_cast<float>(_font->getBaseFontSize());
     float topBaselineY;
     switch (_vAlign) {
         case VerticalAlign::TOP:
@@ -252,7 +258,7 @@ void Label::updateGeometry() {
         case VerticalAlign::CENTER:
         default:
             topBaselineY = (static_cast<float>(numLines) - 1.f) * 0.5f * lineH
-                         + ascenderPx * 0.5f;
+                         + actualFontSize * 0.5f;
             break;
     }
 
