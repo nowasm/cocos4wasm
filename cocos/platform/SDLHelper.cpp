@@ -33,6 +33,10 @@
 #include "platform/interfaces/modules/ISystemWindow.h"
 #include "platform/interfaces/modules/ISystemWindowManager.h"
 
+#if defined(_WIN32)
+    #include "platform/win32/RawInputHook.h"
+#endif
+
 namespace {
 std::unordered_map<int, cc::KeyCode> gKeyMap = {
     {SDLK_LGUI, cc::KeyCode::META_LEFT},
@@ -333,6 +337,12 @@ void SDLHelper::dispatchSDLEvent(uint32_t windowId, const SDL_Event &sdlEvent) {
             break;
         }
         case SDL_KEYDOWN: {
+#if defined(_WIN32)
+            // Raw-input hook already broadcasts this key — dropping the
+            // SDL copy prevents listeners that mutate state on press
+            // (EditBox backspace / delete) from firing twice.
+            if (cc::RawInputHook::isInstalled()) break;
+#endif
             const SDL_KeyboardEvent &event = sdlEvent.key;
             auto mode = event.keysym.mod;
             keyboard.action = KeyboardEvent::Action::PRESS;
@@ -345,6 +355,9 @@ void SDLHelper::dispatchSDLEvent(uint32_t windowId, const SDL_Event &sdlEvent) {
             break;
         }
         case SDL_KEYUP: {
+#if defined(_WIN32)
+            if (cc::RawInputHook::isInstalled()) break;
+#endif
             const SDL_KeyboardEvent &event = sdlEvent.key;
             auto mode = event.keysym.mod;
             keyboard.action = KeyboardEvent::Action::RELEASE;

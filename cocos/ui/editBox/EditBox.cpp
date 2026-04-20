@@ -121,11 +121,6 @@ void EditBox::onEnable() {
     _registerEvent();
     _ensureBackgroundSprite();
     if (_impl) _impl->onEnable();
-    CC_LOG_INFO("[EditBox DBG] onEnable node='%s' bg=%p bgTexture=%s",
-                getNode() ? getNode()->getName().c_str() : "(null)",
-                (void *)_background,
-                (_background && _background->getTexture()) ? "OK" : "NULL");
-    std::fflush(stdout); std::fflush(stderr);
 }
 
 void EditBox::onDisable() {
@@ -525,12 +520,12 @@ void EditBox::_registerEvent() {
     _eventIds->mouseDown = node->on<Node::MouseDown>(
         [this](Node *, const NodeMouseEventArg &arg) {
             if (arg.button != 0) return;
-            _onNodeClick(arg.localX, arg.localY);
+            _onNodeClick(arg.x, arg.y);
         });
 
     _eventIds->touchEnd = node->on<Node::TouchEnd>(
         [this](Node *, const NodeTouchEventArg &arg) {
-            _onNodeClick(arg.localX, arg.localY);
+            _onNodeClick(arg.x, arg.y);
         });
 
     _eventIds->sizeChanged = node->on<Node::SizeChanged>(
@@ -550,9 +545,6 @@ void EditBox::_unregisterEvent() {
 }
 
 void EditBox::_onNodeClick(float localX, float localY) {
-    CC_LOG_INFO("[EditBox DBG] click localX=%.1f localY=%.1f impl=%s",
-                localX, localY, _impl ? "ok" : "null");
-    std::fflush(stdout); std::fflush(stderr);
     if (auto *sdl = static_cast<EditBoxImpl *>(_impl)) {
         sdl->onDelegateNodeClick(localX, localY);
     }

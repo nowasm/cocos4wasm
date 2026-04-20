@@ -188,6 +188,19 @@ void UIBatcher2d::uploadAndSubmit(Batch &b, scene::RenderScene *scene) {
         b.ib->update(b.indexData.data(), static_cast<uint32_t>(ibBytes));
     }
 
+    // Sync draw range to the current frame's geometry. Without this the IA
+    // keeps using the count baked in at buffer-creation time, so any batch
+    // whose geometry shrank (e.g. EditBox Label losing a character via
+    // backspace) keeps drawing stale indices past the new end of data.
+    // vertexCount is only consulted for non-indexed draws; leaving it 0
+    // keeps the GFX layer on the indexed path.
+    gfx::DrawInfo di{};
+    di.indexCount = static_cast<uint32_t>(b.indexData.size());
+    b.subMesh->setDrawInfo(di);
+    for (auto &sm : b.model->getSubModels()) {
+        sm->onGeometryChanged();
+    }
+
     if (!b.attachedToScene && scene) {
         scene->addModel(b.model);
         b.attachedToScene = true;

@@ -55,7 +55,13 @@ public:
     // that hit-tested successfully. `localX` and `localY` are the
     // anchor-relative UI coordinates the dispatcher already computed.
     // Focuses the box if needed and positions the caret.
-    void onDelegateNodeClick(float localX, float localY);
+    // Pointer-down entry point. winX/winY are the raw window-pixel
+    // coordinates; we do the world→box-local transform inside to reuse the
+    // same hit-testing math as drag (windowPointToCaretIndex). Using the
+    // bubbled NodeMouseEventArg's localX/Y directly doesn't work because
+    // those land in whatever child node was hit (PLACEHOLDER_LABEL or
+    // TEXT_LABEL), not the EditBox's own frame.
+    void onDelegateNodeClick(float winX, float winY);
 
     // Caret / selection helpers — exposed so the delegate can forward
     // programmatic calls without friending this class.
@@ -137,10 +143,11 @@ private:
     bool   _mouseDragging{false};
     bool   _ctrlDown{false};
 
-    // Caret blink.
-    bool  _caretVisible{true};
-    float _caretTimer{0.f};
-    static constexpr float kCaretBlinkPeriod = 0.5f;
+    // Caret blink — driven by wall-clock so timing stays correct even if
+    // the game-loop dt does not map to real time.
+    bool     _caretVisible{true};
+    uint64_t _caretLastBlinkMs{0};
+    static constexpr uint64_t kCaretBlinkPeriodMs = 500;
 
     // Up/Down preferred column for multi-line navigation.
     float _preferredCaretX{0.f};

@@ -32,6 +32,13 @@ namespace RawInputHook {
 // have to pull in Windows.h; callers cast from HWND at the call site.
 void install(uintptr_t hwndHandle);
 
+// True once `install()` has successfully subscribed to raw-input on at
+// least one window. Consumers like SDLHelper use this to suppress their
+// own SDL_KEYDOWN/SDL_KEYUP broadcasts, since raw-input already covers
+// the same keys and handlers that are not idempotent (e.g. EditBox
+// backspace) would otherwise fire twice per physical key press.
+bool isInstalled();
+
 }  // namespace RawInputHook
 
 }  // namespace cc

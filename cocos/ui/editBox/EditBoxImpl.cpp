@@ -1,6 +1,7 @@
 #include "cocos/ui/editBox/EditBoxImpl.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 
@@ -85,6 +86,20 @@ float measureAdvance(TextFont &font, const ccstd::string &s, size_t cutByte) {
     return out;
 }
 
+// Label.updateGeometry renders every glyph at `xadvance * scale`, where
+// scale = fontSize / baseFontSize. Caret, selection highlight and
+// click→caret-index math all need this same factor so native-unit pen
+// measurements line up with what the Label actually paints; without it
+// the error accumulates linearly with text length.
+float labelDrawScale(const Label *label) {
+    if (!label) return 1.f;
+    const float fs   = label->getFontSize();
+    const auto *font = label->getFont();
+    const float base = font ? static_cast<float>(font->getBaseFontSize()) : 0.f;
+    if (fs <= 0.f || base <= 0.f) return 1.f;
+    return fs / base;
+}
+
 // Nearest UITransform walking up from `from` (skipping `from` itself).
 // Used for window→local math when the raw global mouse listener fires —
 // we need both the canvas size (to recentre window coords) and the
@@ -118,6 +133,12 @@ ccstd::string renderForDisplay(const EditBox *box, const ccstd::string &text,
                                 bool ignorePassword) {
     if (!box) return text;
     return box->_applyDisplayStyle(text, ignorePassword);
+}
+
+uint64_t nowMs() {
+    using namespace std::chrono;
+    return static_cast<uint64_t>(
+        duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count());
 }
 
 }  // namespace
@@ -204,7 +225,7 @@ void EditBoxImpl::beginEditing() {
     SDLHelper::startTextInput();
 
     _caretVisible = true;
-    _caretTimer = 0.f;
+    _caretLastBlinkMs = nowMs();
     setCaretVisible(true);
 
     if (_delegate) _delegate->_editBoxEditingDidBegan();
@@ -230,79 +251,28 @@ void EditBoxImpl::endEditing() {
 // Per-frame tick
 // ────────────────────────────────────────────────────────────────────────
 
-void EditBoxImpl::tick(float dt) {
+void EditBoxImpl::tick(float /*dt*/) {
     if (!_editing || !_caret) return;
-    _caretTimer += dt;
-    if (_caretTimer >= kCaretBlinkPeriod) {
-        _caretTimer = 0.f;
-        _caretVisible = !_caretVisible;
-        Color c = _caret->getColor();
-        c.a = _caretVisible ? static_cast<uint8_t>(_caretColor.a) : 0;
-        _caret->setColor(c);
-    }
+    const uint64_t now = nowMs();
+    if (now - _caretLastBlinkMs < kCaretBlinkPeriodMs) return;
+    _caretLastBlinkMs = now;
+    _caretVisible = !_caretVisible;
+    Color c = _caret->getColor();
+    c.a = _caretVisible ? static_cast<uint8_t>(_caretColor.a) : 0;
+    _caret->setColor(c);
 }
 
 // ────────────────────────────────────────────────────────────────────────
 // Delegate → impl click entry-point
 // ────────────────────────────────────────────────────────────────────────
 
-void EditBoxImpl::onDelegateNodeClick(float localX, float localY) {
+void EditBoxImpl::onDelegateNodeClick(float winX, float winY) {
     if (!_delegate) return;
     if (!_editing) beginEditing();
-    // Translate local into caret index directly — localX is already
-    // anchor-relative which is the same space the Label centres text on.
-    // Reuse the multi-line helpers via line-range.
-    auto *font = _delegate->getTextLabel() ? _delegate->getTextLabel()->getFont() : nullptr;
-    if (!font) {
-        _caretIdx = _delegate->getString().size();
-    } else if (_delegate->getInputMode() == InputMode::ANY) {
-        ccstd::vector<LineRange> lines;
-        rebuildLineIndex(lines);
-        const float lineH = static_cast<float>(font->getLineHeight());
-        const float blockTop = (static_cast<int>(lines.size()) - 1) * 0.5f * lineH;
-        int bestLi = 0;
-        float bestD = 1e9f;
-        for (int li = 0; li < static_cast<int>(lines.size()); ++li) {
-            const float cy = blockTop - li * lineH;
-            const float d = std::fabs(localY - cy);
-            if (d < bestD) { bestD = d; bestLi = li; }
-        }
-        const size_t ls = lines[bestLi].first;
-        const size_t ll = lines[bestLi].second;
-        _caretIdx = byteIdxAtColumn(ls, ll, localX);
-    } else {
-        // Single-line — walk the rendered prefix, find the gap closest
-        // to localX. Password mask width is uniform so we can use the
-        // mask-character advance.
-        const ccstd::string &s = _delegate->getString();
-        const ccstd::string rendered = renderForDisplay(_delegate, s, false);
-        const float total = measureAdvance(*font, rendered, rendered.size());
-        float gapX = -total * 0.5f;
-        size_t bestIdx = 0;
-        float  bestDist = std::fabs(localX - gapX);
-        size_t i = 0;
-        const bool isPassword = (_delegate->getInputFlag() == InputFlag::PASSWORD);
-        while (i < s.size()) {
-            const size_t cpEnd = nextCodepoint(s, i);
-            float cpAdv = 0.f;
-            if (isPassword) {
-                if (const auto *mg = font->getGlyph(static_cast<uint32_t>(kPasswordMask))) {
-                    cpAdv = static_cast<float>(mg->xadvance);
-                }
-            } else {
-                for (size_t k = i; k < cpEnd; ++k) {
-                    if (const auto *g = font->getGlyph(static_cast<unsigned char>(s[k]))) {
-                        cpAdv += g->xadvance;
-                    }
-                }
-            }
-            gapX += cpAdv;
-            const float d = std::fabs(localX - gapX);
-            if (d < bestDist) { bestDist = d; bestIdx = cpEnd; }
-            i = cpEnd;
-        }
-        _caretIdx = bestIdx;
-    }
+    // Same window→box-local → gap-scan path drag uses on mouse MOVE,
+    // so a click lands on the same character gap the caret would see
+    // if the user had dragged up to that point.
+    _caretIdx = windowPointToCaretIndex(winX, winY);
     _selAnchor = _caretIdx;
     _mouseDragging = true;
     _preferredCaretXValid = false;
@@ -360,17 +330,10 @@ void EditBoxImpl::ensureVisualChildren() {
 }
 
 void EditBoxImpl::setCaretVisible(bool on) {
-    if (!_caret) {
-        CC_LOG_INFO("[EditBox DBG] setCaretVisible(%d) but _caret is null", (int)on);
-        return;
-    }
+    if (!_caret) return;
     Color c = _caret->getColor();
     c.a = on ? static_cast<uint8_t>(_caretColor.a) : 0;
     _caret->setColor(c);
-    const Vec3 &p = _caret->getNode()->getPosition();
-    CC_LOG_INFO("[EditBox DBG] setCaretVisible(%d) alpha=%u pos=(%.1f,%.1f)",
-                (int)on, c.a, p.x, p.y);
-    std::fflush(stdout); std::fflush(stderr);
 }
 
 void EditBoxImpl::setSelectionVisible(bool on) {
@@ -670,7 +633,7 @@ void EditBoxImpl::unbindListeners() {
 
 void EditBoxImpl::resetCaretBlink() {
     _caretVisible = true;
-    _caretTimer = 0.f;
+    _caretLastBlinkMs = nowMs();
     setCaretVisible(_editing);
 }
 
@@ -780,12 +743,47 @@ void EditBoxImpl::updateCaretPos() {
     } else {
         renderedPrefix = renderForDisplay(_delegate, s.substr(0, _caretIdx), false);
     }
-    const float total  = measureAdvance(*font, renderedFull, renderedFull.size());
-    const float prefix = measureAdvance(*font, renderedPrefix, renderedPrefix.size());
+    const float drawScale = labelDrawScale(label);
+    const float total  = measureAdvance(*font, renderedFull, renderedFull.size()) * drawScale;
+    const float prefix = measureAdvance(*font, renderedPrefix, renderedPrefix.size()) * drawScale;
+
+    // Caret lives in EditBox-local space; Label has its own lpos/anchor set
+    // by the Editor prefab. Place the caret against the Label's content-box
+    // so it sits where the text actually renders, honouring the Label's
+    // horizontal alignment.
+    float labelOriginX = 0.f;
+    float labelOriginY = 0.f;
+    auto *labelNode = label->getNode();
+    if (labelNode) {
+        const Vec3 lp = labelNode->getPosition();
+        labelOriginX = lp.x;
+        labelOriginY = lp.y;
+        if (auto *lui = labelNode->getComponent<UITransform>()) {
+            const Vec2 sz = lui->getContentSize();
+            const Vec2 ap = lui->getAnchorPoint();
+            const float leftEdge = lp.x - ap.x * sz.x;
+            switch (label->getHorizontalAlign()) {
+                case Label::HorizontalAlign::LEFT:
+                    labelOriginX = leftEdge;
+                    break;
+                case Label::HorizontalAlign::CENTER:
+                    labelOriginX = leftEdge + sz.x * 0.5f - total * 0.5f;
+                    break;
+                case Label::HorizontalAlign::RIGHT:
+                    labelOriginX = leftEdge + sz.x - total;
+                    break;
+            }
+            labelOriginY = lp.y + (0.5f - ap.y) * sz.y;
+        }
+    }
+
+    // Small breathing gap so the caret doesn't kiss the previous glyph's
+    // right edge. Matches what Cocos Creator ships visually.
+    constexpr float kCaretGlyphGap = 2.f;
 
     Vec3 cp = _caret->getNode()->getPosition();
-    cp.x = prefix - total * 0.5f;
-    cp.y = 0.f;
+    cp.x = labelOriginX + prefix + kCaretGlyphGap;
+    cp.y = labelOriginY;
     _caret->getNode()->setPosition(cp);
 }
 
@@ -813,17 +811,51 @@ void EditBoxImpl::updateSelectionHighlight() {
         }
         return renderForDisplay(_delegate, s.substr(0, idx), false);
     };
-    const float total = measureAdvance(*font, renderedFull, renderedFull.size());
+    const float drawScale = labelDrawScale(label);
+    const float total = measureAdvance(*font, renderedFull, renderedFull.size()) * drawScale;
     const ccstd::string preS = renderedPrefix(getSelectionStart());
     const ccstd::string preE = renderedPrefix(getSelectionEnd());
-    const float xS = measureAdvance(*font, preS, preS.size()) - total * 0.5f;
-    const float xE = measureAdvance(*font, preE, preE.size()) - total * 0.5f;
-    const float width = std::max(1.f, xE - xS);
+    const float pS = measureAdvance(*font, preS, preS.size()) * drawScale;
+    const float pE = measureAdvance(*font, preE, preE.size()) * drawScale;
+
+    // Same label-content-box anchoring as updateCaretPos, so the highlight
+    // sits under the actual glyph stripe regardless of Label lpos/anchor.
+    float labelOriginX = 0.f;
+    float labelOriginY = 0.f;
+    auto *labelNode = label->getNode();
+    if (labelNode) {
+        const Vec3 lp = labelNode->getPosition();
+        labelOriginX = lp.x;
+        labelOriginY = lp.y;
+        if (auto *lui = labelNode->getComponent<UITransform>()) {
+            const Vec2 sz = lui->getContentSize();
+            const Vec2 ap = lui->getAnchorPoint();
+            const float leftEdge = lp.x - ap.x * sz.x;
+            switch (label->getHorizontalAlign()) {
+                case Label::HorizontalAlign::LEFT:
+                    labelOriginX = leftEdge;
+                    break;
+                case Label::HorizontalAlign::CENTER:
+                    labelOriginX = leftEdge + sz.x * 0.5f - total * 0.5f;
+                    break;
+                case Label::HorizontalAlign::RIGHT:
+                    labelOriginX = leftEdge + sz.x - total;
+                    break;
+            }
+            labelOriginY = lp.y + (0.5f - ap.y) * sz.y;
+        }
+    }
+
+    const float width = std::max(1.f, pE - pS);
     _selHighlight->setSize(width, 24.f);
     if (auto *ui = _selHighlight->getNode()->getComponent<UITransform>()) {
         ui->setContentSize(width, 24.f);
     }
-    _selHighlight->getNode()->setPosition(Vec3{xS, 0.f, 0.f});
+    // Sprite::updateGeometry renders centred on the node's position
+    // regardless of the UITransform anchor, so shift by half the width
+    // to put the rect's LEFT edge on the selection-start X.
+    _selHighlight->getNode()->setPosition(
+        Vec3{labelOriginX + pS + width * 0.5f, labelOriginY, 0.f});
     setSelectionVisible(true);
 }
 
@@ -886,8 +918,28 @@ size_t EditBoxImpl::windowPointToCaretIndex(float winX, float winY) const {
 
     // Single-line.
     const ccstd::string renderedFull = renderForDisplay(_delegate, s, false);
-    const float total = measureAdvance(*font, renderedFull, renderedFull.size());
-    float gapX = -total * 0.5f;
+    const float drawScale = labelDrawScale(label);
+    const float total = measureAdvance(*font, renderedFull, renderedFull.size()) * drawScale;
+    // Seed gapX at the text's LEFT edge in EditBox-local space so drag /
+    // hit-test agrees with the caret/selection placement math.
+    float gapX = 0.f;
+    if (label->getNode()) {
+        const Vec3 lp = label->getNode()->getPosition();
+        gapX = lp.x;
+        if (auto *lui = label->getNode()->getComponent<UITransform>()) {
+            const Vec2 sz = lui->getContentSize();
+            const Vec2 ap = lui->getAnchorPoint();
+            const float leftEdge = lp.x - ap.x * sz.x;
+            switch (label->getHorizontalAlign()) {
+                case Label::HorizontalAlign::LEFT:
+                    gapX = leftEdge; break;
+                case Label::HorizontalAlign::CENTER:
+                    gapX = leftEdge + sz.x * 0.5f - total * 0.5f; break;
+                case Label::HorizontalAlign::RIGHT:
+                    gapX = leftEdge + sz.x - total; break;
+            }
+        }
+    }
     size_t bestIdx = 0;
     float  bestDist = std::fabs(bx - gapX);
     size_t i = 0;
@@ -906,6 +958,7 @@ size_t EditBoxImpl::windowPointToCaretIndex(float winX, float winY) const {
                 }
             }
         }
+        cpAdv *= drawScale;
         gapX += cpAdv;
         const float d = std::fabs(bx - gapX);
         if (d < bestDist) { bestDist = d; bestIdx = cpEnd; }

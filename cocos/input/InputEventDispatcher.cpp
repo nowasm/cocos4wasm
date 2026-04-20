@@ -142,17 +142,6 @@ void InputEventDispatcher::start() {
             if (hit) break;
         }
 
-        if (ev.type == MouseEvent::Type::DOWN) {
-            CC_LOG_INFO("[InputDbg] DOWN (%.0f,%.0f) world=(%.0f,%.0f) hit=%s "
-                        "local=(%.1f,%.1f) canvases=%zu",
-                        ev.x, ev.y, testedXY.x, testedXY.y,
-                        hit ? (hit->getName().empty() ? "<unnamed>"
-                                                       : hit->getName().c_str())
-                            : "NONE",
-                        local.x, local.y, _canvases.size());
-            std::fflush(stdout); std::fflush(stderr);
-        }
-
         // Build the payload once — Enter/Leave use the same screen coords,
         // and when Enter fires the "local" values belong to the new hit
         // node (the same ones MouseDown/Move on it will see).

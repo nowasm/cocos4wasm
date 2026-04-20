@@ -195,5 +195,9 @@ void install(uintptr_t hwndHandle) {
     CC_LOG_INFO("[win32] Raw Input keyboard hook installed on HWND=%p", hwnd);
 }
 
+bool isInstalled() {
+    return !g_hookedWindows.empty();
+}
+
 }  // namespace RawInputHook
 }  // namespace cc

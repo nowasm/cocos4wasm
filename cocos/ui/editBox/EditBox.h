@@ -212,7 +212,7 @@ private:
 
     void _registerEvent();
     void _unregisterEvent();
-    void _onNodeClick(float localX, float localY);
+    void _onNodeClick(float winX, float winY);
 
     // ── Serialised state ────────────────────────────────────────────────
     ccstd::string      _string;
