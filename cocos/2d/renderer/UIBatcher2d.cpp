@@ -237,12 +237,22 @@ void UIBatcher2d::tick() {
 
     // Mark all batches as "not touched this frame" by clearing their CPU
     // buffers and the usedThisFrame flag. GPU resources live in the
-    // pool; we only rebuild when sizes exceed capacity.
+    // pool; we only rebuild when sizes exceed capacity. We also detach
+    // every batch's model from the scene up-front, then re-attach in
+    // DFS order as renderers are visited — that's what keeps the scene
+    // model list in scene-graph order even when a renderer's batch key
+    // changes mid-session (e.g. Button::setSpriteFrame moves the button
+    // sprite to a new batch; without re-ordering the new batch would
+    // render last and paint over the button's child Label).
     for (auto &b : _batches) {
         b.vertexData.clear();
         b.indexData.clear();
         b.vertexCount = 0;
         b.usedThisFrame = false;
+        if (b.attachedToScene && b.model && scene) {
+            scene->removeModel(b.model);
+            b.attachedToScene = false;
+        }
     }
 
     // Walk registered UIRenderers in insertion (= scene-graph DFS) order,
@@ -251,36 +261,49 @@ void UIBatcher2d::tick() {
     // renderers with that same original key must go into a fresh batch
     // appended after the interrupter, not folded back into the closed
     // one — that's what keeps draw order matching scene-graph order.
-    Batch *current = nullptr;
+    // We also collect batches in visit order so uploadAndSubmit re-adds
+    // their scene models in the right sequence. Store INDICES not
+    // pointers: findOrAppendBatch may push_back into `_batches` and
+    // reallocate the backing buffer, invalidating any live pointers
+    // from earlier iterations of this loop.
+    ccstd::vector<size_t> visited;
+    visited.reserve(_batches.size() + 4);
+    size_t currentIdx = SIZE_MAX;
     for (auto *r : _registered) {
         if (!r || !r->isRenderable()) continue;
 
         const ccstd::hash_t key = r->getBatchKey();
-        if (!current || current->key != key) {
-            current = &findOrAppendBatch(key, r);
+        if (currentIdx == SIZE_MAX || _batches[currentIdx].key != key) {
+            Batch &b = findOrAppendBatch(key, r);
+            size_t idx = static_cast<size_t>(&b - _batches.data());
+            if (!b.usedThisFrame) visited.push_back(idx);
+            currentIdx = idx;
         }
-        current->usedThisFrame = true;
+        Batch &cur = _batches[currentIdx];
+        cur.usedThisFrame = true;
 
         const Mat4 &worldMat = r->getNode()->getWorldMatrix();
         const uint32_t stride = r->getVertexStrideFloats();
-        const uint32_t vbase  = current->vertexCount;
+        const uint32_t vbase  = cur.vertexCount;
 
         appendTransformed(r->getVertexData().data(),
                           r->getVertexCount(), stride,
-                          worldMat, current->vertexData);
-        current->vertexCount += r->getVertexCount();
+                          worldMat, cur.vertexData);
+        cur.vertexCount += r->getVertexCount();
 
         // Offset indices by the pre-append base vertex count.
-        current->indexData.reserve(current->indexData.size() + r->getIndexCount());
+        cur.indexData.reserve(cur.indexData.size() + r->getIndexCount());
         for (uint16_t idx : r->getIndexData()) {
-            current->indexData.push_back(static_cast<uint16_t>(idx + vbase));
+            cur.indexData.push_back(static_cast<uint16_t>(idx + vbase));
         }
     }
 
     size_t activeBatches = 0;
     size_t renderableCount = 0;
     for (auto *r : _registered) if (r && r->isRenderable()) ++renderableCount;
-    for (auto &b : _batches) {
+    // Upload + re-attach in DFS visit order so scene models stay sorted.
+    for (size_t i : visited) {
+        Batch &b = _batches[i];
         uploadAndSubmit(b, scene);
         if (b.vertexCount > 0) ++activeBatches;
     }

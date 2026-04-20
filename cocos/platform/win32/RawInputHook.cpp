@@ -93,6 +93,15 @@ int mapVKToCocosKey(const RAWKEYBOARD &kb) {
 // Parse a WM_INPUT message into a RAWINPUT buffer and forward the
 // keyboard chunk (if any) to the `events::Keyboard` bus.
 void handleRawInput(uint32_t windowId, HRAWINPUT rawHandle) {
+    // We registered with RIDEV_INPUTSINK so background windows keep
+    // receiving input — convenient for test fixtures, but it means keys
+    // pressed while the user Alt-Tabbed away would still drive the game.
+    // Gate on "is this our hwnd the foreground window?" so the demo
+    // behaves the same as any other desktop app when minimised or hidden.
+    {
+        HWND fg = GetForegroundWindow();
+        if (!fg || g_hookedWindows.find(fg) == g_hookedWindows.end()) return;
+    }
     UINT size = 0;
     if (GetRawInputData(rawHandle, RID_INPUT, nullptr, &size,
                          sizeof(RAWINPUTHEADER)) == UINT_MAX) {
