@@ -201,9 +201,11 @@ void Label::updateGeometry() {
     // fall back to a (0,0) box which collapses alignment to CENTER —
     // visually matches the previous MVP behaviour.
     Vec2 contentSize{0.f, 0.f};
+    Vec2 anchor{0.5f, 0.5f};
     if (auto *node = getNode()) {
         if (auto *ui = node->getComponent<UITransform>()) {
             contentSize = ui->getContentSize();
+            anchor      = ui->getAnchorPoint();
         }
     }
 
@@ -356,6 +358,23 @@ void Label::updateGeometry() {
             for (size_t i = blockVertexStart + 1; i < _vertexData.size(); i += stride) {
                 _vertexData[i] += shift;
             }
+        }
+    }
+
+    // Anchor correction: all alignment above assumes the node's local
+    // origin sits at the content-box centre (anchor = 0.5, 0.5). For
+    // anchors like (0, 1) — top-left, common for EditBox placeholder
+    // labels — the box centre in local coords is at
+    // ((0.5 - anchor.x) * w, (0.5 - anchor.y) * h); shifting every
+    // vertex by that amount puts the already-aligned text block back
+    // inside the box regardless of anchor.
+    if (anchor.x != 0.5f || anchor.y != 0.5f) {
+        const size_t stride = _vertexStrideFloats;
+        const float shiftX = (0.5f - anchor.x) * contentSize.x;
+        const float shiftY = (0.5f - anchor.y) * contentSize.y;
+        for (size_t i = blockVertexStart; i < _vertexData.size(); i += stride) {
+            _vertexData[i]     += shiftX;
+            _vertexData[i + 1] += shiftY;
         }
     }
 }

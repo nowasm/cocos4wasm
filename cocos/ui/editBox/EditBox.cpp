@@ -213,10 +213,18 @@ void EditBox::_updatePlaceholderLabel() {
     auto *node = getNode();
     if (!node) return;
 
+    // Reuse path: only push our own _font so rendering works. Leave the
+    // Label's color / text alone — Editor-authored prefabs set both on
+    // the PLACEHOLDER_LABEL directly, and our `_placeholder` /
+    // `_placeholderColor` are empty-string / default until the caller
+    // explicitly invokes setPlaceholder / setPlaceholderColor.
+    auto applyProgrammaticStyle = [this](Label *lbl) {
+        if (_font) lbl->setFont(_font);
+        if (!_placeholder.empty()) lbl->setText(_placeholder);
+    };
+
     if (_placeholderLabel) {
-        if (_font) _placeholderLabel->setFont(_font);
-        _placeholderLabel->setColor(_placeholderColor);
-        _placeholderLabel->setText(_placeholder);
+        applyProgrammaticStyle(_placeholderLabel);
         return;
     }
 
@@ -224,9 +232,7 @@ void EditBox::_updatePlaceholderLabel() {
         if (!existing->getComponent<UITransform>()) existing->addComponent<UITransform>();
         _placeholderLabel = existing->getComponent<Label>();
         if (!_placeholderLabel) _placeholderLabel = existing->addComponent<Label>();
-        if (_font) _placeholderLabel->setFont(_font);
-        _placeholderLabel->setColor(_placeholderColor);
-        _placeholderLabel->setText(_placeholder);
+        applyProgrammaticStyle(_placeholderLabel);
         return;
     }
 
