@@ -12,13 +12,16 @@
 
 namespace cc {
 
+// Upstream label.ts field naming verbatim — every serialised field is
+// underscore-prefixed (protected). `_string` is the label text; our C++
+// field is still `_text` but the reflection key tracks upstream.
 CC_IMPLEMENT_CLASS(Label, "cc.Label", UIRenderer)
-    .property("text",        &Label::_text)
-    .property("color",       &Label::_color, Color{255, 255, 255, 255})
-    .property("_hAlign",     &Label::_hAlign,     Label::HorizontalAlign::CENTER)
-    .property("_vAlign",     &Label::_vAlign,     Label::VerticalAlign::CENTER)
-    .property("_fontSize",   &Label::_fontSize,   -1.f)
-    .property("_lineHeight", &Label::_lineHeight, -1.f)
+    .property("_string",         &Label::_text)
+    .property("_color",          &Label::_color, Color{255, 255, 255, 255})
+    .property("_horizontalAlign",&Label::_hAlign, Label::HorizontalAlign::CENTER)
+    .property("_verticalAlign",  &Label::_vAlign, Label::VerticalAlign::CENTER)
+    .property("_fontSize",       &Label::_fontSize,   -1.f)
+    .property("_lineHeight",     &Label::_lineHeight, -1.f)
 CC_END_CLASS(Label);
 
 namespace {

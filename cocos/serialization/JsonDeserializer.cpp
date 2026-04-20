@@ -46,9 +46,17 @@ int32_t jsonAsInt(const JsonValue &v, int32_t fallback = 0) {
     return fallback;
 }
 
-// Cocos JSON convention: {"x":..., "y":...} for Vec2/Vec3/Vec4, optional components default to 0.
+// Cocos JSON convention: {"x":..., "y":...} for Vec2/Vec3/Vec4, optional
+// components default to 0. Editor also stores `cc.Size` with
+// {"width":..., "height":...} — we fold that shape into the Vec2 decoder
+// because UITransform._contentSize etc. are typed Vec2 on our side.
 bool decodeVec2(const JsonValue &v, Vec2 &out) {
     if (!v.IsObject()) return false;
+    if (v.HasMember("width") || v.HasMember("height")) {
+        out.x = v.HasMember("width")  ? jsonAsFloat(v["width"])  : 0.0f;
+        out.y = v.HasMember("height") ? jsonAsFloat(v["height"]) : 0.0f;
+        return true;
+    }
     out.x = v.HasMember("x") ? jsonAsFloat(v["x"]) : 0.0f;
     out.y = v.HasMember("y") ? jsonAsFloat(v["y"]) : 0.0f;
     return true;

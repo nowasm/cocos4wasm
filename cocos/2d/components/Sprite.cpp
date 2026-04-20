@@ -12,10 +12,11 @@
 
 namespace cc {
 
+// All fields carry the upstream underscore-prefixed JSON names. `_size`
+// is our own internal geometry cache — not serialised by Editor, so it
+// stays unreflected (UITransform._contentSize drives the visible quad).
 CC_IMPLEMENT_CLASS(Sprite, "cc.Sprite", UIRenderer)
-    .property("color",        &Sprite::_color,       Color{255, 255, 255, 255})
-    .property("size",         &Sprite::_size,        Vec2{100.0f, 100.0f})
-    // Matches upstream sprite.ts — `protected _spriteFrame: SpriteFrame`.
+    .property("_color",       &Sprite::_color, Color{255, 255, 255, 255})
     .property("_spriteFrame", &Sprite::_spriteFrame)
 CC_END_CLASS(Sprite);
 

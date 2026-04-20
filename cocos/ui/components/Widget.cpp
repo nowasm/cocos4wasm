@@ -7,21 +7,27 @@
 
 namespace cc {
 
+// Property names match upstream widget.ts verbatim — we previously used
+// abbreviated forms (`_hCenter`, `_absTop`, ...) but Editor JSON writes
+// the full names (`_horizontalCenter`, `_isAbsTop`, ...). Renaming the
+// reflection key without touching our C++ field names keeps source
+// churn tiny while restoring JSON round-trip.
 CC_IMPLEMENT_CLASS(Widget, "cc.Widget", Component)
-    .property("_alignFlags", &Widget::_alignFlags, static_cast<uint32_t>(0))
-    .property("_alignMode",  &Widget::_alignMode,  AlignMode::ON_WINDOW_RESIZE)
-    .property("_top",        &Widget::_top)
-    .property("_bottom",     &Widget::_bottom)
-    .property("_left",       &Widget::_left)
-    .property("_right",      &Widget::_right)
-    .property("_hCenter",    &Widget::_hCenter)
-    .property("_vCenter",    &Widget::_vCenter)
-    .property("_absTop",     &Widget::_absTop,     true)
-    .property("_absBottom",  &Widget::_absBottom,  true)
-    .property("_absLeft",    &Widget::_absLeft,    true)
-    .property("_absRight",   &Widget::_absRight,   true)
-    .property("_absHCenter", &Widget::_absHCenter, true)
-    .property("_absVCenter", &Widget::_absVCenter, true)
+    .property("_alignFlags",            &Widget::_alignFlags, static_cast<uint32_t>(0))
+    .property("_target",                &Widget::_target)
+    .property("_alignMode",             &Widget::_alignMode,  AlignMode::ON_WINDOW_RESIZE)
+    .property("_top",                   &Widget::_top)
+    .property("_bottom",                &Widget::_bottom)
+    .property("_left",                  &Widget::_left)
+    .property("_right",                 &Widget::_right)
+    .property("_horizontalCenter",      &Widget::_hCenter)
+    .property("_verticalCenter",        &Widget::_vCenter)
+    .property("_isAbsTop",              &Widget::_absTop,     true)
+    .property("_isAbsBottom",           &Widget::_absBottom,  true)
+    .property("_isAbsLeft",             &Widget::_absLeft,    true)
+    .property("_isAbsRight",            &Widget::_absRight,   true)
+    .property("_isAbsHorizontalCenter", &Widget::_absHCenter, true)
+    .property("_isAbsVerticalCenter",   &Widget::_absVCenter, true)
 CC_END_CLASS(Widget);
 
 struct Widget::TargetHook {

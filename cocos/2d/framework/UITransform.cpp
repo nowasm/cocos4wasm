@@ -5,10 +5,13 @@
 
 namespace cc {
 
+// Editor JSON stores these under `_anchorPoint` / `_contentSize` /
+// `_priority` — all protected @serializable fields on the TS side, so
+// the leading underscore is part of the JSON key.
 CC_IMPLEMENT_CLASS(UITransform, "cc.UITransform", Component)
-    .property("anchorPoint", &UITransform::_anchorPoint, Vec2{0.5f, 0.5f})
-    .property("contentSize", &UITransform::_contentSize, Vec2{100.0f, 100.0f})
-    .property("priority",    &UITransform::_priority)
+    .property("_anchorPoint", &UITransform::_anchorPoint, Vec2{0.5f, 0.5f})
+    .property("_contentSize", &UITransform::_contentSize, Vec2{100.0f, 100.0f})
+    .property("_priority",    &UITransform::_priority)
 CC_END_CLASS(UITransform);
 
 void UITransform::setAnchorPoint(const Vec2 &v) {
