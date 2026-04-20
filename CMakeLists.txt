@@ -2348,6 +2348,10 @@ cocos_source_files(
     cocos/asset/SpriteFrame.cpp
     cocos/asset/SpriteFrameLoader.h
     cocos/asset/SpriteFrameLoader.cpp
+
+    # misc authoring components (cc.Camera stub, etc.)
+    cocos/misc/CameraComponent.h
+    cocos/misc/CameraComponent.cpp
     cocos/asset/EffectLoader.h
     cocos/asset/EffectLoader.cpp
 

@@ -69,9 +69,28 @@ IntrusivePtr<Asset> AssetManager::loadAsset(const ccstd::string &uuid) {
     auto cached = _cache.find(uuid);
     if (cached != _cache.end()) return cached->second;
 
-    auto pathIt = _uuidToPath.find(uuid);
+    // Editor-exported JSONs sometimes reference a sub-asset via the
+    // `<main-uuid>@<sub-id>` syntax (e.g. a SpriteFrame nested inside a
+    // texture bundle). For MVP we treat `@<sub-id>` as a lookup hint
+    // only — strip the suffix and try the base uuid. Assets that ship
+    // the sub-asset payload will resolve here; those that don't (built-
+    // in default sprite frames, etc.) still return null but with a
+    // clearer warning than "unknown uuid".
+    ccstd::string lookupKey = uuid;
+    const auto at = uuid.find('@');
+    if (at != ccstd::string::npos) {
+        lookupKey = uuid.substr(0, at);
+    }
+
+    auto pathIt = _uuidToPath.find(lookupKey);
     if (pathIt == _uuidToPath.end()) {
-        CC_LOG_ERROR("[AssetManager] unknown uuid: %s", uuid.c_str());
+        if (at != ccstd::string::npos) {
+            CC_LOG_WARNING("[AssetManager] sub-asset uuid unresolved: %s "
+                           "(base '%s' not in uuid-map — built-in or unshipped asset?)",
+                           uuid.c_str(), lookupKey.c_str());
+        } else {
+            CC_LOG_ERROR("[AssetManager] unknown uuid: %s", uuid.c_str());
+        }
         return nullptr;
     }
 

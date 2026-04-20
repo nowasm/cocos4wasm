@@ -6,6 +6,7 @@
 #include "cocos/asset/MaterialLoader.h"
 #include "cocos/asset/PrefabLoader.h"
 #include "cocos/asset/SpriteFrameLoader.h"
+#include "cocos/misc/CameraComponent.h"
 #include "cocos/input/InputEventDispatcher.h"
 #include "core/Root.h"
 #include "core/assets/Asset.h"
@@ -78,6 +79,11 @@ bool DemoGame::initEngine() {
     auto *root = ccnew Root(device);
     root->initialize(nullptr);
     BuiltinResMgr::getInstance()->initBuiltinRes();
+
+    // Force-include authoring-layer components that aren't referenced by
+    // any demo code — their CC_END_CLASS auto-registration would
+    // otherwise be stripped by MSVC's static-lib dead-code elimination.
+    (void)CameraComponent::forceLink();
 
     // Asset pipeline: register loaders + load the uuid-map for the
     // editor-sample fixture bundle.
