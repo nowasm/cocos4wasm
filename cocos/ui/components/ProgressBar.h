@@ -28,6 +28,12 @@ public:
     ProgressBar() = default;
     ~ProgressBar() override = default;
 
+    // Drag the translation unit out of the static-lib's dead-code strip.
+    // MSVC drops any object whose symbols nothing imports; without this
+    // DemoGame hook the ProgressBar reflection registration never runs
+    // and scene JSON fails with "unknown class 'cc.ProgressBar'".
+    static int forceLink();
+
     void onLoad() override { _applyProgress(); }
     void onEnable() override { _applyProgress(); }
 

@@ -212,6 +212,10 @@ private:
     void _updateTextLabel();
     void _updatePlaceholderLabel();
     void _updateLabels();
+    // Push horizontal/vertical alignment matching the current InputMode
+    // onto a Label child. Multi-line (ANY) pins top-left; single-line
+    // modes pin left-centre.
+    void _applyLabelModeStyling(Label *lbl);
     void _updateString(const ccstd::string &text);
     void _syncSize();
     void _resizeChildNodes();

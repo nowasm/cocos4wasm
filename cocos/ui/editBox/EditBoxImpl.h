@@ -11,6 +11,7 @@
 namespace cc {
 
 class EditBox;
+class Node;
 class Sprite;
 
 // Desktop / native backend for EditBox. Analogous to `EditBoxImpl` in
@@ -82,6 +83,12 @@ private:
     // to sidestep the Label re-activation rebuild hazard documented in
     // the previous monolithic impl).
     void ensureVisualChildren();
+    Sprite *allocSelectionRect(Node *parent, size_t idx);
+    // Per-frame helpers for updateSelectionHighlight — write rect idx's
+    // size/position, and hide all rects from firstIdx onward.
+    void setHighlightRect(size_t idx, float xLeft, float xRight,
+                          float yCentre, float height);
+    void hideHighlightsFrom(size_t firstIdx);
     void setCaretVisible(bool on);
     void setSelectionVisible(bool on);
 
@@ -134,11 +141,15 @@ private:
     struct Listeners;
     Listeners *_listeners{nullptr};
 
-    // Caret + selection visuals.
-    Sprite *_caret{nullptr};
-    Sprite *_selHighlight{nullptr};
-    Color   _caretColor{230, 230, 230, 255};
-    Color   _selectionColor{80, 140, 210, 180};
+    // Caret + selection visuals. Single-line only ever uses _selHighlights[0];
+    // multi-line allocates one highlight rect per visual row of the selection
+    // (first partial row → full middle rows → last partial row). Unused
+    // rects are left on the node hierarchy with alpha=0 so we don't churn
+    // node / UIRenderer lifetimes every selection change.
+    Sprite                    *_caret{nullptr};
+    ccstd::vector<Sprite *>    _selHighlights;
+    Color                      _caretColor{230, 230, 230, 255};
+    Color                      _selectionColor{80, 140, 210, 180};
 
     // Caret / selection state.
     size_t _caretIdx{0};

@@ -24,6 +24,7 @@ CC_IMPLEMENT_CLASS(Label, "cc.Label", UIRenderer)
     .property("_verticalAlign",  &Label::_vAlign, Label::VerticalAlign::CENTER)
     .property("_fontSize",       &Label::_fontSize,   -1.f)
     .property("_lineHeight",     &Label::_lineHeight, -1.f)
+    .property("_enableWrapText", &Label::_wrap,       false)
 CC_END_CLASS(Label);
 
 namespace {
@@ -138,6 +139,88 @@ void Label::setLineHeight(float h) {
     markDirty();
 }
 
+void Label::setWrapEnabled(bool v) {
+    if (_wrap == v) return;
+    _wrap = v;
+    markDirty();
+}
+
+void Label::recomputeVisualLines() {
+    _visualLines.clear();
+    if (!_font) {
+        if (!_text.empty()) _visualLines.emplace_back(0, _text.size());
+        else                _visualLines.emplace_back(0, 0);
+        return;
+    }
+    const float baseSize = static_cast<float>(_font->getBaseFontSize());
+    const float scale = (_fontSize > 0.f && baseSize > 0.f)
+                            ? (_fontSize / baseSize)
+                            : 1.f;
+    Vec2 contentSize{0.f, 0.f};
+    if (auto *node = getNode()) {
+        if (auto *ui = node->getComponent<UITransform>()) {
+            contentSize = ui->getContentSize();
+        }
+    }
+    const float wrapLimit = (_wrap && contentSize.x > 0.f) ? contentSize.x : 0.f;
+
+    auto isSpaceByte = [](unsigned char c) { return c == ' ' || c == '\t'; };
+    auto cpByteLen = [&](size_t pos) {
+        if (pos >= _text.size()) return size_t{0};
+        size_t n = 1;
+        while (pos + n < _text.size() &&
+               (static_cast<unsigned char>(_text[pos + n]) & 0xC0) == 0x80) {
+            ++n;
+        }
+        return n;
+    };
+    auto cpAdvance = [&](size_t pos, size_t len) {
+        float a = 0.f;
+        for (size_t k = 0; k < len; ++k) {
+            if (const auto *g = _font->getGlyph(static_cast<uint32_t>(
+                    static_cast<unsigned char>(_text[pos + k])))) {
+                a += g->xadvance * scale;
+            }
+        }
+        return a;
+    };
+
+    size_t lineStart = 0;
+    float  penX      = 0.f;
+    size_t lastSpace = SIZE_MAX;
+    size_t i = 0;
+    while (i <= _text.size()) {
+        if (i == _text.size() || _text[i] == '\n') {
+            _visualLines.emplace_back(lineStart, i - lineStart);
+            lineStart = i + 1;
+            penX      = 0.f;
+            lastSpace = SIZE_MAX;
+            ++i;
+            continue;
+        }
+        const size_t cpLen = cpByteLen(i);
+        const float  cpAdv = cpAdvance(i, cpLen);
+        if (wrapLimit > 0.f && penX + cpAdv > wrapLimit && i > lineStart) {
+            size_t breakAt = (lastSpace != SIZE_MAX) ? lastSpace : i;
+            _visualLines.emplace_back(lineStart, breakAt - lineStart);
+            size_t nextStart = breakAt;
+            if (lastSpace != SIZE_MAX && breakAt < _text.size() &&
+                isSpaceByte(static_cast<unsigned char>(_text[breakAt]))) {
+                ++nextStart;
+            }
+            lineStart = nextStart;
+            penX      = 0.f;
+            lastSpace = SIZE_MAX;
+            i = lineStart;
+            continue;
+        }
+        if (isSpaceByte(static_cast<unsigned char>(_text[i]))) lastSpace = i;
+        penX += cpAdv;
+        i += cpLen;
+    }
+    if (_visualLines.empty()) _visualLines.emplace_back(0, 0);
+}
+
 ccstd::vector<gfx::Attribute> Label::vertexAttributes() const {
     return {
         gfx::Attribute{gfx::ATTR_NAME_POSITION,  gfx::Format::RGB32F},
@@ -182,18 +265,10 @@ void Label::updateGeometry() {
     const float b = _color.b / 255.0f;
     const float a = _color.a / 255.0f;
 
-    // Split on explicit '\n'. Each segment is one baseline; auto-wrap
-    // is deferred.
-    ccstd::vector<std::pair<size_t, size_t>> lines;  // (startByte, byteLen)
-    {
-        size_t start = 0;
-        for (size_t i = 0; i <= _text.size(); ++i) {
-            if (i == _text.size() || _text[i] == '\n') {
-                lines.emplace_back(start, i - start);
-                start = i + 1;
-            }
-        }
-    }
+    // Segment the text into visual lines. Shared with EditBox caret
+    // math — see `recomputeVisualLines` for the wrap algorithm itself.
+    recomputeVisualLines();
+    const auto &lines = _visualLines;
     const int numLines = static_cast<int>(lines.size());
 
     // Content box for alignment — read from the Label's own Node
@@ -250,14 +325,22 @@ void Label::updateGeometry() {
     const float actualFontSize = (_fontSize > 0.f)
                                      ? _fontSize
                                      : static_cast<float>(_font->getBaseFontSize());
+    // `topBaselineY` is the PEN Y for line 0 — the "ascender line" in
+    // typographic terms. Glyph tops sit at `penY - yoffset` (yoffset is
+    // BMFont's line-top→glyph-top distance), so placing the pen at the
+    // content-box top puts line 0's tallest glyph flush against that edge.
+    // Subsequent lines march DOWN by lineH.
     float topBaselineY;
     switch (_vAlign) {
         case VerticalAlign::TOP:
-            topBaselineY = contentSize.y * 0.5f - lineH * 0.5f;
+            topBaselineY = contentSize.y * 0.5f;
             break;
         case VerticalAlign::BOTTOM:
+            // Bottom: line (N-1) pen sits fontSize above the content-box
+            // bottom so the last line's descender just clears the edge.
             topBaselineY = -contentSize.y * 0.5f
-                         + (static_cast<float>(numLines) - 0.5f) * lineH;
+                         + static_cast<float>(numLines - 1) * lineH
+                         + actualFontSize;
             break;
         case VerticalAlign::CENTER:
         default:

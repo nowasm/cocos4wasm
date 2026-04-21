@@ -180,6 +180,25 @@ void EditBox::_ensureBackgroundSprite() {
     }
 }
 
+// Force Label alignment to match the semantics of the current InputMode.
+// Multi-line (ANY) pins text to the TOP of the content-box so typed /
+// wrapped lines grow downward; single-line modes keep the Label
+// vertically centred (caret-with-text behaviour that matches a <input>
+// row). Horizontal is always LEFT inside an EditBox — typing always
+// flows left-to-right from the first cell.
+void EditBox::_applyLabelModeStyling(Label *lbl) {
+    if (!lbl) return;
+    lbl->setHorizontalAlign(Label::HorizontalAlign::LEFT);
+    const bool multiline = (_inputMode == InputMode::ANY);
+    lbl->setVerticalAlign(multiline ? Label::VerticalAlign::TOP
+                                    : Label::VerticalAlign::CENTER);
+    // Multi-line inputs wrap when the typed line would exceed the Label's
+    // content-box width — matches Cocos Creator's runtime behaviour.
+    // Single-line inputs never wrap (caret scrolls horizontally in the
+    // future; overflow currently clips).
+    lbl->setWrapEnabled(multiline);
+}
+
 void EditBox::_updateTextLabel() {
     auto *node = getNode();
     if (!node) return;
@@ -190,6 +209,7 @@ void EditBox::_updateTextLabel() {
         if (_font) _textLabel->setFont(_font);
         _textLabel->setColor(_textColor);
         _textLabel->setText(_applyDisplayStyle(_string));
+        _applyLabelModeStyling(_textLabel);
         return;
     }
 
@@ -200,6 +220,7 @@ void EditBox::_updateTextLabel() {
         if (!_textLabel) _textLabel = existing->addComponent<Label>();
         if (_font) _textLabel->setFont(_font);
         _textLabel->setText(_applyDisplayStyle(_string));
+        _applyLabelModeStyling(_textLabel);
         _ownsTextLabelNode = false;  // Editor-authored: respect its layout
         return;
     }
@@ -214,6 +235,7 @@ void EditBox::_updateTextLabel() {
     if (_font) _textLabel->setFont(_font);
     _textLabel->setColor(_textColor);
     _textLabel->setText(_applyDisplayStyle(_string));
+    _applyLabelModeStyling(_textLabel);
     node->addChild(labelNode);
     _ownsTextLabelNode = true;
 }
@@ -234,6 +256,7 @@ void EditBox::_updatePlaceholderLabel() {
 
     if (_placeholderLabel) {
         applyProgrammaticStyle(_placeholderLabel);
+        _applyLabelModeStyling(_placeholderLabel);
         return;
     }
 
@@ -242,6 +265,7 @@ void EditBox::_updatePlaceholderLabel() {
         _placeholderLabel = existing->getComponent<Label>();
         if (!_placeholderLabel) _placeholderLabel = existing->addComponent<Label>();
         applyProgrammaticStyle(_placeholderLabel);
+        _applyLabelModeStyling(_placeholderLabel);
         _ownsPlaceholderLabelNode = false;
         return;
     }
@@ -252,6 +276,7 @@ void EditBox::_updatePlaceholderLabel() {
     if (_font) _placeholderLabel->setFont(_font);
     _placeholderLabel->setColor(_placeholderColor);
     _placeholderLabel->setText(_placeholder);
+    _applyLabelModeStyling(_placeholderLabel);
     node->addChild(labelNode);
     _ownsPlaceholderLabelNode = true;
 }

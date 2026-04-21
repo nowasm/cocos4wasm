@@ -18,25 +18,36 @@ namespace cc {
 // compiling while the SpriteFrame asset becomes the canonical authoring
 // handle.
 //
-// P2c scope (still):
-//   - SIMPLE type (whole frame stretched to the quad, no 9-slice)
-//   - Full-size UV (0,0..1,1); ignore SpriteFrame.rect sub-regions for now
-//     (atlas sub-rects land when the UV path is generalized)
-//   - mainColor uniform acts as a tint multiplier on the sampled texel
+// Render modes:
+//   - SIMPLE: whole frame stretched across the quad (atlas sub-rect honoured)
+//   - SLICED: 9-slice using SpriteFrame capInsets (L,T,R,B). The four
+//     corner quads stay at native pixel size, the four edges stretch in
+//     one axis, the centre stretches in both. When the render size is
+//     smaller than the cap sum on an axis, the cap bands collapse
+//     proportionally (matches upstream Cocos behaviour).
 //
-// Deferred to later phases:
-//   - Atlas UV sub-rect + rotation (Sprite::updateGeometry reads from
-//     spriteFrame->getRect() and spriteFrame->isRotated())
-//   - 9-slice / tiled / filled render modes
-//   - Automatic sizing from UITransform
+// TILED / FILLED render modes and trim / rotation are deferred to later
+// phases. Tint is per-vertex (mainColor uniform stays white) so sprites
+// with the same texture can share a batch regardless of colour.
 class Sprite : public UIRenderer {
     CC_CLASS_DECL(Sprite, UIRenderer)
 public:
+    // Matches upstream cc.Sprite.Type enum integer values so the prefab
+    // `_type` field round-trips without remapping.
+    enum class Type : uint32_t {
+        SIMPLE = 0,
+        SLICED = 1,
+        // TILED = 2, FILLED = 3  — not yet implemented, will fall back to SIMPLE
+    };
+
     Sprite();
     ~Sprite() override;
 
     void onEnable() override;
     void onDisable() override;
+
+    Type getType() const { return _type; }
+    void setType(Type t);
 
     // ── SpriteFrame (authoritative) ─────────────────────────────────────
     void         setSpriteFrame(SpriteFrame *sf);
@@ -72,6 +83,7 @@ private:
 
     // Authoritative texture binding — SpriteFrame owns the Texture2D.
     IntrusivePtr<SpriteFrame> _spriteFrame;
+    Type  _type{Type::SIMPLE};
     Vec2  _size{100.0f, 100.0f};
     Color _color{255, 255, 255, 255};
 

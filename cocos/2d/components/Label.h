@@ -1,5 +1,8 @@
 #pragma once
 
+#include <utility>
+
+#include "base/std/container/vector.h"
 #include "cocos/2d/framework/UIRenderer.h"
 #include "math/Color.h"
 
@@ -68,6 +71,26 @@ public:
     void setLineHeight(float h);
     float getLineHeight() const { return _lineHeight; }
 
+    // Word-wrap: when on, lines that exceed the UITransform's content-box
+    // width break at the nearest whitespace (or codepoint when no word
+    // boundary fits) so the text flows into additional visual rows.
+    // Disabled by default so existing Labels keep their old single-line
+    // layout; EditBox turns it on for InputMode::ANY.
+    bool isWrapEnabled() const { return _wrap; }
+    void setWrapEnabled(bool v);
+
+    // Post-layout visual-line map, rebuilt each updateGeometry(). Each
+    // pair is (startByte, byteLen) into `_text`. EditBox reads this so
+    // caret / selection / hit-test track the Label's actual wrap output.
+    using LineRange = std::pair<size_t, size_t>;
+    const ccstd::vector<LineRange> &getVisualLines() const { return _visualLines; }
+
+    // Runs the wrap algorithm against the current font / text / size and
+    // updates `_visualLines` in place. EditBox calls this right after
+    // setText so the caret can land on the fresh line without waiting
+    // for the next render pass to refresh the map.
+    void recomputeVisualLines();
+
     void onEnable() override;
     void onDisable() override;
 
@@ -92,6 +115,10 @@ private:
     VerticalAlign   _vAlign{VerticalAlign::CENTER};
     float           _fontSize{-1.f};    // <=0 → use font's native
     float           _lineHeight{-1.f};  // <=0 → use font's native
+    bool            _wrap{false};
+
+    // Refreshed every updateGeometry(); empty until then.
+    ccstd::vector<LineRange> _visualLines;
 };
 
 }  // namespace cc

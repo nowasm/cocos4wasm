@@ -301,12 +301,20 @@ void UIBatcher2d::tick() {
     size_t activeBatches = 0;
     size_t renderableCount = 0;
     for (auto *r : _registered) if (r && r->isRenderable()) ++renderableCount;
-    // Upload + re-attach in DFS visit order so scene models stay sorted.
-    for (size_t i : visited) {
-        Batch &b = _batches[i];
+    // Upload + re-attach in DFS visit order AND stamp each batch's Model
+    // with a monotonically-increasing priority so the transparent render
+    // queue's sort (`a.priority < b.priority` first) keeps them in DFS
+    // order. Without this, ties on priority fall through to depth /
+    // shaderID — which put the caret (untextured shader, low ID) BEFORE
+    // its EditBox background (textured shader), painting the caret
+    // underneath despite being later in insertion order.
+    for (size_t order = 0; order < visited.size(); ++order) {
+        Batch &b = _batches[visited[order]];
         uploadAndSubmit(b, scene);
+        if (b.model) b.model->setPriority(static_cast<uint32_t>(order));
         if (b.vertexCount > 0) ++activeBatches;
     }
+
 
     // Diagnostic: log when the count changes so we can observe batching
     // efficiency without spamming every frame.

@@ -10,10 +10,12 @@
   "544e49d6-3f05-4fa8-9a9e-091f98fc2ce8":        "../../default_ui/default_btn_pressed.png",
   "951249e0-9f16-456d-8b85-a6ca954da16b":        "../../default_ui/default_btn_disabled.png",
   "bd1bcaba-bd7d-4a71-b143-997c882383e4":        "../../default_ui/default_editbox_bg.png",
+  "9fd900dd-221b-4f89-8f2c-fba34243c835":        "../../default_ui/default_progressbar_bg.png",
 
   "24a704da-2867-446d-8d1a-5e920c75e09d@f9941":  "default_ui_sf/24a704da-2867-446d-8d1a-5e920c75e09d@f9941.json",
   "20835ba4-6145-4fbc-a58a-051ce700aa3e@f9941":  "default_ui_sf/20835ba4-6145-4fbc-a58a-051ce700aa3e@f9941.json",
   "544e49d6-3f05-4fa8-9a9e-091f98fc2ce8@f9941":  "default_ui_sf/544e49d6-3f05-4fa8-9a9e-091f98fc2ce8@f9941.json",
   "951249e0-9f16-456d-8b85-a6ca954da16b@f9941":  "default_ui_sf/951249e0-9f16-456d-8b85-a6ca954da16b@f9941.json",
-  "bd1bcaba-bd7d-4a71-b143-997c882383e4@f9941":  "default_ui_sf/bd1bcaba-bd7d-4a71-b143-997c882383e4@f9941.json"
+  "bd1bcaba-bd7d-4a71-b143-997c882383e4@f9941":  "default_ui_sf/bd1bcaba-bd7d-4a71-b143-997c882383e4@f9941.json",
+  "9fd900dd-221b-4f89-8f2c-fba34243c835@f9941":  "default_ui_sf/9fd900dd-221b-4f89-8f2c-fba34243c835@f9941.json"
 }

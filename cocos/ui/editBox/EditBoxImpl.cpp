@@ -100,6 +100,49 @@ float labelDrawScale(const Label *label) {
     return fs / base;
 }
 
+// Label content-box rect in its parent (EditBox) local space. All caret,
+// selection and hit-test math anchors to these numbers so the position
+// of a caret drawn at index N matches where the Label's Nth glyph sits.
+//
+// For the caret's PRIMARY axis (X for single-line, X within a line for
+// multi-line) LEFT-align puts glyphs against `leftX`; CENTER / RIGHT
+// recentre around the content-box mid/right. The centre-Y sits on the
+// content-box centre so single-line boxes keep matching the Label's
+// single-line CENTER vAlign. Multi-line uses `topY` directly and
+// decrements by lineH per visual row.
+struct LabelRect {
+    float leftX{0.f};
+    float rightX{0.f};
+    float topY{0.f};     // highest Y (content-box top edge in EditBox space)
+    float bottomY{0.f};  // lowest Y
+    float width{0.f};
+    float height{0.f};
+};
+
+// Small breathing gap so the caret doesn't kiss the previous glyph's
+// right edge. Matches what Cocos Creator ships visually.
+constexpr float kCaretGlyphGap = 2.f;
+
+LabelRect labelContentRect(const Label *label) {
+    LabelRect r;
+    if (!label || !label->getNode()) return r;
+    const Vec3 lp = label->getNode()->getPosition();
+    float sx = 0.f, sy = 0.f, ax = 0.5f, ay = 0.5f;
+    if (auto *ui = label->getNode()->getComponent<UITransform>()) {
+        sx = ui->getContentSize().x;
+        sy = ui->getContentSize().y;
+        ax = ui->getAnchorPoint().x;
+        ay = ui->getAnchorPoint().y;
+    }
+    r.leftX   = lp.x - ax * sx;
+    r.rightX  = r.leftX + sx;
+    r.bottomY = lp.y - ay * sy;
+    r.topY    = r.bottomY + sy;
+    r.width   = sx;
+    r.height  = sy;
+    return r;
+}
+
 // Nearest UITransform walking up from `from` (skipping `from` itself).
 // Used for window→local math when the raw global mouse listener fires —
 // we need both the canvas size (to recentre window coords) and the
@@ -185,7 +228,7 @@ void EditBoxImpl::clear() {
     // Visual children outlive the impl (they're owned by the delegate's
     // node). They'll be torn down with the node itself.
     _caret = nullptr;
-    _selHighlight = nullptr;
+    _selHighlights.clear();
     EditBoxImplBase::clear();
 }
 
@@ -206,12 +249,13 @@ void EditBoxImpl::setSize(float width, float height) {
             ui->setContentSize(2.f, caretH);
         }
     }
-    if (_selHighlight) {
-        if (auto *ui = _selHighlight->getNode()->getComponent<UITransform>()) {
+    for (auto *sp : _selHighlights) {
+        if (!sp) continue;
+        if (auto *ui = sp->getNode()->getComponent<UITransform>()) {
             const Vec2 &cs = ui->getContentSize();
             ui->setContentSize(cs.x, caretH);
         }
-        _selHighlight->setSize(_selHighlight->getSize().x, caretH);
+        sp->setSize(sp->getSize().x, caretH);
     }
 }
 
@@ -311,22 +355,39 @@ void EditBoxImpl::ensureVisualChildren() {
         parent->addChild(cn);
     }
 
-    if (!_selHighlight) {
-        Node *existing = parent->getChildByName("EDIT_SELECTION");
-        if (existing) _selHighlight = existing->getComponent<Sprite>();
+    if (_selHighlights.empty()) {
+        // Reuse a single legacy EDIT_SELECTION child if the prefab was
+        // saved with the old name (pre-multi-line rework).
+        if (Node *existing = parent->getChildByName("EDIT_SELECTION")) {
+            if (auto *sp = existing->getComponent<Sprite>()) {
+                _selHighlights.push_back(sp);
+            }
+        }
     }
-    if (!_selHighlight) {
-        auto *sn = ccnew Node("EDIT_SELECTION");
-        auto *ui = sn->addComponent<UITransform>();
-        ui->setContentSize(0.f, 24.f);
-        ui->setAnchorPoint(0.f, 0.5f);
-        _selHighlight = sn->addComponent<Sprite>();
-        _selHighlight->setSize(0.f, 24.f);
-        Color hl = _selectionColor;
-        hl.a = 0;
-        _selHighlight->setColor(hl);
-        parent->addChild(sn);
+    if (_selHighlights.empty()) {
+        _selHighlights.push_back(allocSelectionRect(parent, 0));
     }
+}
+
+// Create (or fetch cached) Nth selection highlight Sprite under `parent`.
+// Per-line rect nodes are named EDIT_SELECTION_N so legacy prefabs and
+// fresh multi-line spans coexist.
+Sprite *EditBoxImpl::allocSelectionRect(Node *parent, size_t idx) {
+    const ccstd::string name = "EDIT_SELECTION_" + std::to_string(idx);
+    if (Node *existing = parent->getChildByName(name.c_str())) {
+        if (auto *sp = existing->getComponent<Sprite>()) return sp;
+    }
+    auto *sn = ccnew Node(name.c_str());
+    auto *ui = sn->addComponent<UITransform>();
+    ui->setContentSize(0.f, 24.f);
+    ui->setAnchorPoint(0.f, 0.5f);  // pin left edge to node position
+    auto *sp = sn->addComponent<Sprite>();
+    sp->setSize(0.f, 24.f);
+    Color hl = _selectionColor;
+    hl.a = 0;
+    sp->setColor(hl);
+    parent->addChild(sn);
+    return sp;
 }
 
 void EditBoxImpl::setCaretVisible(bool on) {
@@ -337,10 +398,15 @@ void EditBoxImpl::setCaretVisible(bool on) {
 }
 
 void EditBoxImpl::setSelectionVisible(bool on) {
-    if (!_selHighlight) return;
-    Color c = _selHighlight->getColor();
-    c.a = on ? static_cast<uint8_t>(_selectionColor.a) : 0;
-    _selHighlight->setColor(c);
+    // Hide every cached highlight rect. Multi-line selections repopulate
+    // just the ones they need each tick via updateSelectionHighlight; the
+    // extras stay alpha=0 until needed again.
+    for (auto *sp : _selHighlights) {
+        if (!sp) continue;
+        Color c = sp->getColor();
+        c.a = on ? static_cast<uint8_t>(_selectionColor.a) : 0;
+        sp->setColor(c);
+    }
 }
 
 // ────────────────────────────────────────────────────────────────────────
@@ -525,7 +591,13 @@ void EditBoxImpl::bindListeners() {
                 rebuildLineIndex(lines);
                 const size_t li = lineIndexOf(lines, _caretIdx);
                 if (!_preferredCaretXValid) {
-                    _preferredCaretX = columnAdvance(lines[li].first, _caretIdx);
+                    // Store preferred X in RENDERED pixels from line start
+                    // so byteIdxAtColumn can match directly (it walks
+                    // glyphs in the same pixel space).
+                    const float scale = labelDrawScale(
+                        _delegate->getTextLabel());
+                    _preferredCaretX =
+                        columnAdvance(lines[li].first, _caretIdx) * scale;
                     _preferredCaretXValid = true;
                 }
                 const int delta = (ev.key == KEY_UP) ? -1 : 1;
@@ -713,22 +785,32 @@ void EditBoxImpl::updateCaretPos() {
         rebuildLineIndex(lines);
         const size_t li = lineIndexOf(lines, _caretIdx);
         const size_t ls = lines[li].first;
-        const size_t ll = lines[li].second;
 
-        float lineAdv = 0.f;
-        for (size_t i = 0; i < ll; ++i) {
-            if (const auto *g = font->getGlyph(static_cast<unsigned char>(s[ls + i]))) {
-                lineAdv += g->xadvance;
-            }
-        }
-        const float colX = columnAdvance(ls, _caretIdx);
-        const float lineH = static_cast<float>(font->getLineHeight());
-        const float blockTop = (static_cast<int>(lines.size()) - 1) * 0.5f * lineH;
-        const float baselineY = blockTop - static_cast<int>(li) * lineH;
+        const float drawScale = labelDrawScale(label);
+        const float colX      = columnAdvance(ls, _caretIdx) * drawScale;
+        // Use the Label's own line height so caret's per-line stride
+        // matches the text layout. Label applies the same fallback:
+        // authored `_lineHeight` if > 0, else the font's native lineH
+        // scaled by fontSize/baseFontSize.
+        const float nativeLineH = static_cast<float>(font->getLineHeight()) * drawScale;
+        const float lineH = (label->getLineHeight() > 0.f)
+                                ? label->getLineHeight()
+                                : nativeLineH;
+        const float fontPx = (label->getFontSize() > 0.f
+                                  ? label->getFontSize()
+                                  : static_cast<float>(font->getBaseFontSize()))
+                             * drawScale;
+        const LabelRect rect = labelContentRect(label);
 
+        // Label's TOP-vAlign places line N's PEN Y at `contentTop - N*lineH`.
+        // Glyph bodies hang below each pen; caret sits on the visible
+        // stroke centre, empirically `pen - fontPx/2 - lineH/4`.
         Vec3 cp = _caret->getNode()->getPosition();
-        cp.x = colX - lineAdv * 0.5f;
-        cp.y = baselineY - lineH * 0.5f;
+        cp.x = rect.leftX + colX + kCaretGlyphGap;
+        cp.y = rect.topY
+             - static_cast<float>(li) * lineH
+             - fontPx * 0.5f
+             - lineH * 0.20f;
         _caret->getNode()->setPosition(cp);
         return;
     }
@@ -777,22 +859,50 @@ void EditBoxImpl::updateCaretPos() {
         }
     }
 
-    // Small breathing gap so the caret doesn't kiss the previous glyph's
-    // right edge. Matches what Cocos Creator ships visually.
-    constexpr float kCaretGlyphGap = 2.f;
-
     Vec3 cp = _caret->getNode()->getPosition();
     cp.x = labelOriginX + prefix + kCaretGlyphGap;
     cp.y = labelOriginY;
     _caret->getNode()->setPosition(cp);
 }
 
+// Place (or reuse) one highlight rect covering the range [xLeft, xRight]
+// at vertical centre `yCentre`, with the given height. Idempotent across
+// frames — only the first `usedCount` highlights this frame end up
+// visible; the rest are left alpha=0 for reuse next time.
+void EditBoxImpl::setHighlightRect(size_t idx, float xLeft, float xRight,
+                                   float yCentre, float height) {
+    if (!_delegate) return;
+    auto *parent = _delegate->getNode();
+    if (!parent) return;
+    while (_selHighlights.size() <= idx) {
+        _selHighlights.push_back(allocSelectionRect(parent, _selHighlights.size()));
+    }
+    Sprite *sp = _selHighlights[idx];
+    if (!sp) return;
+    const float width = std::max(1.f, xRight - xLeft);
+    sp->setSize(width, height);
+    if (auto *ui = sp->getNode()->getComponent<UITransform>()) {
+        ui->setContentSize(width, height);
+    }
+    sp->getNode()->setPosition(Vec3{xLeft, yCentre, 0.f});
+    Color c = _selectionColor;
+    c.a = static_cast<uint8_t>(_selectionColor.a);
+    sp->setColor(c);
+}
+
+void EditBoxImpl::hideHighlightsFrom(size_t firstIdx) {
+    for (size_t i = firstIdx; i < _selHighlights.size(); ++i) {
+        Sprite *sp = _selHighlights[i];
+        if (!sp) continue;
+        Color c = sp->getColor();
+        c.a = 0;
+        sp->setColor(c);
+    }
+}
+
 void EditBoxImpl::updateSelectionHighlight() {
-    if (!_selHighlight || !_delegate) return;
-    if (!hasSelection() || !_editing || _delegate->getInputMode() == InputMode::ANY) {
-        // Multi-line selection spans multiple rects — MVP-deferred. Hide
-        // to avoid a bogus single-line stripe that misrepresents the
-        // real selection.
+    if (!_delegate) return;
+    if (!hasSelection() || !_editing) {
         setSelectionVisible(false);
         return;
     }
@@ -803,18 +913,81 @@ void EditBoxImpl::updateSelectionHighlight() {
     }
     auto *font = label->getFont();
     const ccstd::string &s = _delegate->getString();
+    const float drawScale = labelDrawScale(label);
+
+    const size_t selS = getSelectionStart();
+    const size_t selE = getSelectionEnd();
+    const bool isPassword = (_delegate->getInputFlag() == InputFlag::PASSWORD);
+    auto prefixWithin = [&](size_t lineStart, size_t byteIdx) {
+        if (isPassword) {
+            const size_t cp = codepointCount(
+                s.substr(lineStart, byteIdx - lineStart));
+            return static_cast<float>(cp) *
+                   static_cast<float>(font->getGlyph(kPasswordMask)
+                       ? font->getGlyph(kPasswordMask)->xadvance : 0);
+        }
+        float adv = 0.f;
+        for (size_t i = lineStart; i < byteIdx; ++i) {
+            if (const auto *g = font->getGlyph(
+                    static_cast<unsigned char>(s[i]))) {
+                adv += g->xadvance;
+            }
+        }
+        return adv;
+    };
+
+    if (_delegate->getInputMode() == InputMode::ANY) {
+        ccstd::vector<LineRange> lines;
+        rebuildLineIndex(lines);
+        if (lines.empty()) { setSelectionVisible(false); return; }
+
+        const float nativeLineH = static_cast<float>(font->getLineHeight()) * drawScale;
+        const float lineH = (label->getLineHeight() > 0.f)
+                                ? label->getLineHeight()
+                                : nativeLineH;
+        const float fontPx = (label->getFontSize() > 0.f
+                                  ? label->getFontSize()
+                                  : static_cast<float>(font->getBaseFontSize()))
+                             * drawScale;
+        const LabelRect rect = labelContentRect(label);
+        const float rectH = fontPx;  // highlight height matches caret / glyph body
+
+        size_t used = 0;
+        for (size_t li = 0; li < lines.size(); ++li) {
+            const size_t lineStart = lines[li].first;
+            const size_t lineEnd   = lineStart + lines[li].second;
+            if (selE <= lineStart || selS >= lineEnd) continue;  // outside
+
+            const size_t sx = std::max(selS, lineStart);
+            const size_t ex = std::min(selE, lineEnd);
+            const float x0 = rect.leftX +
+                prefixWithin(lineStart, sx) * drawScale;
+            const float x1 = rect.leftX +
+                prefixWithin(lineStart, ex) * drawScale;
+            // Same centre-Y formula the caret uses.
+            const float yCentre = rect.topY
+                                - static_cast<float>(li) * lineH
+                                - fontPx * 0.5f
+                                - lineH * 0.20f;
+            setHighlightRect(used++, x0, x1, yCentre, rectH);
+        }
+        hideHighlightsFrom(used);
+        return;
+    }
+
+    // Single-line.
     const ccstd::string renderedFull = renderForDisplay(_delegate, s, false);
+    const float total = measureAdvance(*font, renderedFull,
+                                       renderedFull.size()) * drawScale;
     auto renderedPrefix = [&](size_t idx) {
-        if (_delegate->getInputFlag() == InputFlag::PASSWORD) {
+        if (isPassword) {
             const size_t cp = codepointCount(s.substr(0, idx));
             return ccstd::string(cp, kPasswordMask);
         }
         return renderForDisplay(_delegate, s.substr(0, idx), false);
     };
-    const float drawScale = labelDrawScale(label);
-    const float total = measureAdvance(*font, renderedFull, renderedFull.size()) * drawScale;
-    const ccstd::string preS = renderedPrefix(getSelectionStart());
-    const ccstd::string preE = renderedPrefix(getSelectionEnd());
+    const ccstd::string preS = renderedPrefix(selS);
+    const ccstd::string preE = renderedPrefix(selE);
     const float pS = measureAdvance(*font, preS, preS.size()) * drawScale;
     const float pE = measureAdvance(*font, preE, preE.size()) * drawScale;
 
@@ -822,41 +995,29 @@ void EditBoxImpl::updateSelectionHighlight() {
     // sits under the actual glyph stripe regardless of Label lpos/anchor.
     float labelOriginX = 0.f;
     float labelOriginY = 0.f;
-    auto *labelNode = label->getNode();
-    if (labelNode) {
-        const Vec3 lp = labelNode->getPosition();
+    if (label->getNode()) {
+        const Vec3 lp = label->getNode()->getPosition();
         labelOriginX = lp.x;
         labelOriginY = lp.y;
-        if (auto *lui = labelNode->getComponent<UITransform>()) {
+        if (auto *lui = label->getNode()->getComponent<UITransform>()) {
             const Vec2 sz = lui->getContentSize();
             const Vec2 ap = lui->getAnchorPoint();
             const float leftEdge = lp.x - ap.x * sz.x;
             switch (label->getHorizontalAlign()) {
                 case Label::HorizontalAlign::LEFT:
-                    labelOriginX = leftEdge;
-                    break;
+                    labelOriginX = leftEdge; break;
                 case Label::HorizontalAlign::CENTER:
-                    labelOriginX = leftEdge + sz.x * 0.5f - total * 0.5f;
-                    break;
+                    labelOriginX = leftEdge + sz.x * 0.5f - total * 0.5f; break;
                 case Label::HorizontalAlign::RIGHT:
-                    labelOriginX = leftEdge + sz.x - total;
-                    break;
+                    labelOriginX = leftEdge + sz.x - total; break;
             }
             labelOriginY = lp.y + (0.5f - ap.y) * sz.y;
         }
     }
 
-    const float width = std::max(1.f, pE - pS);
-    _selHighlight->setSize(width, 24.f);
-    if (auto *ui = _selHighlight->getNode()->getComponent<UITransform>()) {
-        ui->setContentSize(width, 24.f);
-    }
-    // Sprite::updateGeometry renders centred on the node's position
-    // regardless of the UITransform anchor, so shift by half the width
-    // to put the rect's LEFT edge on the selection-start X.
-    _selHighlight->getNode()->setPosition(
-        Vec3{labelOriginX + pS + width * 0.5f, labelOriginY, 0.f});
-    setSelectionVisible(true);
+    setHighlightRect(0, labelOriginX + pS, labelOriginX + pE,
+                     labelOriginY, 24.f);
+    hideHighlightsFrom(1);
 }
 
 // ────────────────────────────────────────────────────────────────────────
@@ -902,18 +1063,30 @@ size_t EditBoxImpl::windowPointToCaretIndex(float winX, float winY) const {
     if (_delegate->getInputMode() == InputMode::ANY) {
         ccstd::vector<LineRange> lines;
         rebuildLineIndex(lines);
-        const float lineH = static_cast<float>(font->getLineHeight());
-        const float blockTop = (static_cast<int>(lines.size()) - 1) * 0.5f * lineH;
+        const float drawScale   = labelDrawScale(label);
+        const float nativeLineH = static_cast<float>(font->getLineHeight()) * drawScale;
+        const float lineH = (label->getLineHeight() > 0.f)
+                                ? label->getLineHeight()
+                                : nativeLineH;
+        const LabelRect rect  = labelContentRect(label);
+
+        // Vertical pick: find the line whose cell contains `by`. Clamp to
+        // first / last line when the click falls outside the text block.
         int bestLi = 0;
-        float bestD = 1e9f;
-        for (int li = 0; li < static_cast<int>(lines.size()); ++li) {
-            const float cy = blockTop - li * lineH;
-            const float d = std::fabs(by - cy);
-            if (d < bestD) { bestD = d; bestLi = li; }
+        if (!lines.empty()) {
+            const int lastLi = static_cast<int>(lines.size()) - 1;
+            if (by >= rect.topY) {
+                bestLi = 0;
+            } else {
+                const float row = (rect.topY - by) / lineH;
+                bestLi = std::clamp(static_cast<int>(std::floor(row)), 0, lastLi);
+            }
         }
         const size_t ls = lines[bestLi].first;
         const size_t ll = lines[bestLi].second;
-        return byteIdxAtColumn(ls, ll, bx);
+        // Horizontal pick: express bx relative to the Label's LEFT edge,
+        // then scan glyph advances (scaled) for the closest gap.
+        return byteIdxAtColumn(ls, ll, bx - rect.leftX);
     }
 
     // Single-line.
@@ -974,6 +1147,27 @@ size_t EditBoxImpl::windowPointToCaretIndex(float winX, float winY) const {
 void EditBoxImpl::rebuildLineIndex(ccstd::vector<LineRange> &out) const {
     out.clear();
     if (!_delegate) { out.push_back({0, 0}); return; }
+    // When the Label auto-wraps, its `_visualLines` is the authoritative
+    // break map — caret / hit-test / selection must follow the same
+    // wraps the Label paints. Copy it out. Label refreshes this during
+    // its rebuildForRender (one frame behind on the very first tick,
+    // which is acceptable — the empty-string bootstrap has 1 line).
+    if (auto *label = _delegate->getTextLabel()) {
+        if (label->isWrapEnabled()) {
+            // Force a refresh so the line map reflects the CURRENT text
+            // (setText + updateCaretPos happen in the same call for key
+            // insertion; without this, the caret would read last frame's
+            // wrap and appear on the prior line edge when a character
+            // just pushed the line over the wrap limit).
+            label->recomputeVisualLines();
+            const auto &vl = label->getVisualLines();
+            if (!vl.empty()) {
+                out.assign(vl.begin(), vl.end());
+                return;
+            }
+        }
+    }
+    // Fallback: split on explicit '\n' only.
     const ccstd::string &s = _delegate->getString();
     size_t start = 0;
     for (size_t i = 0; i <= s.size(); ++i) {
@@ -1013,34 +1207,32 @@ float EditBoxImpl::columnAdvance(size_t lineStart, size_t byteIdx) const {
     return adv;
 }
 
+// targetX is measured from the Label's content-box LEFT edge (in pixels,
+// same scale the Label actually paints — i.e. xadvance × fontSize/baseFontSize).
+// Returns the byte index whose preceding-prefix width is closest to targetX.
 size_t EditBoxImpl::byteIdxAtColumn(size_t lineStart, size_t lineLen, float targetX) const {
     if (!_delegate) return lineStart;
     auto *label = _delegate->getTextLabel();
     if (!label || !label->getFont()) return lineStart;
     auto *font = label->getFont();  // non-const: see columnAdvance note
     const ccstd::string &s = _delegate->getString();
+    const float drawScale = labelDrawScale(label);
 
-    float lineAdv = 0.f;
-    for (size_t i = 0; i < lineLen; ++i) {
-        if (const auto *g = font->getGlyph(static_cast<unsigned char>(s[lineStart + i]))) {
-            lineAdv += g->xadvance;
-        }
-    }
-    const float goal = targetX + lineAdv * 0.5f;
-
-    float adv = 0.f;
+    float adv = 0.f;  // pen position from line start, in rendered pixels
     size_t best = lineStart;
-    float  bestDist = std::fabs(goal - adv);
+    float  bestDist = std::fabs(targetX - adv);
     size_t i = lineStart;
     const size_t lineEnd = lineStart + lineLen;
     while (i < lineEnd) {
         const size_t cpEnd = nextCodepoint(s, i);
+        float cpAdv = 0.f;
         for (size_t k = i; k < cpEnd; ++k) {
             if (const auto *g = font->getGlyph(static_cast<unsigned char>(s[k]))) {
-                adv += g->xadvance;
+                cpAdv += g->xadvance;
             }
         }
-        const float d = std::fabs(goal - adv);
+        adv += cpAdv * drawScale;
+        const float d = std::fabs(targetX - adv);
         if (d < bestDist) { bestDist = d; best = cpEnd; }
         i = cpEnd;
     }

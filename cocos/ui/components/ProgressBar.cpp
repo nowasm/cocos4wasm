@@ -16,6 +16,8 @@ CC_IMPLEMENT_CLASS(ProgressBar, "cc.ProgressBar", Component)
     .property("_reverse",     &ProgressBar::_reverse,     false)
 CC_END_CLASS(ProgressBar);
 
+int ProgressBar::forceLink() { return 0; }
+
 void ProgressBar::setBarSprite(Sprite *s) {
     _barSprite = s;
     _originalSizeCaptured = false;
@@ -46,43 +48,49 @@ void ProgressBar::_applyProgress() {
     if (!_originalSizeCaptured) return;
 
     const float pct = std::clamp(_progress, 0.f, 1.f);
+    // Upstream uses `totalLength * progress` for the filled dimension —
+    // not `originalSize * progress`. The original bar size on the
+    // authoring node only fixes the cross-axis thickness; the primary
+    // axis follows _totalLength directly, which is why Editor previews
+    // a 300-pixel-wide bar at 50 % as 150 px wide even when the bar
+    // sprite's own UITransform content-size is 150.
     Vec2 target = _barOriginalSize;
-
     switch (_mode) {
         case Mode::HORIZONTAL:
-        case Mode::FILLED:   // MVP: treat FILLED as HORIZONTAL until
-                             // SpriteFrame FillType lands.
-            target.x = _barOriginalSize.x * pct;
+        case Mode::FILLED:  // FILLED falls back to HORIZONTAL until Sprite
+                            // gains Type::FILLED rendering.
+            target.x = _totalLength * pct;
             break;
         case Mode::VERTICAL:
-            target.y = _barOriginalSize.y * pct;
+            target.y = _totalLength * pct;
             break;
     }
 
-    // Keep the bar anchored to one edge so shrinking reveals the "empty"
-    // side. `reverse` flips which edge stays pinned. We accomplish the
-    // anchoring by moving the sprite node so its edge stays fixed.
+    // Pin the bar's filling edge — the non-shrinking side stays fixed so
+    // the "empty" area grows from the opposite edge. Cocos Creator's
+    // default authoring gives the bar node an anchor that already pins
+    // the desired edge (e.g. (0, 0.5) for a HORIZONTAL bar that grows
+    // right), and our Sprite honours that anchor, so sizing the sprite
+    // is enough — no position shuffle needed. `reverse` flips the anchor
+    // we expect, which we enforce here so prefabs that ship with the
+    // "wrong" anchor still behave correctly.
     auto *barNode = _barSprite->getNode();
     auto *ui = barNode->getComponent<UITransform>();
-    const Vec2 anchor = ui ? ui->getAnchorPoint() : Vec2{0.5f, 0.5f};
-    Vec3 pos = barNode->getPosition();
-
-    if (_mode == Mode::HORIZONTAL || _mode == Mode::FILLED) {
-        const float delta = (_barOriginalSize.x - target.x);
-        // anchor 0 = left-pinned, anchor 1 = right-pinned, 0.5 = centred.
-        // Default: pin the side opposite to `reverse`. reverse=false pins
-        // left (anchor 0), reverse=true pins right (anchor 1).
-        const float shift = (_reverse ? +0.5f : -0.5f) * delta;
-        pos.x = barNode->getPosition().x;  // preserve unless below adjusts
-        (void)shift; (void)anchor;
-    } else {
-        const float delta = (_barOriginalSize.y - target.y);
-        (void)delta;
+    if (ui) {
+        Vec2 ap = ui->getAnchorPoint();
+        switch (_mode) {
+            case Mode::HORIZONTAL:
+            case Mode::FILLED:
+                ap.x = _reverse ? 1.f : 0.f;
+                break;
+            case Mode::VERTICAL:
+                ap.y = _reverse ? 1.f : 0.f;
+                break;
+        }
+        ui->setAnchorPoint(ap);
+        ui->setContentSize(target);
     }
-
     _barSprite->setSize(target.x, target.y);
-    if (ui) ui->setContentSize(target);
-    barNode->setPosition(pos);
 }
 
 }  // namespace cc
