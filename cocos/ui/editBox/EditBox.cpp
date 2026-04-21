@@ -192,10 +192,12 @@ void EditBox::_applyLabelModeStyling(Label *lbl) {
     const bool multiline = (_inputMode == InputMode::ANY);
     lbl->setVerticalAlign(multiline ? Label::VerticalAlign::TOP
                                     : Label::VerticalAlign::CENTER);
-    // Multi-line inputs wrap when the typed line would exceed the Label's
-    // content-box width — matches Cocos Creator's runtime behaviour.
-    // Single-line inputs never wrap (caret scrolls horizontally in the
-    // future; overflow currently clips).
+    // Multi-line: ask the Label to wrap typed text when it overruns the
+    // content-box width. RESIZE_HEIGHT is the standard Cocos overflow
+    // mode for wrapping; single-line falls back to NONE so text flows
+    // past the box edge (caret-scroll behaviour to come later).
+    lbl->setOverflow(multiline ? Label::Overflow::RESIZE_HEIGHT
+                               : Label::Overflow::NONE);
     lbl->setWrapEnabled(multiline);
 }
 

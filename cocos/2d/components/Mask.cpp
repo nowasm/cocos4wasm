@@ -3,8 +3,10 @@
 #include <cmath>
 
 #include "base/Log.h"
+#include "cocos/2d/framework/UITransform.h"
 #include "core/assets/EffectAsset.h"
 #include "core/assets/Material.h"
+#include "core/scene-graph/Node.h"
 
 namespace cc {
 
@@ -63,25 +65,51 @@ ccstd::vector<gfx::Attribute> Mask::vertexAttributes() const {
 }
 
 void Mask::buildRectPath() {
-    const float hx = _size.x * 0.5f;
-    const float hy = _size.y * 0.5f;
+    // Prefer the node's UITransform content rect so Mask clips the same
+    // area the node visually occupies (Editor-authored masks rarely set
+    // the Mask.size field — upstream Cocos reads contentSize at runtime
+    // for RECT / ELLIPSE masks and we match that). Fall back to the
+    // explicit `_size` / anchor (0.5, 0.5) when no UITransform is
+    // available, which is the pre-existing behaviour for programmatic
+    // masks created outside the UI hierarchy.
+    float w = _size.x, h = _size.y, ax = 0.5f, ay = 0.5f;
+    if (auto *node = getNode()) {
+        if (auto *ui = node->getComponent<UITransform>()) {
+            w = ui->getContentSize().x;
+            h = ui->getContentSize().y;
+            ax = ui->getAnchorPoint().x;
+            ay = ui->getAnchorPoint().y;
+        }
+    }
+    const float xLo = -ax * w;
+    const float xHi = (1.f - ax) * w;
+    const float yLo = -ay * h;
+    const float yHi = (1.f - ay) * h;
     _path = {
-        {-hx, -hy},
-        { hx, -hy},
-        { hx,  hy},
-        {-hx,  hy},
+        {xLo, yLo}, {xHi, yLo}, {xHi, yHi}, {xLo, yHi},
     };
 }
 
 void Mask::buildEllipsePath() {
     _path.clear();
     _path.reserve(static_cast<size_t>(_ellipseSegments));
-    const float hx = _size.x * 0.5f;
-    const float hy = _size.y * 0.5f;
+    float w = _size.x, h = _size.y, ax = 0.5f, ay = 0.5f;
+    if (auto *node = getNode()) {
+        if (auto *ui = node->getComponent<UITransform>()) {
+            w = ui->getContentSize().x;
+            h = ui->getContentSize().y;
+            ax = ui->getAnchorPoint().x;
+            ay = ui->getAnchorPoint().y;
+        }
+    }
+    const float cx = (0.5f - ax) * w;
+    const float cy = (0.5f - ay) * h;
+    const float hx = w * 0.5f;
+    const float hy = h * 0.5f;
     const float twoPi = 6.28318530718f;
     for (int i = 0; i < _ellipseSegments; ++i) {
         const float a = (twoPi * static_cast<float>(i)) / static_cast<float>(_ellipseSegments);
-        _path.push_back({std::cos(a) * hx, std::sin(a) * hy});
+        _path.push_back({cx + std::cos(a) * hx, cy + std::sin(a) * hy});
     }
 }
 

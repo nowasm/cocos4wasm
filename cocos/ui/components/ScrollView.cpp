@@ -5,6 +5,7 @@
 
 #include "base/Log.h"
 #include "cocos/2d/framework/UITransform.h"
+#include "cocos/ui/components/ScrollBar.h"
 #include "core/scene-graph/Node.h"
 #include "engine/EngineEvents.h"
 #include "math/Vec3.h"
@@ -30,6 +31,20 @@ CC_IMPLEMENT_CLASS(ScrollView, "cc.ScrollView", Component)
     .property("_verticalScrollBar",  &ScrollView::_vScrollBar)
 CC_END_CLASS(ScrollView);
 
+int ScrollView::forceLink() { return 0; }
+
+void ScrollView::notifyScrollBars() {
+    const Vec2 zero{0.f, 0.f};
+    if (_hScrollBar) {
+        _hScrollBar->setScrollView(this);
+        _hScrollBar->onScroll(zero);
+    }
+    if (_vScrollBar) {
+        _vScrollBar->setScrollView(this);
+        _vScrollBar->onScroll(zero);
+    }
+}
+
 struct ScrollView::Impl {
     events::Mouse::Listener mouseL;
     events::Touch::Listener touchL;
@@ -37,10 +52,28 @@ struct ScrollView::Impl {
 
 namespace {
 
-void winToWorld(float mx, float my, float winW, float winH,
-                float &wx, float &wy) {
-    wx = mx - winW * 0.5f;
-    wy = winH * 0.5f - my;
+// Window-pixel → world XY, applied through the nearest ancestor's world
+// offset so Editor-authored Canvases (typically placed at the design
+// resolution's centre) line up with the hit-test world space the main
+// input dispatcher uses. Without the Canvas offset a drag started on
+// the ScrollView would miss hitTestWorld even though the sprite sits
+// right under the cursor.
+void winToCanvasWorld(Node *view, float mx, float my,
+                      float &wx, float &wy) {
+    float winW = 1280.f, winH = 720.f;
+    float cwx = 0.f, cwy = 0.f;
+    for (Node *n = view ? view->getParent() : nullptr; n; n = n->getParent()) {
+        if (auto *ui = n->getComponent<UITransform>()) {
+            winW = ui->getContentSize().x;
+            winH = ui->getContentSize().y;
+            const Vec3 &wp = n->getWorldPosition();
+            cwx = wp.x;
+            cwy = wp.y;
+            break;
+        }
+    }
+    wx = mx - winW * 0.5f + cwx;
+    wy = winH * 0.5f - my + cwy;
 }
 
 float easeOutQuint(float t) {
@@ -61,6 +94,9 @@ UITransform *ScrollView::getView() const {
 
 void ScrollView::onEnable() {
     _impl = new Impl();
+    // Sync bar handles to the initial content offset so the stripe
+    // appears in the right place before the user touches anything.
+    notifyScrollBars();
 
     _impl->mouseL.bind([this](const MouseEvent &ev) {
         if (ev.type == MouseEvent::Type::DOWN && ev.button == 0) {
@@ -69,17 +105,8 @@ void ScrollView::onEnable() {
             auto *ui = view->getComponent<UITransform>();
             if (!ui) return;
 
-            // Window-size estimate from nearest ancestor UITransform.
-            float winW = 1280.f, winH = 720.f;
-            for (Node *n = view->getParent(); n; n = n->getParent()) {
-                if (auto *pui = n->getComponent<UITransform>()) {
-                    winW = pui->getContentSize().x;
-                    winH = pui->getContentSize().y;
-                    break;
-                }
-            }
             float wx, wy;
-            winToWorld(ev.x, ev.y, winW, winH, wx, wy);
+            winToCanvasWorld(view, ev.x, ev.y, wx, wy);
             if (!ui->hitTestWorld(wx, wy)) return;
 
             stopAutoScroll();
@@ -106,6 +133,7 @@ void ScrollView::onEnable() {
                 p.y += contentDy;
                 _content->setPosition(p);
                 if (!_elastic) clampContentPos();
+                notifyScrollBars();
                 fireScrollEvent(EventType::SCROLLING);
             }
             return;
@@ -186,6 +214,7 @@ void ScrollView::update(float dt) {
         p.x = _autoStart.x + (_autoEnd.x - _autoStart.x) * k;
         p.y = _autoStart.y + (_autoEnd.y - _autoStart.y) * k;
         _content->setPosition(p);
+        notifyScrollBars();
         fireScrollEvent(EventType::SCROLLING);
 
         if (t >= 1.f) {
@@ -208,8 +237,9 @@ void ScrollView::update(float dt) {
     p.x += _velocity.x * dt;
     p.y += _velocity.y * dt;
     _content->setPosition(p);
-    fireScrollEvent(EventType::SCROLLING);
     if (!_elastic) clampContentPos();
+    notifyScrollBars();
+    fireScrollEvent(EventType::SCROLLING);
 
     // Brake: exponential decay scaled by the brake coefficient. Keeps the
     // legacy _legacyDecay field behaviour close enough for existing demo
@@ -334,6 +364,27 @@ Vec2 ScrollView::getMaxScrollOffset() const {
     const Vec2 &vs = viewUI->getContentSize();
     const Vec2 &cs = contentUI->getContentSize();
     return Vec2{std::max(0.f, cs.x - vs.x), std::max(0.f, cs.y - vs.y)};
+}
+
+Vec2 ScrollView::getScrollProgress() const {
+    if (!_content) return {0.f, 0.f};
+    auto *viewUI    = getView();
+    auto *contentUI = _content->getComponent<UITransform>();
+    if (!viewUI || !contentUI) return {0.f, 0.f};
+    float minX, maxX, minY, maxY;
+    computeBounds(minX, maxX, minY, maxY, viewUI, contentUI);
+    const Vec3 p = _content->getPosition();
+    // Horizontal: content.x starts at maxX (content's left aligned with
+    // view's left → progress 0) and slides toward minX (right-scrolled).
+    // Anchor-neutral because computeBounds already accounts for it.
+    float px = 0.f;
+    if (maxX > minX) px = std::clamp((maxX - p.x) / (maxX - minX), 0.f, 1.f);
+    // Vertical: content.y=minY is top (initial state for a top-anchored
+    // content, content.y increases as user scrolls toward the bottom),
+    // content.y=maxY is bottom.
+    float py = 0.f;
+    if (maxY > minY) py = std::clamp((p.y - minY) / (maxY - minY), 0.f, 1.f);
+    return {px, py};
 }
 
 void ScrollView::stopAutoScroll() {

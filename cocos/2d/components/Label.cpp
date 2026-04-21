@@ -25,6 +25,7 @@ CC_IMPLEMENT_CLASS(Label, "cc.Label", UIRenderer)
     .property("_fontSize",       &Label::_fontSize,   -1.f)
     .property("_lineHeight",     &Label::_lineHeight, -1.f)
     .property("_enableWrapText", &Label::_wrap,       false)
+    .property("_overflow",       &Label::_overflow,   Label::Overflow::NONE)
 CC_END_CLASS(Label);
 
 namespace {
@@ -145,6 +146,12 @@ void Label::setWrapEnabled(bool v) {
     markDirty();
 }
 
+void Label::setOverflow(Overflow o) {
+    if (_overflow == o) return;
+    _overflow = o;
+    markDirty();
+}
+
 void Label::recomputeVisualLines() {
     _visualLines.clear();
     if (!_font) {
@@ -162,7 +169,16 @@ void Label::recomputeVisualLines() {
             contentSize = ui->getContentSize();
         }
     }
-    const float wrapLimit = (_wrap && contentSize.x > 0.f) ? contentSize.x : 0.f;
+    // Wrap only when overflow=RESIZE_HEIGHT. Editor's NONE mode
+    // auto-resizes the contentSize to fit the rendered text in the
+    // editor view, so the runtime should NOT wrap NONE labels — the
+    // visible result is "text flows past the box edge" rather than
+    // "extra line break that the editor never showed". EditBox forces
+    // its multi-line text label to RESIZE_HEIGHT so wrapping turns on
+    // explicitly when the user actually wants it.
+    const bool shouldWrap = (_overflow == Overflow::RESIZE_HEIGHT);
+    const float wrapLimit = (shouldWrap && contentSize.x > 0.f)
+                                ? contentSize.x : 0.f;
 
     auto isSpaceByte = [](unsigned char c) { return c == ' ' || c == '\t'; };
     auto cpByteLen = [&](size_t pos) {

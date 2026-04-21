@@ -26,6 +26,10 @@ public:
     ScrollBar() { _wantsUpdate = true; }
     ~ScrollBar() override = default;
 
+    // Keep the translation unit alive through the static-lib dead-code
+    // strip so CC_END_CLASS's reflection registration actually runs.
+    static int forceLink();
+
     void onEnable() override;
     void update(float dt) override;
 

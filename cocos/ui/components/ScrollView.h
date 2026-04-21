@@ -55,6 +55,11 @@ public:
     ScrollView() { _wantsUpdate = true; }
     ~ScrollView() override = default;
 
+    // Drag the translation unit out of the static-lib dead-code strip so
+    // CC_END_CLASS's reflection registration actually runs in demos that
+    // don't directly reference the class. Mirrors the ProgressBar hook.
+    static int forceLink();
+
     // ── Component lifecycle ──────────────────────────────────────────────
     void onEnable() override;
     void onDisable() override;
@@ -128,6 +133,12 @@ public:
     // Query helpers.
     Vec2 getScrollOffset() const;
     Vec2 getMaxScrollOffset() const;
+    // Normalised scroll progress on each axis: 0 at the top/left extreme,
+    // 1 at the bottom/right extreme, clamped. ScrollBar consumes this so
+    // the handle position matches the visually-shown content regardless
+    // of the content node's anchor (anchor (0.5, 1) flips the sign of
+    // pos.y versus the naive `pos.y / maxOffset.y`).
+    Vec2 getScrollProgress() const;
     void stopAutoScroll();
     bool isScrolling() const { return _dragging; }
     bool isAutoScrolling() const { return _autoScrolling; }
@@ -146,6 +157,9 @@ private:
     void clampContentPos();
     void computeBounds(float &minX, float &maxX, float &minY, float &maxY,
                         UITransform *viewUI, UITransform *contentUI) const;
+    // Called whenever the content position changes. Pushes the new
+    // scroll state to any bound ScrollBar so the handle tracks the drag.
+    void notifyScrollBars();
 
     struct Impl;
     Impl *_impl{nullptr};

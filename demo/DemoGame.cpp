@@ -9,6 +9,8 @@
 #include "cocos/misc/CameraComponent.h"
 #include "cocos/input/InputEventDispatcher.h"
 #include "cocos/ui/components/ProgressBar.h"
+#include "cocos/ui/components/ScrollBar.h"
+#include "cocos/ui/components/ScrollView.h"
 #include "cocos/ui/editBox/EditBox.h"
 #include "core/Root.h"
 #include "core/assets/Asset.h"
@@ -87,6 +89,8 @@ bool DemoGame::initEngine() {
     // otherwise be stripped by MSVC's static-lib dead-code elimination.
     (void)CameraComponent::forceLink();
     (void)ProgressBar::forceLink();
+    (void)ScrollView::forceLink();
+    (void)ScrollBar::forceLink();
 
     // Asset pipeline: register loaders + load the uuid-map for the
     // editor-sample fixture bundle.

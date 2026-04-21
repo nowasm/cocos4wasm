@@ -37,6 +37,18 @@ public:
     enum class HorizontalAlign : uint32_t { LEFT = 0, CENTER = 1, RIGHT = 2 };
     enum class VerticalAlign   : uint32_t { TOP  = 0, CENTER = 1, BOTTOM = 2 };
 
+    // Mirrors cc.Label.Overflow — controls whether wrap / shrink / clamp
+    // runs when the rendered text exceeds the content-box. Wrap only
+    // happens in RESIZE_HEIGHT (or when NONE is paired with the legacy
+    // `_enableWrapText` flag); NONE on its own lets the text flow past
+    // the box edge without any reflow, matching Creator's runtime.
+    enum class Overflow : uint32_t {
+        NONE           = 0,
+        CLAMP          = 1,
+        SHRINK         = 2,
+        RESIZE_HEIGHT  = 3,
+    };
+
     Label();
     ~Label() override;
 
@@ -74,10 +86,14 @@ public:
     // Word-wrap: when on, lines that exceed the UITransform's content-box
     // width break at the nearest whitespace (or codepoint when no word
     // boundary fits) so the text flows into additional visual rows.
-    // Disabled by default so existing Labels keep their old single-line
-    // layout; EditBox turns it on for InputMode::ANY.
+    // Active only when `_overflow` is RESIZE_HEIGHT, OR when it's NONE
+    // *and* this flag is on (matches Creator's pairing). EditBox turns
+    // it on for InputMode::ANY.
     bool isWrapEnabled() const { return _wrap; }
     void setWrapEnabled(bool v);
+
+    Overflow getOverflow() const { return _overflow; }
+    void     setOverflow(Overflow o);
 
     // Post-layout visual-line map, rebuilt each updateGeometry(). Each
     // pair is (startByte, byteLen) into `_text`. EditBox reads this so
@@ -116,6 +132,7 @@ private:
     float           _fontSize{-1.f};    // <=0 → use font's native
     float           _lineHeight{-1.f};  // <=0 → use font's native
     bool            _wrap{false};
+    Overflow        _overflow{Overflow::NONE};
 
     // Refreshed every updateGeometry(); empty until then.
     ccstd::vector<LineRange> _visualLines;
