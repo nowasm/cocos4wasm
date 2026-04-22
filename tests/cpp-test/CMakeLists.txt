@@ -35,6 +35,10 @@ set(TEST_SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/tests/TestBuiltinAssets.cpp
 )
 
+if(USE_TINYUSDZ)
+    list(APPEND TEST_SOURCES ${CMAKE_CURRENT_LIST_DIR}/tests/TestUSD.cpp)
+endif()
+
 add_executable(CocosCppTest ${TEST_SOURCES})
 
 target_link_libraries(CocosCppTest ${ENGINE_NAME})

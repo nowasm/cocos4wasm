@@ -64,6 +64,7 @@ cc_set_if_undefined(USE_ADPF                 OFF)
 cc_set_if_undefined(USE_GOOGLE_BILLING       OFF)
 cc_set_if_undefined(USE_GOOGLE_PLAY_GAMES    OFF)
 cc_set_if_undefined(USE_GAMEPAD              ON)
+cc_set_if_undefined(USE_TINYUSDZ            ON)
 
 if(ANDROID AND NOT DEFINED USE_CCACHE)
     if("$ENV{COCOS_USE_CCACHE}" STREQUAL "1")
@@ -288,6 +289,19 @@ if(USE_XR)
 endif()
 
 include(${EXTERNAL_ROOT}/CMakeLists.txt)
+
+##### TinyUSDZ
+if(USE_TINYUSDZ)
+    set(TINYUSDZ_BUILD_EXAMPLES    OFF CACHE BOOL "" FORCE)
+    set(TINYUSDZ_BUILD_TESTS       OFF CACHE BOOL "" FORCE)
+    set(TINYUSDZ_BUILD_TOOLS       OFF CACHE BOOL "" FORCE)
+    set(TINYUSDZ_WITH_AUDIO        OFF CACHE BOOL "" FORCE)
+    set(TINYUSDZ_WITH_EXR          OFF CACHE BOOL "" FORCE)
+    add_subdirectory(${CWD}/third_party/tinyusdz ${CMAKE_BINARY_DIR}/tinyusdz EXCLUDE_FROM_ALL)
+    list(APPEND CC_EXTERNAL_LIBS tinyusdz_static)
+    list(APPEND CC_EXTERNAL_INCLUDES ${CWD}/third_party/tinyusdz/src)
+    add_compile_definitions(USE_TINYUSDZ)
+endif()
 
 ##### audio
 if(USE_AUDIO)
@@ -2524,6 +2538,13 @@ cocos_source_files(
     cocos/game/MeshRenderer.h
     cocos/game/MeshRenderer.cpp
 )
+
+if(USE_TINYUSDZ)
+    cocos_source_files(
+        cocos/game/USDLoader.h
+        cocos/game/USDLoader.cpp
+    )
+endif()
 
 
 ##### script bindings

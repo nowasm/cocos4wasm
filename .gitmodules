@@ -2,3 +2,6 @@
 	path = external
 	url = https://github.com/nowasm/cocos4wasm-external.git
 	branch = cocos4wasm
+[submodule "third_party/tinyusdz"]
+	path = third_party/tinyusdz
+	url = https://github.com/lighttransport/tinyusdz.git

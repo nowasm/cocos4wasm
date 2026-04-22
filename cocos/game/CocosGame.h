@@ -7,6 +7,10 @@
 #include "cocos/game/MaterialFactory.h"
 #include "cocos/game/MeshRenderer.h"
 
+#ifdef USE_TINYUSDZ
+#include "cocos/game/USDLoader.h"
+#endif
+
 // Core engine types commonly needed
 #include "core/Root.h"
 #include "core/scene-graph/Node.h"
