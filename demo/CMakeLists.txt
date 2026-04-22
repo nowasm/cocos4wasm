@@ -44,6 +44,10 @@ set(DEMO_SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/scenes/PrefabLoadScene.cpp
 )
 
+if(USE_TINYUSDZ)
+    list(APPEND DEMO_SOURCES ${CMAKE_CURRENT_LIST_DIR}/scenes/USDScene.cpp)
+endif()
+
 add_executable(CocosDemo ${DEMO_SOURCES})
 
 target_link_libraries(CocosDemo ${ENGINE_NAME})
