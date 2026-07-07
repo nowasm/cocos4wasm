@@ -17,6 +17,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <limits>
 #include <map>
 
@@ -124,6 +125,12 @@ Mesh* buildMesh(const RenderMesh& src) {
 
     bool hasNormals = !src.normals.data.empty();
     bool hasUVs     = src.texcoords.count(0) && !src.texcoords.at(0).data.empty();
+    // Tangent-space basis for normal mapping. Tydra computes tangents and
+    // binormals (vec3 each) when normals exist; the engine wants vec4 with
+    // w = handedness.
+    bool hasTangents = hasNormals &&
+                       !src.tangents.data.empty() &&
+                       !src.binormals.data.empty();
 
     // UsdSkel: jointIndices/jointWeights are 'vertex'-varying, `elementSize`
     // influences per point. Tydra keeps them aligned with `points` even when
@@ -143,8 +150,9 @@ Mesh* buildMesh(const RenderMesh& src) {
     if (applyGeomBind) Mat4::inverseTranspose(geomBind, &geomBindIT);
 
     IGeometry geo;
-    if (hasNormals) geo.normals.emplace();
-    if (hasUVs)     geo.uvs.emplace();
+    if (hasNormals)  geo.normals.emplace();
+    if (hasUVs)      geo.uvs.emplace();
+    if (hasTangents) geo.tangents.emplace();
 
     ccstd::vector<float> jointVals;   // 4 per vertex (uint payload in float storage)
     ccstd::vector<float> weightVals;  // 4 per vertex
@@ -193,6 +201,21 @@ Mesh* buildMesh(const RenderMesh& src) {
                     const float* uv = attrFloat(*uvAttr, attrDataIdx(*uvAttr, fv[v], pi), 2);
                     geo.uvs->push_back(uv[0]);
                     geo.uvs->push_back(uv[1]);
+                }
+
+                if (hasTangents) {
+                    const float* t = attrFloat(src.tangents,  attrDataIdx(src.tangents,  fv[v], pi), 3);
+                    const float* b = attrFloat(src.binormals, attrDataIdx(src.binormals, fv[v], pi), 3);
+                    const float* n = attrFloat(src.normals,   attrDataIdx(src.normals,   fv[v], pi), 3);
+                    // w = handedness: does cross(N, T) point along B?
+                    const float cx = n[1] * t[2] - n[2] * t[1];
+                    const float cy = n[2] * t[0] - n[0] * t[2];
+                    const float cz = n[0] * t[1] - n[1] * t[0];
+                    const float w = (cx * b[0] + cy * b[1] + cz * b[2]) < 0.f ? -1.f : 1.f;
+                    geo.tangents->push_back(t[0]);
+                    geo.tangents->push_back(t[1]);
+                    geo.tangents->push_back(t[2]);
+                    geo.tangents->push_back(w);
                 }
 
                 if (isSkinned) {
@@ -253,49 +276,150 @@ Mesh* buildMesh(const RenderMesh& src) {
 
 // ─── Material conversion ─────────────────────────────────────────────────────
 
-Material* buildMaterial(const RenderMaterial& mat,
-                         const RenderScene& rs,
-                         std::vector<Material*>& out) {
-    const auto& s = mat.surfaceShader;
+// Resolve the TextureImage a UsdPreviewSurface input actually references:
+// texture_id indexes rs.textures (UVTexture), which points at rs.images.
+const tydra::TextureImage* imageForTexture(const RenderScene& rs, int64_t textureId) {
+    if (textureId < 0 || textureId >= (int64_t)rs.textures.size()) return nullptr;
+    int64_t imgId = rs.textures[textureId].texture_image_id;
+    if (imgId < 0 || imgId >= (int64_t)rs.images.size()) return nullptr;
+    return &rs.images[imgId];
+}
 
-    // Attempt to load diffuse texture from a decoded RGBA buffer
-    if (s.diffuseColor.texture_id >= 0) {
-        for (const auto& img : rs.images) {
-            if (img.decoded && img.buffer_id >= 0 &&
-                img.buffer_id < (int)rs.buffers.size() &&
-                img.channels == 4 && img.width > 0 && img.height > 0) {
-                const auto& buf = rs.buffers[img.buffer_id];
-                auto* tex = TextureLoader::createFromRGBA(
-                    buf.data.data(), uint32_t(img.width), uint32_t(img.height));
-                if (tex) {
-                    auto* m = MaterialFactory::createStandardTextured(tex);
-                    out.push_back(m);
-                    return m;
+// Create a Texture2D from a tydra TextureImage, trying in order:
+//   1. decoded texel buffer (RGBA8 direct, RGB8 expanded)
+//   2. raw encoded bytes in the buffer (PNG/JPG — e.g. USDZ embedded assets)
+//   3. the asset path, as-is then relative to the USD file's directory
+Texture2D* textureFromImage(const tydra::TextureImage& img,
+                             const RenderScene& rs,
+                             const std::string& baseDir) {
+    if (img.buffer_id >= 0 && img.buffer_id < (int64_t)rs.buffers.size()) {
+        const auto& data = rs.buffers[img.buffer_id].data;
+        if (!data.empty()) {
+            if (img.decoded && img.width > 0 && img.height > 0) {
+                const size_t pixels = size_t(img.width) * size_t(img.height);
+                if (img.channels == 4 && data.size() >= pixels * 4) {
+                    return TextureLoader::createFromRGBA(
+                        data.data(), uint32_t(img.width), uint32_t(img.height));
                 }
-            }
-        }
-        // Fall back to loading by file path
-        for (const auto& img : rs.images) {
-            if (!img.asset_identifier.empty()) {
-                auto* tex = TextureLoader::loadFromFile(img.asset_identifier);
-                if (tex) {
-                    auto* m = MaterialFactory::createStandardTextured(tex);
-                    out.push_back(m);
-                    return m;
+                if (img.channels == 3 && data.size() >= pixels * 3) {
+                    std::vector<uint8_t> rgba(pixels * 4);
+                    for (size_t i = 0; i < pixels; ++i) {
+                        rgba[i * 4 + 0] = data[i * 3 + 0];
+                        rgba[i * 4 + 1] = data[i * 3 + 1];
+                        rgba[i * 4 + 2] = data[i * 3 + 2];
+                        rgba[i * 4 + 3] = 255;
+                    }
+                    return TextureLoader::createFromRGBA(
+                        rgba.data(), uint32_t(img.width), uint32_t(img.height));
+                }
+            } else if (!img.decoded) {
+                if (auto* tex = TextureLoader::loadFromMemory(
+                        data.data(), uint32_t(data.size()))) {
+                    return tex;
                 }
             }
         }
     }
+    if (!img.asset_identifier.empty()) {
+        if (auto* tex = TextureLoader::loadFromFile(img.asset_identifier)) return tex;
+        if (!baseDir.empty()) {
+            if (auto* tex = TextureLoader::loadFromFile(
+                    baseDir + "/" + img.asset_identifier)) {
+                return tex;
+            }
+        }
+    }
+    return nullptr;
+}
 
-    // Solid colour from UsdPreviewSurface diffuseColor
-    // vec3 = std::array<float,3>
+// Keyed by asset identifier — tydra emits one TextureImage per UsdUVTexture,
+// so the same file can appear under several image entries (e.g. an ORM
+// texture read by both the metallic and roughness inputs).
+using TextureCache = std::map<std::string, Texture2D*>;
+
+std::string textureCacheKey(const tydra::TextureImage& img) {
+    if (!img.asset_identifier.empty()) return img.asset_identifier;
+    // In-memory-only images: fall back to identity via buffer id.
+    return "__buffer_" + std::to_string(img.buffer_id);
+}
+
+Material* buildMaterial(const RenderMaterial& mat,
+                         const RenderScene& rs,
+                         const std::string& baseDir,
+                         TextureCache& texCache,
+                         std::vector<Material*>& out) {
+    const auto& s = mat.surfaceShader;
+
+    // Resolve + decode each texture slot once per image (slots often share
+    // one image, e.g. metallic and roughness both reading an ORM texture).
+    // COCOS_USD_NO_TEX=1 forces the solid-color path (debugging aid).
+    const char* noTexEnv = ::getenv("COCOS_USD_NO_TEX");
+    const bool skipTextures = noTexEnv && noTexEnv[0] == '1';
+    auto texFor = [&](int64_t textureId) -> Texture2D* {
+        if (skipTextures) return nullptr;
+        const auto* img = imageForTexture(rs, textureId);
+        if (!img) return nullptr;
+        const std::string key = textureCacheKey(*img);
+        auto it = texCache.find(key);
+        if (it != texCache.end()) return it->second;
+        Texture2D* tex = textureFromImage(*img, rs, baseDir);
+        if (!tex) {
+            CC_LOG_WARNING("USDLoader: texture '%s' could not be loaded",
+                           img->asset_identifier.c_str());
+        }
+        texCache[key] = tex;  // cache failures too, avoids repeated decode attempts
+        return tex;
+    };
+
+    StandardTextures textures;
+    textures.albedo = texFor(s.diffuseColor.texture_id);
+    textures.normal = texFor(s.normal.texture_id);
+
+    // Roughness/metallic usually reference one packed ORM image; builtin-
+    // standard samples it as pbrMap (r=ao g=roughness b=metallic).
+    const auto* roughImg = imageForTexture(rs, s.roughness.texture_id);
+    const auto* metalImg = imageForTexture(rs, s.metallic.texture_id);
+    if (roughImg && metalImg &&
+        textureCacheKey(*roughImg) != textureCacheKey(*metalImg)) {
+        CC_LOG_WARNING("USDLoader: material '%s' uses separate roughness/metallic "
+                       "textures; using the roughness one as pbrMap",
+                       mat.name.c_str());
+    }
+    textures.pbr = texFor(s.roughness.texture_id >= 0 ? s.roughness.texture_id
+                                                       : s.metallic.texture_id);
+
+    // Separate AO map only when it is a different image — if AO shares the
+    // ORM texture, pbrMap.r already covers it.
+    const auto* pbrImg = roughImg ? roughImg : metalImg;
+    const auto* occImg = imageForTexture(rs, s.occlusion.texture_id);
+    if (occImg && (!pbrImg || textureCacheKey(*occImg) != textureCacheKey(*pbrImg))) {
+        textures.occlusion = texFor(s.occlusion.texture_id);
+    }
+    textures.emissive = texFor(s.emissiveColor.texture_id);
+
     PBRParams params;
-    params.albedo    = Color(uint8_t(s.diffuseColor.value[0] * 255.f),
-                              uint8_t(s.diffuseColor.value[1] * 255.f),
-                              uint8_t(s.diffuseColor.value[2] * 255.f), 255);
+    // With an albedo map the color uniform is a multiplier — keep it white.
+    params.albedo = textures.albedo
+                        ? Color(255, 255, 255, 255)
+                        : Color(uint8_t(s.diffuseColor.value[0] * 255.f),
+                                uint8_t(s.diffuseColor.value[1] * 255.f),
+                                uint8_t(s.diffuseColor.value[2] * 255.f), 255);
     params.roughness = s.roughness.value;
     params.metallic  = s.metallic.value;
-    auto* m = MaterialFactory::createStandard(params);
+    params.emissive  = Color(uint8_t(s.emissiveColor.value[0] * 255.f),
+                              uint8_t(s.emissiveColor.value[1] * 255.f),
+                              uint8_t(s.emissiveColor.value[2] * 255.f), 255);
+
+    if (textures.albedo || textures.normal || textures.pbr ||
+        textures.occlusion || textures.emissive) {
+        CC_LOG_INFO("USDLoader: material '%s' maps: albedo=%d normal=%d pbr=%d ao=%d emissive=%d",
+                    mat.name.c_str(),
+                    textures.albedo != nullptr, textures.normal != nullptr,
+                    textures.pbr != nullptr, textures.occlusion != nullptr,
+                    textures.emissive != nullptr);
+    }
+
+    auto* m = MaterialFactory::createStandardPBR(params, textures);
     out.push_back(m);
     return m;
 }
@@ -512,6 +636,9 @@ void buildNodeTree(const tydra::Node& usdNode,
                     const std::vector<Mesh*>& builtMeshes,
                     std::vector<Material*>& outMats,
                     SkelCache& skelCache,
+                    const std::string& baseDir,
+                    std::map<int, Material*>& matCache,
+                    TextureCache& texCache,
                     USDLoadResult& result) {
     const std::string& primName = usdNode.prim_name;
     auto* node = ccnew cc::Node(primName.empty() ? "usd_node" : primName);
@@ -527,7 +654,13 @@ void buildNodeTree(const tydra::Node& usdNode,
             const RenderMesh& rm = rs.meshes[usdNode.id];
             Material* mat = nullptr;
             if (rm.material_id >= 0 && rm.material_id < (int)rs.materials.size()) {
-                mat = buildMaterial(rs.materials[rm.material_id], rs, outMats);
+                auto it = matCache.find(rm.material_id);
+                if (it != matCache.end()) {
+                    mat = it->second;
+                } else {
+                    mat = buildMaterial(rs.materials[rm.material_id], rs, baseDir, texCache, outMats);
+                    matCache[rm.material_id] = mat;
+                }
             }
             if (!mat) {
                 // Use displayColor as fallback (color3f has .r .g .b)
@@ -551,7 +684,8 @@ void buildNodeTree(const tydra::Node& usdNode,
     }
 
     for (const auto& child : usdNode.children) {
-        buildNodeTree(child, node, rs, builtMeshes, outMats, skelCache, result);
+        buildNodeTree(child, node, rs, builtMeshes, outMats, skelCache,
+                      baseDir, matCache, texCache, result);
     }
 }
 
@@ -571,14 +705,59 @@ USDLoadResult USDLoader::load(const std::string& filePath, Node* parent) {
     }
     if (!warn.empty()) CC_LOG_WARNING("USDLoader: %s", warn.c_str());
 
+    // Directory of the USD file — texture asset paths resolve relative to it.
+    std::string baseDir;
+    if (auto pos = filePath.find_last_of("/\\"); pos != std::string::npos) {
+        baseDir = filePath.substr(0, pos);
+    }
+
     tydra::RenderSceneConverterEnv env(stage);
+    if (!baseDir.empty()) env.set_search_paths({baseDir});
+    // Keep 8/16bit texel data as-is (no fp32 expansion) — the engine samples
+    // sRGB textures and converts in-shader; also the recommended tinyusdz
+    // config for mobile/WebGL targets.
+    env.material_config.preserve_texel_bitdepth = true;
+
+    // USDZ: textures live inside the zip container ("0/albedo.jpg" style
+    // paths). Route asset resolution through the archive; the USDZAsset must
+    // outlive ConvertToRenderScene.
+    tinyusdz::USDZAsset usdzAsset;
+    {
+        std::string ext;
+        if (auto dot = filePath.find_last_of('.'); dot != std::string::npos) {
+            ext = filePath.substr(dot + 1);
+            std::transform(ext.begin(), ext.end(), ext.begin(),
+                           [](unsigned char c) { return char(std::tolower(c)); });
+        }
+        if (ext == "usdz") {
+            std::string zwarn, zerr;
+            if (tinyusdz::ReadUSDZAssetInfoFromFile(filePath, &usdzAsset, &zwarn, &zerr)) {
+                if (!tinyusdz::SetupUSDZAssetResolution(env.asset_resolver, &usdzAsset)) {
+                    CC_LOG_WARNING("USDLoader: USDZ asset resolution setup failed: %s",
+                                   filePath.c_str());
+                }
+            } else {
+                CC_LOG_WARNING("USDLoader: cannot index USDZ assets: %s",
+                               zerr.empty() ? zwarn.c_str() : zerr.c_str());
+            }
+        }
+    }
+
     tydra::RenderSceneConverter converter;
     tydra::RenderScene rs;
     if (!converter.ConvertToRenderScene(env, &rs)) {
         result.error = "ConvertToRenderScene failed: " + filePath;
         CC_LOG_ERROR("USDLoader: %s", result.error.c_str());
+        if (!converter.GetError().empty()) {
+            CC_LOG_ERROR("USDLoader: converter error: %s", converter.GetError().c_str());
+        }
         return result;
     }
+    if (!converter.GetWarning().empty()) {
+        CC_LOG_WARNING("USDLoader: converter warning: %s", converter.GetWarning().c_str());
+    }
+    CC_LOG_INFO("USDLoader: converted %zu mesh(es), %zu material(s), %zu texture(s), %zu image(s)",
+                rs.meshes.size(), rs.materials.size(), rs.textures.size(), rs.images.size());
 
     // Pre-build all meshes indexed by their id.
     result.meshes.resize(rs.meshes.size(), nullptr);
@@ -596,8 +775,11 @@ USDLoadResult USDLoader::load(const std::string& filePath, Node* parent) {
 
     // rs.nodes = flat list of root-level USD nodes; children are nested.
     SkelCache skelCache;
+    std::map<int, Material*> matCache;
+    TextureCache texCache;
     for (const auto& usdNode : rs.nodes) {
-        buildNodeTree(usdNode, root, rs, result.meshes, result.materials, skelCache, result);
+        buildNodeTree(usdNode, root, rs, result.meshes, result.materials, skelCache,
+                      baseDir, matCache, texCache, result);
     }
 
     result.success = true;
