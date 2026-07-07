@@ -321,8 +321,8 @@ const char *kMasterPrefab = R"([
     {
         "__type__": "cc.Node",
         "_name": "Master",
-        "children":   [],
-        "components": [{"__id__": 1}],
+        "_children":  [],
+        "_components": [{"__id__": 1}],
         "_prefab":    {"__id__": 2}
     },
     {
