@@ -5,8 +5,11 @@
 #include "3d/framework/SkinnedMeshRendererComponent.h"
 #include "animation/AnimationState.h"
 #include "base/Log.h"
+#include <algorithm>
+#include <cfloat>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 
 using namespace cc;
 using namespace cc::game;
@@ -392,5 +395,97 @@ private:
     }
 };
 REGISTER_TEST("USD", "USD Skel Animation", TestUSDSkel);
+
+// ─── TestUSDSmoke ─────────────────────────────────────────────────────────────
+// Real-world asset smoke test. Loads the file named by the COCOS_USD_FILE
+// environment variable (default: usd_models/McUsd.usdz), then auto-fits the
+// model into the default orbit camera by scaling/centering the root node from
+// the merged world bounds of every model. PASS/FAIL is greppable in the log.
+class TestUSDSmoke : public TestScene {
+public:
+    std::string name()     override { return "USD Real Asset Smoke"; }
+    std::string category() override { return "USD"; }
+
+    void setup(scene::RenderScene*, Root*) override {
+        // Note: the pristine McUsd.usdz fails tinyusdz's strict USDA check
+        // ("doubleSided must be uniform variability"); the extracted copy in
+        // usd_models/McUsd/ has the attribute patched to `uniform bool`.
+        const char* env = ::getenv("COCOS_USD_FILE");
+        std::string path = env && env[0] ? env : "usd_models/McUsd/McUsd.usda";
+
+        _pivot = createNode("USDSmokePivot");
+        _usdResult = USDLoader::load(path, _pivot);
+        if (!_usdResult.success) {
+            CC_LOG_ERROR("TestUSDSmoke: FAIL load '%s': %s",
+                         path.c_str(), _usdResult.error.c_str());
+            return;
+        }
+        if (_usdResult.renderers.empty() && _usdResult.skinnedRenderers.empty()) {
+            CC_LOG_ERROR("TestUSDSmoke: FAIL '%s' loaded but produced no renderers",
+                         path.c_str());
+            return;
+        }
+
+        _sceneRoot = _usdResult.rootNode;
+        for (auto* r : _usdResult.renderers) _renderers.push_back(r);
+        _usdResult.renderers.clear();
+
+        // Merge world bounds of every model, then scale/center the root so the
+        // largest dimension spans ~5 units around the origin.
+        Vec3 mn(FLT_MAX, FLT_MAX, FLT_MAX), mx(-FLT_MAX, -FLT_MAX, -FLT_MAX);
+        bool any = false;
+        for (auto* r : _renderers) {
+            r->updateTransform();
+            auto* model = r->getModel();
+            if (!model || !model->getWorldBounds()) continue;
+            const auto* wb = model->getWorldBounds();
+            Vec3 c = wb->getCenter(), h = wb->getHalfExtents();
+            mn.x = std::min(mn.x, c.x - h.x); mx.x = std::max(mx.x, c.x + h.x);
+            mn.y = std::min(mn.y, c.y - h.y); mx.y = std::max(mx.y, c.y + h.y);
+            mn.z = std::min(mn.z, c.z - h.z); mx.z = std::max(mx.z, c.z + h.z);
+            any = true;
+        }
+        if (any && _sceneRoot) {
+            Vec3 size = mx - mn;
+            float maxDim = std::max(size.x, std::max(size.y, size.z));
+            float s = maxDim > 1e-6f ? 5.f / maxDim : 1.f;
+            Vec3 center = (mn + mx) * 0.5f;
+            _sceneRoot->setScale(s, s, s);
+            _sceneRoot->setPosition(-center.x * s, -center.y * s, -center.z * s);
+            for (auto* r : _renderers) r->updateTransform();
+            CC_LOG_INFO("TestUSDSmoke: bounds min(%.3f %.3f %.3f) max(%.3f %.3f %.3f) fit scale %.4f",
+                        mn.x, mn.y, mn.z, mx.x, mx.y, mx.z, s);
+        }
+
+        CC_LOG_INFO("TestUSDSmoke: PASS '%s' — %zu mesh(es), %zu material(s), "
+                    "%zu renderer(s), %zu skinned, %zu clip(s)",
+                    path.c_str(),
+                    _usdResult.meshes.size(), _usdResult.materials.size(),
+                    _renderers.size(), _usdResult.skinnedRenderers.size(),
+                    _usdResult.animationClips.size());
+    }
+
+    void update(float dt) override {
+        _angle += dt * 20.f;
+        if (!_pivot) return;
+        _pivot->setRotationFromEuler(0, _angle, 0);
+        for (auto* r : _renderers) r->updateTransform();
+    }
+
+    void cleanup() override {
+        _usdResult.destroy();
+        _sceneRoot = nullptr;
+        _pivot = nullptr;
+        _angle = 0;
+        TestScene::cleanup();
+    }
+
+private:
+    USDLoadResult _usdResult;
+    Node* _sceneRoot{nullptr};
+    Node* _pivot{nullptr};
+    float _angle{0};
+};
+REGISTER_TEST("USD", "USD Real Asset Smoke", TestUSDSmoke);
 
 #endif // USE_TINYUSDZ

@@ -1,5 +1,6 @@
 #include "Game.h"
 #include <cmath>
+#include <cstdlib>
 #include "base/Log.h"
 #include "core/Root.h"
 #include "core/builtin/BuiltinResMgr.h"
@@ -148,6 +149,16 @@ int Game::init() {
 
     // First test loaded immediately (no deferred needed — nothing to clean up)
     _pendingTest = 0;
+    // COCOS_START_TEST=<substring> boots directly into the first test whose
+    // name contains the substring (case-sensitive) — used by smoke scripts.
+    if (const char* want = ::getenv("COCOS_START_TEST")) {
+        for (size_t i = 0; i < getTestRegistry().size(); ++i) {
+            if (getTestRegistry()[i].name.find(want) != std::string::npos) {
+                _pendingTest = (int)i;
+                break;
+            }
+        }
+    }
 
     // tick — deferred test switch happens at frame start, before update/render
     _tickListener.bind([this](float dt) {
