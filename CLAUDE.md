@@ -4,15 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository identity
 
-This is **cocos4wasm** — a fork of the Cocos Creator native engine (`cocos-engine`) re-targeted at pure C++ / WebAssembly. The upstream engine is driven by a JS script engine (V8/SpiderMonkey/NAPI). This fork is in the middle of **ripping out the JS script engine** and replacing it with a direct C++ game API. Recent commits reflect this direction:
+This is **cocos4wasm** — a fork of the Cocos Creator native engine (`cocos-engine`) re-targeted at pure C++ / WebAssembly. The upstream engine was driven by a JS script engine (V8/SpiderMonkey/NAPI); this fork has **removed the script engine entirely** and replaces it with a direct C++ game API (reflection + Node/Component system mirroring the TS API shape).
 
-- `d13600d modify wasm compile error`
-- `454ecd2 remove js script engine`
-- `30e394e add basic box renderer test`
-- `cbcdc29 add material test`
-- `2f1c3e9 remove js binding file`
-
-When CMake sees no script engine flag set it defines `USE_SE_NONE` (pure C++ mode). `USE_SE_BROWSER` is auto-selected for Emscripten builds. Assume by default that changes should keep pure-C++ mode working and should not rely on JSB bindings.
+`USE_SE_NONE` is hard-wired ON for every platform including Emscripten (`SCRIPT_ENGINE_TYPE=0`); there are no `USE_SE_*` options anymore and `cocos/bindings/` no longer exists. Never reintroduce JSB bindings or JS-engine code paths.
 
 ## Build system
 
@@ -30,11 +24,10 @@ node utils/download-deps.js
 
 ### Platform matrix
 
-Platform selection happens in `cmake/predefine.cmake` via `CMAKE_SYSTEM_NAME`. Supported: Windows, macOS, iOS, Android, Linux, OHOS/OpenHarmony, QNX, NX, **Emscripten** (the primary target for this fork — sets `CC_WGPU_WASM`, forces `CC_USE_GLES3`, disables video/webview, enables `USE_SE_BROWSER`). Per-platform code lives under `cocos/platform/<name>/`.
+Platform selection happens in `cmake/predefine.cmake` via `CMAKE_SYSTEM_NAME`. Supported: Windows (primary dev target), macOS, iOS, Android, Linux, OHOS/OpenHarmony, QNX, NX, **Emscripten** (eventual deployment target — sets `CC_WGPU_WASM`, forces `CC_USE_GLES3`, disables video/webview, pure C++ with the minimal JS facade `CC_WASM_STANDALONE_FACADE=ON`). Per-platform code lives under `cocos/platform/<name>/`. Note: some non-Windows platform modules (e.g. `platform/*/modules/Screen.*`) still call the removed `se::ScriptEngine` and won't compile until ported.
 
 ### Key CMake options (cocos/CMakeLists.txt)
 
-- `USE_SE_V8 / USE_SE_SM / USE_SE_NAPI / USE_SE_JSVM / USE_SE_QJS / USE_SE_BROWSER` — script engine selection. All OFF ⇒ `USE_SE_NONE` (pure C++).
 - `USE_MODULES` — toggled ON by module-tests to build a reduced engine.
 - `CC_USE_GLES3 / CC_USE_VULKAN / CC_USE_METAL / CC_USE_GLES2` — GFX backend, usually auto-set per platform.
 - `USE_SPINE_3_8 / USE_SPINE_4_2`, `USE_PHYSICS_PHYSX`, `USE_DRAGONBONES`, `USE_AUDIO`, `USE_WEBP`, etc. — feature flags.
@@ -88,7 +81,6 @@ Uses `USE_MODULES=ON`. Targets: `test-log`, `test-bindings`, `test-math`, `test-
 - `cocos/base/` — primitives: `Log`, `RefCounted`, `Ptr`, `RefVector`/`RefMap`, threading helpers, job system, `StringUtil`, `Value`, `Data`.
 
 Minor layout notes:
-- `bin/adapter/native/engine-adapter.js` and `bin/dev/cc/` host the JS runtime files that the (now being removed) script engine consumed. They're still referenced from cc.js / shared-buffer code paths.
 - `templates/wasm32/` is the Emscripten build template (`cfg.cmake`, `main.cpp`, `main.js`, `builtin-effects.json`); `templates/common/` is shared source.
 - `editor/assets/` holds builtin runtime assets (cubemaps, fonts, UI textures, default materials/effects). Tests copy this directory next to the exe; don't assume it ships in a zip.
 
@@ -100,6 +92,5 @@ Minor layout notes:
 
 ## Generators (rarely touched)
 
-- `tools/bindings-generator/`, `tools/tojs/`, `tools/swig-config/` — JS binding generators (becoming dead weight as the script engine is ripped out; avoid adding new bindings).
 - `tools/gfx-define-generator/`, `tools/gles-wrangler-generator/`, `tools/compile-effects.js` — GFX header and effect compilation.
 - `scripts/native-pack-tool/` — packaging for template projects.
