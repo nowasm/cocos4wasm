@@ -11,6 +11,7 @@
 #include "cocos/ui/components/ProgressBar.h"
 #include "cocos/ui/components/ScrollBar.h"
 #include "cocos/ui/components/ScrollView.h"
+#include "cocos/tween/TweenSystem.h"
 #include "cocos/ui/editBox/EditBox.h"
 #include "core/Root.h"
 #include "core/assets/Asset.h"
@@ -223,6 +224,7 @@ int DemoGame::init() {
         //   and emits the minimum number of scene::Models)
         NodeActivator::get().invokePendingStarts();
         ComponentScheduler::get().update(dt);
+        TweenSystem::getInstance().update(dt);
         if (_currentScene) _currentScene->onUpdate(dt);
         ComponentScheduler::get().lateUpdate(dt);
         UIBatcher2d::get().tick();

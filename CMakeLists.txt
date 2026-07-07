@@ -2290,6 +2290,13 @@ cocos_source_files(
     cocos/animation/AnimationComponent.h
     cocos/animation/AnimationComponent.cpp
 
+    # tween (P7)
+    cocos/tween/Easing.h
+    cocos/tween/Tween.h
+    cocos/tween/Tween.cpp
+    cocos/tween/TweenSystem.h
+    cocos/tween/TweenSystem.cpp
+
     # serialization
     cocos/serialization/JsonDeserializer.h
     cocos/serialization/JsonDeserializer.cpp
