@@ -64,6 +64,11 @@ void MeshRenderer::rebuildModel() {
         _model->initSubModel(i, subMeshes[i], _material);
     }
 
+    // Bounding shape from the mesh's authored/calculated bounds — without it
+    // Model::getWorldBounds() stays null (no culling, no scene queries).
+    const auto& meshStruct = _mesh->getStruct();
+    _model->createBoundingShape(meshStruct.minPosition, meshStruct.maxPosition);
+
     _model->setEnabled(_enabled);
     attachToScene();
 }
