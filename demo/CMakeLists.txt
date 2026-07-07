@@ -4,12 +4,6 @@ project(CocosDemo CXX C)
 set(CMAKE_CXX_STANDARD 17)
 
 # Pure C++ mode — no script engine
-set(USE_SE_V8 OFF)
-set(USE_SE_SM OFF)
-set(USE_SE_NAPI OFF)
-set(USE_SE_JSVM OFF)
-set(USE_SE_QJS OFF)
-set(USE_SE_BROWSER OFF)
 
 # Trim features irrelevant to 2D-UI demo target
 set(USE_VIDEO OFF)

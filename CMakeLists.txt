@@ -20,13 +20,6 @@ endif()
 ################################# options ############################################
 # default fallback options
 cc_set_if_undefined(CC_DEBUG_FORCE           OFF)
-cc_set_if_undefined(USE_SE_V8                OFF)
-cc_set_if_undefined(USE_SE_SM                OFF)
-cc_set_if_undefined(USE_SE_NAPI              OFF)
-cc_set_if_undefined(USE_SE_JSVM              OFF)
-cc_set_if_undefined(USE_SE_QJS               OFF)
-cc_set_if_undefined(USE_V8_DEBUGGER          ON)
-cc_set_if_undefined(USE_V8_DEBUGGER_FORCE    OFF)
 cc_set_if_undefined(USE_SOCKET               ON)
 cc_set_if_undefined(USE_AUDIO                ON)
 cc_set_if_undefined(USE_EDIT_BOX             ON)
@@ -45,7 +38,6 @@ cc_set_if_undefined(USE_WEBSOCKET_SERVER     OFF)
 cc_set_if_undefined(USE_JOB_SYSTEM_TASKFLOW  OFF)
 cc_set_if_undefined(USE_JOB_SYSTEM_TBB       OFF)
 cc_set_if_undefined(USE_PHYSICS_PHYSX        OFF)
-cc_set_if_undefined(USE_BOX2D_JSB            OFF)
 cc_set_if_undefined(USE_MODULES              OFF)
 cc_set_if_undefined(USE_XR                   OFF)
 cc_set_if_undefined(USE_SERVER_MODE          OFF)
@@ -88,12 +80,6 @@ elseif(EMSCRIPTEN)
     cc_set_if_undefined(CC_USE_VULKAN OFF)
     cc_set_if_undefined(CC_USE_METAL OFF)
     cc_set_if_undefined(CC_USE_GLES2 OFF)
-    set(USE_SE_V8 OFF)
-    set(USE_SE_SM OFF)
-    set(USE_SE_NAPI OFF)
-    set(USE_SE_JSVM OFF)
-    set(USE_SE_QJS OFF)
-    set(USE_SE_BROWSER ON)
 elseif(MACOSX OR IOS)
     cc_set_if_undefined(CC_USE_METAL ON)
     cc_set_if_undefined(CC_USE_VULKAN OFF)
@@ -106,13 +92,10 @@ set(CC_USE_GLES2 ${CC_USE_GLES2} CACHE INTERNAL "")
 set(CC_USE_VULKAN ${CC_USE_VULKAN} CACHE INTERNAL "")
 set(CC_USE_METAL ${CC_USE_METAL}  CACHE INTERNAL "")
 
-# Determine if no real script engine is enabled (pure C++ mode)
-if(NOT USE_SE_V8 AND NOT USE_SE_SM AND NOT USE_SE_NAPI AND NOT USE_SE_JSVM AND NOT USE_SE_QJS AND NOT USE_SE_BROWSER)
-    set(USE_SE_NONE ON)
-    message(STATUS "No script engine enabled, using SCRIPT_ENGINE_NONE (pure C++ mode)")
-else()
-    set(USE_SE_NONE OFF)
-endif()
+# The JS script engine has been removed permanently — this is a pure C++ engine
+# on every platform, including Emscripten/WASM.
+set(USE_SE_NONE ON)
+message(STATUS "Script engine removed: SCRIPT_ENGINE_NONE (pure C++ mode)")
 
 if(USE_SERVER_MODE)
     set(CC_USE_VULKAN OFF)
@@ -201,8 +184,6 @@ if(ANDROID)
 endif()
 
 if(CI_FORCE_MINIMAL_FEATURES)
-    set(USE_V8_DEBUGGER_FORCE OFF)
-    set(USE_V8_DEBUGGER OFF)
     set(USE_AUDIO OFF)
     set(USE_EDIT_BOX OFF)
     set(USE_VIDEO OFF)
@@ -220,7 +201,6 @@ if(CI_FORCE_MINIMAL_FEATURES)
     set(USE_DEBUG_RENDERER OFF)
     set(USE_GEOMETRY_RENDERER OFF)
     set(USE_WEBP OFF)
-    set(USE_BOX2D_JSB OFF)
 endif()
 
 ################################# external source code ################################
@@ -249,11 +229,6 @@ cc_inspect_values(
     CC_USE_GLES2
     CC_USE_VULKAN
     CC_DEBUG_FORCE
-    USE_SE_V8
-    USE_SE_JSVM
-    USE_V8_DEBUGGER
-    USE_V8_DEBUGGER_FORCE
-    USE_SE_SM
     USE_SOCKET
     USE_AUDIO
     USE_EDIT_BOX
@@ -279,7 +254,6 @@ cc_inspect_values(
     NODE_EXECUTABLE
     NET_MODE
     USE_REMOTE_LOG
-    USE_BOX2D_JSB
 )
 
 if(USE_XR)
@@ -1263,19 +1237,6 @@ if(WINDOWS OR MACOSX OR LINUX OR QNX OR OPENHARMONY OR EMSCRIPTEN)
     endif()
 endif()
 
-set(SWIG_OUTPUT_ROOT ${CMAKE_CURRENT_BINARY_DIR}/generated)
-set(SWIG_OUTPUT ${SWIG_OUTPUT_ROOT}/cocos/bindings/auto)
-if(NOT USE_SE_NONE)
-    cc_gen_swig_files(${CMAKE_CURRENT_LIST_DIR}/tools/swig-config ${SWIG_OUTPUT})
-
-    if(USE_GOOGLE_BILLING)
-        cc_gen_swig_files(${CMAKE_CURRENT_LIST_DIR}/tools/swig-config/android/google/billing ${SWIG_OUTPUT})
-    endif()
-
-    if(USE_GOOGLE_PLAY_GAMES)
-        cc_gen_swig_files(${CMAKE_CURRENT_LIST_DIR}/tools/swig-config/android/google/play ${SWIG_OUTPUT})
-    endif()
-endif()
 ##### platform
 cocos_source_files(
     cocos/platform/Image.cpp
@@ -1725,14 +1686,6 @@ cocos_source_files(
                  cocos/renderer/pipeline/custom/details/Set.h
                  cocos/renderer/pipeline/custom/details/Utility.h
 )
-
-if(NOT USE_SE_NONE)
-    cocos_source_files(
-        cocos/renderer/pipeline/custom/RenderCommonJsb.cpp
-        cocos/renderer/pipeline/custom/RenderCommonJsb.h
-        cocos/renderer/pipeline/custom/details/JsbConversion.h
-    )
-endif()
 
 if (USE_GEOMETRY_RENDERER)
     cocos_source_files(
@@ -2206,12 +2159,6 @@ if(USE_PHYSICS_PHYSX)
         cocos/physics/physx/character-controllers/PhysXBoxCharacterController.h
         cocos/physics/physx/character-controllers/PhysXBoxCharacterController.cpp
     )
-    if(NOT USE_SE_NONE)
-        cocos_source_files(
-            NO_WERROR NO_UBUILD ${SWIG_OUTPUT}/jsb_physics_auto.cpp
-                                ${SWIG_OUTPUT}/jsb_physics_auto.h
-        )
-    endif()
 endif()
 
 ##### 2d
@@ -2262,19 +2209,6 @@ cocos_source_files(
     cocos/2d/renderer/StencilManager.h
     cocos/2d/renderer/StencilManager.cpp
 )
-
-##### box2d
-if(USE_BOX2D_JSB AND NOT USE_SE_NONE)
-cocos_source_files(
-    NO_WERROR NO_UBUILD ${SWIG_OUTPUT}/jsb_box2d_auto.cpp
-                        ${SWIG_OUTPUT}/jsb_box2d_auto.h
-
-    NO_WERROR cocos/bindings/manual/jsb_box2d_manual.cpp
-              cocos/bindings/manual/jsb_box2d_manual.h
-              cocos/bindings/manual/Box2dCallbacks.cpp
-              cocos/bindings/manual/Box2dCallbacks.h
-)
-endif()
 
 ##### 3d
 cocos_source_files(
@@ -2547,84 +2481,6 @@ if(USE_TINYUSDZ)
 endif()
 
 
-##### script bindings
-if(NOT USE_SE_NONE)
-
-######## dop
-cocos_source_files(
-                NO_UBUILD   cocos/bindings/dop/BufferPool.cpp
-                            cocos/bindings/dop/BufferPool.h
-                NO_UBUILD   cocos/bindings/dop/jsb_dop.cpp
-                            cocos/bindings/dop/jsb_dop.h
-                            cocos/bindings/dop/PoolType.h
-                            cocos/bindings/dop/BufferAllocator.h
-                NO_UBUILD   cocos/bindings/dop/BufferAllocator.cpp
-)
-
-######## auto
-cocos_source_files(
-    NO_WERROR   NO_UBUILD   ${SWIG_OUTPUT}/jsb_network_auto.cpp
-                            ${SWIG_OUTPUT}/jsb_network_auto.h
-    NO_WERROR   NO_UBUILD   ${SWIG_OUTPUT}/jsb_cocos_auto.cpp
-                            ${SWIG_OUTPUT}/jsb_cocos_auto.h
-    NO_WERROR   NO_UBUILD   ${SWIG_OUTPUT}/jsb_extension_auto.cpp
-                            ${SWIG_OUTPUT}/jsb_extension_auto.h
-    NO_WERROR   NO_UBUILD   ${SWIG_OUTPUT}/jsb_gfx_auto.cpp
-                            ${SWIG_OUTPUT}/jsb_gfx_auto.h
-    NO_WERROR   NO_UBUILD   ${SWIG_OUTPUT}/jsb_pipeline_auto.cpp
-                            ${SWIG_OUTPUT}/jsb_pipeline_auto.h
-    NO_WERROR   NO_UBUILD   ${SWIG_OUTPUT}/jsb_scene_auto.cpp
-                            ${SWIG_OUTPUT}/jsb_scene_auto.h
-    NO_WERROR   NO_UBUILD   ${SWIG_OUTPUT}/jsb_gi_auto.cpp
-                            ${SWIG_OUTPUT}/jsb_gi_auto.h
-    NO_WERROR   NO_UBUILD   ${SWIG_OUTPUT}/jsb_assets_auto.cpp
-                            ${SWIG_OUTPUT}/jsb_assets_auto.h
-    NO_WERROR   NO_UBUILD   ${SWIG_OUTPUT}/jsb_geometry_auto.cpp
-                            ${SWIG_OUTPUT}/jsb_geometry_auto.h
-    NO_WERROR   NO_UBUILD   ${SWIG_OUTPUT}/jsb_render_auto.cpp
-                            ${SWIG_OUTPUT}/jsb_render_auto.h
-    NO_WERROR   NO_UBUILD   ${SWIG_OUTPUT}/jsb_2d_auto.cpp
-                            ${SWIG_OUTPUT}/jsb_2d_auto.h
-)
-
-
-if(USE_AUDIO)
-    cocos_source_files(
-        NO_WERROR   NO_UBUILD   ${SWIG_OUTPUT}/jsb_audio_auto.cpp
-                                ${SWIG_OUTPUT}/jsb_audio_auto.h
-    )
-endif()
-
-if(USE_VIDEO)
-    cocos_source_files(
-        NO_WERROR   NO_UBUILD   ${SWIG_OUTPUT}/jsb_video_auto.cpp
-                                ${SWIG_OUTPUT}/jsb_video_auto.h
-    )
-endif()
-
-if(USE_WEBVIEW)
-    cocos_source_files(
-        NO_WERROR   NO_UBUILD   ${SWIG_OUTPUT}/jsb_webview_auto.cpp
-                                ${SWIG_OUTPUT}/jsb_webview_auto.h
-    )
-endif()
-
-if(USE_GOOGLE_BILLING)
-    cocos_source_files(
-        NO_WERROR   NO_UBUILD   ${SWIG_OUTPUT}/jsb_google_billing_auto.cpp
-                                ${SWIG_OUTPUT}/jsb_google_billing_auto.h
-    )
-endif()
-
-if(USE_GOOGLE_PLAY_GAMES)
-    cocos_source_files(
-        NO_WERROR   NO_UBUILD   ${SWIG_OUTPUT}/jsb_google_play_auto.cpp
-                                ${SWIG_OUTPUT}/jsb_google_play_auto.h
-    )
-endif()
-
-endif() # NOT USE_SE_NONE - end of script bindings
-
 if(USE_XR_REMOTE_PREVIEW)
     cocos_source_files(
             NO_WERROR    cocos/xr/XRRemotePreviewManager.h
@@ -2650,13 +2506,6 @@ if(USE_MIDDLEWARE)
                      cocos/editor-support/TypedArrayPool.cpp
                      cocos/editor-support/TypedArrayPool.h
     )
-
-    if(NOT USE_SE_NONE)
-        cocos_source_files(
-            NO_WERROR   NO_UBUILD   ${SWIG_OUTPUT}/jsb_editor_support_auto.cpp
-                                    ${SWIG_OUTPUT}/jsb_editor_support_auto.h
-        )
-    endif()
 
     if(USE_SPINE_3_8)
     include_directories(${CWD}/cocos/editor-support/spine/3.8)
@@ -2810,14 +2659,6 @@ if(USE_MIDDLEWARE)
                                      cocos/editor-support/spine-creator-support/VertexEffectDelegate.h
 
         )
-        if(NOT USE_SE_NONE)
-            cocos_source_files(
-            NO_WERROR       ${SWIG_OUTPUT}/jsb_spine_3_8_auto.cpp
-                            ${SWIG_OUTPUT}/jsb_spine_3_8_auto.h
-            NO_WERROR       cocos/bindings/manual/jsb_spine_manual.cpp
-                            cocos/bindings/manual/jsb_spine_manual.h
-            )
-        endif()
     endif()
 
     if(USE_SPINE_4_2)
@@ -2984,14 +2825,6 @@ if(USE_MIDDLEWARE)
                                      cocos/editor-support/spine/4.2/spine/Vertices.h
 
         )
-        if(NOT USE_SE_NONE)
-            cocos_source_files(
-            NO_WERROR       ${SWIG_OUTPUT}/jsb_spine_4_2_auto.cpp
-                            ${SWIG_OUTPUT}/jsb_spine_4_2_auto.h
-            NO_WERROR       cocos/bindings/manual/jsb_spine_manual.cpp
-                            cocos/bindings/manual/jsb_spine_manual.h
-            )
-        endif()
     endif()
 
     if(USE_SPINE)
@@ -3105,131 +2938,10 @@ if(USE_MIDDLEWARE)
                                      cocos/editor-support/dragonbones-creator-support/CCTextureAtlasData.h
 
         )
-        if(NOT USE_SE_NONE)
-            cocos_source_files(
-                NO_WERROR    ${SWIG_OUTPUT}/jsb_dragonbones_auto.cpp
-                             ${SWIG_OUTPUT}/jsb_dragonbones_auto.h
-                NO_WERROR    cocos/bindings/manual/jsb_dragonbones_manual.cpp
-                             cocos/bindings/manual/jsb_dragonbones_manual.h
-            )
-        endif()
     endif()
 endif()
 
-######## manual
-if(NOT USE_SE_NONE)
-cocos_source_files(
-    NO_WERROR    cocos/bindings/manual/jsb_network_manual.cpp
-                cocos/bindings/manual/jsb_network_manual.h
-    NO_WERROR    cocos/bindings/manual/jsb_xmlhttprequest.cpp
-                cocos/bindings/manual/jsb_xmlhttprequest.h
-
-)
-
-cocos_source_files(
-            cocos/bindings/manual/jsb_classtype.cpp
-            cocos/bindings/manual/jsb_classtype.h
-            cocos/bindings/manual/jsb_cocos_manual.cpp
-            cocos/bindings/manual/jsb_cocos_manual.h
-            cocos/bindings/manual/jsb_geometry_manual.cpp
-            cocos/bindings/manual/jsb_geometry_manual.h
-            cocos/bindings/manual/jsb_conversions.h
-            cocos/bindings/manual/jsb_conversions_spec.cpp
-            cocos/bindings/manual/jsb_conversions_spec.h
-            cocos/bindings/manual/jsb_gfx_manual.cpp
-            cocos/bindings/manual/jsb_gfx_manual.h
-            cocos/bindings/manual/jsb_global.cpp
-            cocos/bindings/manual/jsb_global.h
-            cocos/bindings/manual/jsb_helper.cpp
-            cocos/bindings/manual/jsb_helper.h
-            cocos/bindings/manual/jsb_module_register.h
-            cocos/bindings/manual/jsb_module_register.cpp
-            cocos/bindings/manual/jsb_platform.h
-            cocos/bindings/manual/jsb_scene_manual.cpp
-            cocos/bindings/manual/jsb_scene_manual.h
-            cocos/bindings/manual/jsb_wasm32_facade.cpp
-            cocos/bindings/manual/jsb_wasm32_facade.h
-            cocos/bindings/manual/jsb_assets_manual.cpp
-            cocos/bindings/manual/jsb_assets_manual.h
-            cocos/bindings/manual/jsb_network_manual.cpp
-            cocos/bindings/manual/jsb_network_manual.h
-            cocos/bindings/manual/jsb_xmlhttprequest.cpp
-            cocos/bindings/manual/jsb_xmlhttprequest.h
-            cocos/bindings/manual/jsb_pipeline_manual.h
-            cocos/bindings/manual/jsb_pipeline_manual.cpp
-)
-if(USE_AUDIO)
-    cocos_source_files(
-            cocos/bindings/manual/jsb_audio_manual.cpp
-            cocos/bindings/manual/jsb_audio_manual.h
-    )
-endif()
-if(USE_SOCKET)
-    cocos_source_files(
-                     cocos/bindings/manual/jsb_socketio.cpp
-                     cocos/bindings/manual/jsb_socketio.h
-                     cocos/bindings/manual/jsb_websocket.cpp
-                     cocos/bindings/manual/jsb_websocket.h
-    )
-endif()
-
-if(USE_WEBSOCKET_SERVER)
-    cocos_source_files(
-                     cocos/bindings/manual/jsb_websocket_server.cpp
-                     cocos/bindings/manual/jsb_websocket_server.h
-    )
-endif()
-
-if(USE_ADPF)
-    cocos_source_files(
-        cocos/bindings/manual/jsb_adpf.cpp
-    )
-endif()
-
-if(ANDROID)
-    cocos_source_files(
-                    cocos/bindings/manual/jsb_platform_android.cpp
-                    cocos/bindings/manual/JavaScriptJavaBridge.cpp
-                    cocos/bindings/manual/JavaScriptJavaBridge.h
-    )
-elseif(OPENHARMONY)
-    cocos_source_files(
-        cocos/bindings/manual/jsb_platform_openharmony.cpp
-        cocos/bindings/manual/JavaScriptArkTsBridge.cpp
-        cocos/bindings/manual/JavaScriptArkTsBridge.h
-    )
-elseif(OHOS)
-    cocos_source_files(
-        cocos/bindings/manual/jsb_platform_ohos.cpp
-        cocos/bindings/manual/JavaScriptJavaBridge.cpp
-        cocos/bindings/manual/JavaScriptJavaBridge.h
-    )
-elseif(APPLE)
-    cocos_source_files(
-                    cocos/bindings/manual/jsb_platform_apple.mm
-                    cocos/bindings/manual/JavaScriptObjCBridge.h
-                    cocos/bindings/manual/JavaScriptObjCBridge.mm
-                    cocos/platform/apple/JsbBridge.h
-                    cocos/platform/apple/JsbBridge.mm
-                    cocos/platform/apple/JsbBridgeWrapper.h
-                    cocos/platform/apple/JsbBridgeWrapper.mm
-    )
-elseif(WIN32)
-    cocos_source_files(
-        NO_WERROR    cocos/bindings/manual/jsb_platform_win32.cpp
-    )
-elseif(LINUX)
-    cocos_source_files(
-        NO_WERROR    cocos/bindings/manual/jsb_platform_linux.cpp
-    )
-elseif(EMSCRIPTEN)
-    cocos_source_files(
-        NO_WERROR    cocos/bindings/manual/jsb_platform_linux.cpp
-    )
-endif()
-endif() # NOT USE_SE_NONE - end of manual bindings
-
-# bindings/ directory removed — pure C++ engine
+# script bindings (cocos/bindings/) removed — pure C++ engine
 
 #### storage
 if(NOT ANDROID)
@@ -3501,10 +3213,6 @@ endif()
 
 add_library(${ENGINE_NAME} ${COCOS_SOURCE_LIST})
 
-if(CMAKE_GENERATOR STREQUAL "Xcode")
-    add_dependencies(${ENGINE_NAME} genbindings)
-endif()
-
 
 if(USE_MODULES)
     target_link_libraries(${ENGINE_NAME} PUBLIC
@@ -3549,8 +3257,6 @@ function(cc_apply_definations target)
         $<IF:$<BOOL:${USE_SOCKET}>,CC_USE_SOCKET=1,CC_USE_SOCKET=0>
         $<IF:$<BOOL:${USE_WEBSOCKET_SERVER}>,CC_USE_WEBSOCKET_SERVER=1,CC_USE_WEBSOCKET_SERVER=0>
         $<IF:$<BOOL:${USE_EDIT_BOX}>,CC_USE_EDITBOX=1,CC_USE_EDITBOX=0>
-        # USE_V8_DEBUGGER = USE_V8_DEBUGGER && (in_debug_mode OR USE_V8_DEBUGGER_FORCEON)
-        $<IF:$<AND:$<OR:$<CONFIG:Debug>,$<BOOL:${USE_V8_DEBUGGER_FORCE}>>,$<BOOL:${USE_V8_DEBUGGER}>>,USE_V8_DEBUGGER=1,USE_V8_DEBUGGER=0>
         $<IF:$<BOOL:${USE_MIDDLEWARE}>,CC_USE_MIDDLEWARE=1,CC_USE_MIDDLEWARE=0>
         $<IF:$<BOOL:${USE_SPINE}>,CC_USE_SPINE=1,CC_USE_SPINE=0>
         $<IF:$<BOOL:${USE_SPINE_3_8}>,CC_USE_SPINE_3_8=1,CC_USE_SPINE_3_8=0>
@@ -3570,18 +3276,11 @@ function(cc_apply_definations target)
         $<IF:$<BOOL:${CC_EDITOR}>,CC_EDITOR=1,CC_EDITOR=0>
         $<IF:$<BOOL:${ENABLE_FLOAT_OUTPUT}>,ENABLE_FLOAT_OUTPUT=1,ENABLE_FLOAT_OUTPUT=0>
         $<$<BOOL:${USE_REMOTE_LOG}>:CC_REMOTE_LOG=1>
-        $<$<BOOL:${USE_SE_SM}>:SCRIPT_ENGINE_TYPE=1>
-        $<$<BOOL:${USE_SE_V8}>:SCRIPT_ENGINE_TYPE=2>
-        $<$<BOOL:${USE_SE_NAPI}>:SCRIPT_ENGINE_TYPE=5>
-        $<$<BOOL:${USE_SE_JSVM}>:SCRIPT_ENGINE_TYPE=6>
-        $<$<BOOL:${USE_SE_QJS}>:SCRIPT_ENGINE_TYPE=7>
-        $<$<BOOL:${USE_SE_BROWSER}>:SCRIPT_ENGINE_TYPE=8>
-        $<$<BOOL:${USE_SE_NONE}>:SCRIPT_ENGINE_TYPE=0>
+        SCRIPT_ENGINE_TYPE=0
         $<$<OR:$<CONFIG:Debug>,$<BOOL:${CC_DEBUG_FORCE}>>:CC_DEBUG=1>
         $<IF:$<BOOL:${USE_ADPF}>,CC_USE_ADPF=1,CC_USE_ADPF=0>
         $<IF:$<BOOL:${USE_GOOGLE_BILLING}>,CC_USE_GOOGLE_BILLING=1,CC_USE_GOOGLE_BILLING=0>
         $<IF:$<BOOL:${USE_GOOGLE_PLAY_GAMES}>,CC_USE_GOOGLE_PLAY_GAMES=1,CC_USE_GOOGLE_PLAY_GAMES=0>
-        $<IF:$<BOOL:${USE_BOX2D_JSB}>,CC_USE_BOX2D_JSB=1,CC_USE_BOX2D_JSB=0>
         $<IF:$<BOOL:${USE_GAMEPAD}>,CC_USE_GAMEPAD=1,CC_USE_GAMEPAD=0>
         $<IF:$<BOOL:${CC_WASM_STANDALONE_FACADE}>,CC_WASM_STANDALONE_FACADE=1,CC_WASM_STANDALONE_FACADE=0>
     )
@@ -3682,8 +3381,6 @@ target_include_directories(${ENGINE_NAME}
         ${CWD}/cocos/platform
         ${CWD}/cocos/renderer/core
         ${CWD}/cocos/editor-support
-        ${SWIG_OUTPUT_ROOT}
-        ${SWIG_OUTPUT_ROOT}/cocos
     PRIVATE
         ${CC_EXTERNAL_PRIVATE_INCLUDES}
 )
@@ -3818,10 +3515,6 @@ if(OPENHARMONY)
     if(USE_GAMEPAD)
         list(APPEND LIBS libohgame_controller.z.so)
     endif()
-    
-    if(USE_SE_JSVM)
-        list(APPEND LIBS libjsvm.so)
-    endif()
 
     target_link_libraries(${ENGINE_NAME} PUBLIC ${LIBS})
 
@@ -3915,23 +3608,7 @@ elseif(EMSCRIPTEN)
     endif()
 endif()
 
-### set source_group for generated files
 set(COCOS_SOURCE_LIST_EXCLUDE_GENRATED ${COCOS_SOURCE_LIST})
-set(COCOS_GENERATED_LIST)
-foreach(src IN LISTS COCOS_SOURCE_LIST_EXCLUDE_GENRATED)
-    get_source_file_property(IS_GENERATED ${src} GENERATED)
-    if(IS_GENERATED)
-        list(REMOVE_ITEM COCOS_SOURCE_LIST_EXCLUDE_GENRATED ${src})
-        list(APPEND COCOS_GENERATED_LIST ${src})
-    endif()
-endforeach()
-
-source_group(TREE ${SWIG_OUTPUT_ROOT} PREFIX "Source Files/generated" FILES ${COCOS_GENERATED_LIST})
-
-add_custom_target(genbindings
-    DEPENDS ${COCOS_GENERATED_LIST}
-)
-set_target_properties(genbindings PROPERTIES FOLDER Utils)
 
 if(USE_BUILTIN_EXTERNAL)
     set(EXCLUDE_EXTERANL_LIST ${COCOS_SOURCE_LIST_EXCLUDE_GENRATED})

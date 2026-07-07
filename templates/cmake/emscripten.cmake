@@ -1,9 +1,9 @@
 # OFF = skip --preload-file (useful when postRun/checkStackCookie aborts during package unpack).
 option(CC_WASM_PRELOAD_DATA "Pack RES_DIR/Resources/data with emcc --preload-file" ON)
 
-# ON = use minimal JS facade (test scene only, no full cc module).
-# OFF = use the full Cocos Creator runtime via jsb-adapter + SystemJS.
-option(CC_WASM_STANDALONE_FACADE "Use minimal JS facade instead of full cc module" OFF)
+# The script engine has been removed — WASM builds are pure C++ and always use
+# the minimal JS facade (bootstrap only, no cc module / jsb-adapter / SystemJS).
+option(CC_WASM_STANDALONE_FACADE "Use minimal JS facade instead of full cc module" ON)
 
 macro(cc_emscripten_before_target _target_name)
     if((NOT DEFINED CC_EXECUTABLE_NAME) OR "${CC_EXECUTABLE_NAME}" STREQUAL "")

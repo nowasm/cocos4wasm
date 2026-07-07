@@ -271,7 +271,7 @@ private:
         uint32_t _ibCount{0};
         ccstd::hash_t _dataHash{0};
     } _drawInfoAttrs{};
-    static_assert(sizeof(DrawInfoAttrs) == 28, "DrawInfoAttrs layout changed — update jsb_wasm32_facade.cpp shared buffer offsets");
+    static_assert(sizeof(DrawInfoAttrs) == 28, "DrawInfoAttrs layout changed — audit code that assumes this packed layout");
 
     // weak reference
     Material* _material{nullptr};

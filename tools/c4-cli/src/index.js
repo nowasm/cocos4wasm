@@ -44,14 +44,4 @@ program
     await newCommand(projectName, options);
   });
 
-program
-  .command('prepare-wasm-adapter')
-  .description('Build unbundled web-adapter.js for WASM32 (avoids browserify call depth overflow)')
-  .requiredOption('-e, --engine <path>', 'Engine directory (cocos-cli packages/engine)')
-  .requiredOption('-o, --out <dir>', 'Output directory for jsb-adapter files')
-  .action(async (options) => {
-    const prepare = require('./commands/prepare-wasm-adapter');
-    await prepare(options.engine, options.out);
-  });
-
 program.parse(process.argv);

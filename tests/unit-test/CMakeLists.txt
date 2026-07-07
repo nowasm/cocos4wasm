@@ -6,12 +6,6 @@ set(CMAKE_CXX_STANDARD 17)
 # Pure C++ mode — no script engine. Skips SWIG binding generation which
 # otherwise tries to %include files under cocos/bindings/ that were removed
 # during the JS engine strip.
-set(USE_SE_V8 OFF)
-set(USE_SE_SM OFF)
-set(USE_SE_NAPI OFF)
-set(USE_SE_JSVM OFF)
-set(USE_SE_QJS OFF)
-set(USE_SE_BROWSER OFF)
 
 # Emscripten: produce a self-contained HTML test runner
 if(EMSCRIPTEN)
