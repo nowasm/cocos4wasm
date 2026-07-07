@@ -49,7 +49,10 @@ Material* MaterialFactory::createStandard(const Color& albedo) {
 Material* MaterialFactory::createStandard(const PBRParams& params) {
     auto* material = createMaterialWithEffect("builtin-standard");
     if (material) {
-        material->setPropertyColor("mainColor", params.albedo);
+        // builtin-standard exposes the albedo uniform directly; the friendly
+        // "mainColor" alias is not resolvable when effects are loaded from
+        // builtin-effects.json (pure-C++ mode).
+        material->setPropertyColor("albedo", params.albedo);
         // shader reads packed vec4: x=occlusion y=roughness z=metallic w=specularIntensity
         Vec4 pbr(0.0f, params.roughness, params.metallic, params.specularIntensity);
         material->setPropertyVec4("pbrParams", pbr);

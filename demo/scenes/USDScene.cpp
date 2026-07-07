@@ -29,13 +29,15 @@ static void writeMat(FILE* f, const char* name,
 
 static void writeCube(FILE* f, const char* prim, const char* mat,
                       float tx, float ty, float tz,
-                      float sx, float sy, float sz) {
+                      float sx, float sy, float sz,
+                      float cr, float cg, float cb) {
     fprintf(f,
         "    def Mesh \"%s\" {\n"
         "        rel material:binding = </Materials/%s>\n"
-        "        float3 xformOp:translate = (%g, %g, %g)\n"
-        "        float3 xformOp:scale    = (%g, %g, %g)\n"
+        "        double3 xformOp:translate = (%g, %g, %g)\n"
+        "        double3 xformOp:scale    = (%g, %g, %g)\n"
         "        uniform token[] xformOpOrder = [\"xformOp:translate\",\"xformOp:scale\"]\n"
+        "        color3f[] primvars:displayColor = [(%g, %g, %g)] (interpolation = \"constant\")\n"
         "        int[] faceVertexCounts = [4,4,4,4,4,4]\n"
         "        int[] faceVertexIndices = [0,1,2,3, 4,5,6,7, 0,4,7,3, 1,5,6,2, 0,1,5,4, 3,2,6,7]\n"
         "        point3f[] points = [\n"
@@ -51,7 +53,7 @@ static void writeCube(FILE* f, const char* prim, const char* mat,
         "            (0,1,0),(0,1,0),(0,1,0),(0,1,0)\n"
         "        ] (interpolation = \"faceVarying\")\n"
         "    }\n",
-        prim, mat, tx, ty, tz, sx, sy, sz);
+        prim, mat, tx, ty, tz, sx, sy, sz, cr, cg, cb);
 }
 
 static bool writeScene(const char* path) {
@@ -70,13 +72,13 @@ static bool writeScene(const char* path) {
 
     fputs("def Xform \"Scene\" {\n", f);
     // Ground slab
-    writeCube(f, "Ground", "Ground",  0, -1.05f, 0,  7, 0.1f, 4);
+    writeCube(f, "Ground", "Ground",  0, -1.05f, 0,  7, 0.1f, 4,  0.30f,0.30f,0.30f);
     // Three cubes in a row
-    writeCube(f, "BoxRed",   "Red",   -2.5f, -0.5f, 0,  1, 1, 1);
-    writeCube(f, "BoxGreen", "Green",  0,    -0.5f, 0,  1, 1, 1);
-    writeCube(f, "BoxBlue",  "Blue",   2.5f, -0.5f, 0,  1, 1, 1);
+    writeCube(f, "BoxRed",   "Red",   -2.5f, -0.5f, 0,  1, 1, 1,  0.85f,0.12f,0.12f);
+    writeCube(f, "BoxGreen", "Green",  0,    -0.5f, 0,  1, 1, 1,  0.12f,0.75f,0.20f);
+    writeCube(f, "BoxBlue",  "Blue",   2.5f, -0.5f, 0,  1, 1, 1,  0.12f,0.30f,0.90f);
     // Gold box on top of green
-    writeCube(f, "BoxGold",  "Gold",   0,     0.8f, 0,  0.6f, 0.6f, 0.6f);
+    writeCube(f, "BoxGold",  "Gold",   0,     0.8f, 0,  0.6f, 0.6f, 0.6f,  1.00f,0.75f,0.15f);
     fputs("}\n", f);
 
     fclose(f);
@@ -104,6 +106,8 @@ public:
 
         CC_LOG_INFO("[USDScene] loaded: %zu mesh(es), %zu material(s)",
                     _result.meshes.size(), _result.materials.size());
+
+        for (auto* r : _result.renderers) r->updateTransform();
     }
 
     void onUpdate(float dt) override {

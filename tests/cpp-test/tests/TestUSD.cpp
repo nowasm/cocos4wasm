@@ -163,12 +163,12 @@ private:
         fputs("def Xform \"Scene\" {\n", f);
 
         // Ground plane (a very flat scaled cube)
-        writeCubeMesh(f, "Ground", "GroundMat",  0, -0.55f, 0,  8, 0.1f, 8);
+        writeCubeMesh(f, "Ground", "GroundMat",  0, -0.55f, 0,  8, 0.1f, 8,  0.35f,0.35f,0.35f);
         // Four colored cubes
-        writeCubeMesh(f, "BoxRed",   "RedMat",   -3,  0, 0,  1, 1, 1);
-        writeCubeMesh(f, "BoxGreen", "GreenMat",  0,  0, 0,  1, 1, 1);
-        writeCubeMesh(f, "BoxBlue",  "BlueMat",   3,  0, 0,  1, 1, 1);
-        writeCubeMesh(f, "BoxGold",  "GoldMat",   0,  1, 0,  0.6f, 0.6f, 0.6f);
+        writeCubeMesh(f, "BoxRed",   "RedMat",   -3,  0, 0,  1, 1, 1,  0.85f,0.12f,0.12f);
+        writeCubeMesh(f, "BoxGreen", "GreenMat",  0,  0, 0,  1, 1, 1,  0.12f,0.75f,0.20f);
+        writeCubeMesh(f, "BoxBlue",  "BlueMat",   3,  0, 0,  1, 1, 1,  0.12f,0.30f,0.90f);
+        writeCubeMesh(f, "BoxGold",  "GoldMat",   0,  1, 0,  0.6f, 0.6f, 0.6f,  1.00f,0.75f,0.15f);
 
         fputs("}\n", f);  // Scene
         fclose(f);
@@ -198,14 +198,16 @@ private:
     // Emit a Mesh prim inside the Scene Xform, with scale and translate ops.
     static void writeCubeMesh(FILE* f, const char* primName, const char* matName,
                                float tx, float ty, float tz,
-                               float sx, float sy, float sz) {
+                               float sx, float sy, float sz,
+                               float cr = 0.18f, float cg = 0.18f, float cb = 0.18f) {
         fprintf(f,
             "    def Mesh \"%s\" {\n"
             "        rel material:binding = </Materials/%s>\n"
-            "        float3 xformOp:translate = (%g, %g, %g)\n"
-            "        float3 xformOp:scale = (%g, %g, %g)\n"
-            "        uniform token[] xformOpOrder = [\"xformOp:translate\", \"xformOp:scale\"]\n",
-            primName, matName, tx, ty, tz, sx, sy, sz);
+            "        double3 xformOp:translate = (%g, %g, %g)\n"
+            "        double3 xformOp:scale = (%g, %g, %g)\n"
+            "        uniform token[] xformOpOrder = [\"xformOp:translate\", \"xformOp:scale\"]\n"
+            "        color3f[] primvars:displayColor = [(%g, %g, %g)] (interpolation = \"constant\")\n",
+            primName, matName, tx, ty, tz, sx, sy, sz, cr, cg, cb);
         fputs("        ", f); fputs(k_cube_fv_counts,  f);
         fputs("        ", f); fputs(k_cube_fv_indices, f);
         fputs("        ", f); fputs(k_cube_points,     f);
