@@ -234,6 +234,7 @@ int DemoGame::init() {
         NodeActivator::get().invokePendingStarts();
         ComponentScheduler::get().update(dt);
         TweenSystem::getInstance().update(dt);
+        AssetManager::get().update(); // pump async-load completions
         PhysicsSystem::getInstance().update(dt);
         if (_currentScene) _currentScene->onUpdate(dt);
         ComponentScheduler::get().lateUpdate(dt);
