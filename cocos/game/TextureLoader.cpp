@@ -122,6 +122,29 @@ Texture2D* TextureLoader::loadFromFile(const ccstd::string& path, Interpret inte
     return texture;
 }
 
+Texture2D* TextureLoader::loadFromMemory(const uint8_t* data, uint32_t size, Interpret interpret) {
+    IntrusivePtr<Image> image = ccnew Image();
+    if (!image->initWithImageData(data, size)) {
+        CC_LOG_ERROR("TextureLoader: failed to decode in-memory image (%u bytes)", size);
+        return nullptr;
+    }
+
+    gfx::Format fmt = image->getRenderFormat();
+    uint32_t width = static_cast<uint32_t>(image->getWidth());
+    uint32_t height = static_cast<uint32_t>(image->getHeight());
+
+    uint8_t *rgba = expandToRGBA8(fmt, image->getData(), width, height, interpret);
+    if (!rgba) {
+        CC_LOG_ERROR("TextureLoader: unsupported format %d for in-memory image",
+                     static_cast<int>(fmt));
+        return nullptr;
+    }
+
+    auto *texture = createFromRGBA(rgba, width, height);
+    free(rgba);
+    return texture;
+}
+
 Texture2D* TextureLoader::createFromRGBA(const uint8_t* data, uint32_t width, uint32_t height) {
     IntrusivePtr<Image> image = ccnew Image();
     image->initWithRawData(data, width * height * 4, width, height, 32);

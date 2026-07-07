@@ -16,6 +16,9 @@ public:
 
     static Texture2D* loadFromFile(const ccstd::string& path,
                                     Interpret interpret = Interpret::COLOR);
+    // Decode an in-memory encoded image (PNG/JPG/...) into a texture.
+    static Texture2D* loadFromMemory(const uint8_t* data, uint32_t size,
+                                      Interpret interpret = Interpret::COLOR);
     static Texture2D* createFromRGBA(const uint8_t* data, uint32_t width, uint32_t height);
     static Texture2D* createSolidColor(uint8_t r, uint8_t g, uint8_t b, uint8_t a = 255);
 };
