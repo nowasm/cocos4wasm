@@ -2161,6 +2161,21 @@ if(USE_PHYSICS_PHYSX)
     )
 endif()
 
+# physics framework (P8) — authoring components, built regardless of the
+# backend flag; backend calls are compiled out when USE_PHYSICS_PHYSX=OFF.
+cocos_source_files(
+    cocos/physics/framework/PhysicsSystem.h
+    cocos/physics/framework/PhysicsSystem.cpp
+    cocos/physics/framework/Collider.h
+    cocos/physics/framework/Collider.cpp
+    cocos/physics/framework/BoxCollider.h
+    cocos/physics/framework/BoxCollider.cpp
+    cocos/physics/framework/SphereCollider.h
+    cocos/physics/framework/SphereCollider.cpp
+    cocos/physics/framework/RigidBody.h
+    cocos/physics/framework/RigidBody.cpp
+)
+
 ##### 2d
 cocos_source_files(
     # framework (P2a+)

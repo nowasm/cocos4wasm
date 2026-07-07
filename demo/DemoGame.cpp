@@ -11,6 +11,11 @@
 #include "cocos/ui/components/ProgressBar.h"
 #include "cocos/ui/components/ScrollBar.h"
 #include "cocos/ui/components/ScrollView.h"
+#include "cocos/physics/framework/BoxCollider.h"
+#include "cocos/physics/framework/Collider.h"
+#include "cocos/physics/framework/PhysicsSystem.h"
+#include "cocos/physics/framework/RigidBody.h"
+#include "cocos/physics/framework/SphereCollider.h"
 #include "cocos/tween/TweenSystem.h"
 #include "cocos/ui/editBox/EditBox.h"
 #include "core/Root.h"
@@ -92,6 +97,10 @@ bool DemoGame::initEngine() {
     (void)ProgressBar::forceLink();
     (void)ScrollView::forceLink();
     (void)ScrollBar::forceLink();
+    (void)Collider::forceLink();
+    (void)BoxCollider::forceLink();
+    (void)SphereCollider::forceLink();
+    (void)RigidBody::forceLink();
 
     // Asset pipeline: register loaders + load the uuid-map for the
     // editor-sample fixture bundle.
@@ -225,6 +234,7 @@ int DemoGame::init() {
         NodeActivator::get().invokePendingStarts();
         ComponentScheduler::get().update(dt);
         TweenSystem::getInstance().update(dt);
+        PhysicsSystem::getInstance().update(dt);
         if (_currentScene) _currentScene->onUpdate(dt);
         ComponentScheduler::get().lateUpdate(dt);
         UIBatcher2d::get().tick();

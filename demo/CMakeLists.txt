@@ -8,7 +8,7 @@ set(CMAKE_CXX_STANDARD 17)
 # Trim features irrelevant to 2D-UI demo target
 set(USE_VIDEO OFF)
 set(USE_WEBVIEW OFF)
-set(USE_PHYSICS_PHYSX OFF)
+set(USE_PHYSICS_PHYSX ON)
 
 set(COCOS_X_PATH ${CMAKE_CURRENT_LIST_DIR}/..)
 
@@ -37,6 +37,7 @@ set(DEMO_SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/scenes/EditBoxScene.cpp
     ${CMAKE_CURRENT_LIST_DIR}/scenes/PrefabLoadScene.cpp
     ${CMAKE_CURRENT_LIST_DIR}/scenes/AnimationScene.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/scenes/PhysicsScene.cpp
 )
 
 if(USE_TINYUSDZ)
