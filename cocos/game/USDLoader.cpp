@@ -2,17 +2,23 @@
 
 #include "game/USDLoader.h"
 #include "3d/misc/CreateMesh.h"
+#include "3d/framework/SkinnedMeshRendererComponent.h"
 #include "game/MaterialFactory.h"
 #include "game/TextureLoader.h"
 #include "primitive/PrimitiveDefine.h"
 #include "base/Log.h"
+#include "math/Mat4.h"
 #include "math/Quaternion.h"
 #include "math/Vec3.h"
+#include "renderer/gfx-base/GFXDef-common.h"
 
 #include "tinyusdz.hh"
 #include "tydra/render-data.hh"
 
+#include <algorithm>
 #include <cmath>
+#include <limits>
+#include <map>
 
 namespace cc::game {
 namespace {
@@ -70,6 +76,30 @@ void applyLocalMatrix(cc::Node* node, const value::matrix4d& m) {
     node->setRotation(q);
 }
 
+// ─── USD matrix → engine matrix ──────────────────────────────────────────────
+// USD stores matrices row-major with ROW-VECTOR convention (v' = v * M):
+// basis vectors live in the rows, translation in row 3. The engine Mat4 is
+// column-major with COLUMN-VECTOR convention (v' = M * v): basis in the
+// columns, translation in m[12..14]. The engine matrix is therefore the
+// TRANSPOSE of the USD one — and because transposing a matrix while also
+// flipping the storage order (row-major → column-major) cancels out, the
+// USD flat array maps 1:1 onto the engine flat array. A plain element copy
+// IS the conversion (m.m[3][0..2] → m[12..14] translation checks out).
+inline Mat4 mat4FromUSD(const value::matrix4d& m) {
+    Mat4 out;
+    const double* src = &m.m[0][0];
+    for (int i = 0; i < 16; ++i) out.m[i] = float(src[i]);
+    return out;
+}
+
+inline bool isIdentityMat(const Mat4& m) {
+    static const Mat4 kIdentity;
+    for (int i = 0; i < 16; ++i) {
+        if (std::fabs(m.m[i] - kIdentity.m[i]) > 1e-6f) return false;
+    }
+    return true;
+}
+
 // ─── Vertex attribute sampling ───────────────────────────────────────────────
 
 // Resolve the data element index for a given global face-vertex index and point index.
@@ -95,9 +125,29 @@ Mesh* buildMesh(const RenderMesh& src) {
     bool hasNormals = !src.normals.data.empty();
     bool hasUVs     = src.texcoords.count(0) && !src.texcoords.at(0).data.empty();
 
+    // UsdSkel: jointIndices/jointWeights are 'vertex'-varying, `elementSize`
+    // influences per point. Tydra keeps them aligned with `points` even when
+    // build_vertex_indices rewrites the vertex stream.
+    const JointAndWeight& jw = src.joint_and_weights;
+    const int  elemSize  = jw.elementSize > 0 ? jw.elementSize : 1;
+    const bool isSkinned = src.skel_id >= 0 &&
+                           !jw.jointIndices.empty() &&
+                           jw.jointIndices.size() == jw.jointWeights.size() &&
+                           jw.jointIndices.size() >= src.points.size() * size_t(elemSize);
+
+    // primvars:skel:geomBindTransform — bake it into positions/normals so the
+    // Skeleton bindposes stay pure inverse-bind matrices.
+    Mat4 geomBind = mat4FromUSD(jw.geomBindTransform);
+    bool applyGeomBind = isSkinned && !isIdentityMat(geomBind);
+    Mat4 geomBindIT;
+    if (applyGeomBind) Mat4::inverseTranspose(geomBind, &geomBindIT);
+
     IGeometry geo;
     if (hasNormals) geo.normals.emplace();
     if (hasUVs)     geo.uvs.emplace();
+
+    ccstd::vector<float> jointVals;   // 4 per vertex (uint payload in float storage)
+    ccstd::vector<float> weightVals;  // 4 per vertex
 
     const VertexAttribute* uvAttr = hasUVs ? &src.texcoords.at(0) : nullptr;
 
@@ -109,20 +159,69 @@ Mesh* buildMesh(const RenderMesh& src) {
             for (int v = 0; v < 3; ++v) {
                 uint32_t pi = fvIdx[fv[v]];
                 // float3 = std::array<float,3>
-                geo.positions.push_back(src.points[pi][0]);
-                geo.positions.push_back(src.points[pi][1]);
-                geo.positions.push_back(src.points[pi][2]);
+                float px = src.points[pi][0];
+                float py = src.points[pi][1];
+                float pz = src.points[pi][2];
+                if (applyGeomBind) {
+                    const float* m = geomBind.m;
+                    float tx = m[0]*px + m[4]*py + m[8]*pz  + m[12];
+                    float ty = m[1]*px + m[5]*py + m[9]*pz  + m[13];
+                    float tz = m[2]*px + m[6]*py + m[10]*pz + m[14];
+                    px = tx; py = ty; pz = tz;
+                }
+                geo.positions.push_back(px);
+                geo.positions.push_back(py);
+                geo.positions.push_back(pz);
 
                 if (hasNormals) {
                     const float* n = attrFloat(src.normals, attrDataIdx(src.normals, fv[v], pi), 3);
-                    geo.normals->push_back(n[0]);
-                    geo.normals->push_back(n[1]);
-                    geo.normals->push_back(n[2]);
+                    float nx = n[0], ny = n[1], nz = n[2];
+                    if (applyGeomBind) {
+                        const float* m = geomBindIT.m;
+                        float tx = m[0]*nx + m[4]*ny + m[8]*nz;
+                        float ty = m[1]*nx + m[5]*ny + m[9]*nz;
+                        float tz = m[2]*nx + m[6]*ny + m[10]*nz;
+                        float len = std::sqrt(tx*tx + ty*ty + tz*tz);
+                        if (len > 1e-7f) { tx /= len; ty /= len; tz /= len; }
+                        nx = tx; ny = ty; nz = tz;
+                    }
+                    geo.normals->push_back(nx);
+                    geo.normals->push_back(ny);
+                    geo.normals->push_back(nz);
                 }
                 if (hasUVs) {
                     const float* uv = attrFloat(*uvAttr, attrDataIdx(*uvAttr, fv[v], pi), 2);
                     geo.uvs->push_back(uv[0]);
                     geo.uvs->push_back(uv[1]);
+                }
+
+                if (isSkinned) {
+                    // Collect this point's influences, keep the strongest 4
+                    // (a_joints/a_weights are fixed vec4), renormalize.
+                    // USD weights are not guaranteed normalized to begin with.
+                    struct Influence { int joint; float weight; };
+                    ccstd::vector<Influence> inf;
+                    inf.reserve(size_t(elemSize));
+                    for (int k = 0; k < elemSize; ++k) {
+                        size_t at = size_t(pi) * size_t(elemSize) + size_t(k);
+                        int   ji = jw.jointIndices[at];
+                        float wt = jw.jointWeights[at];
+                        if (ji >= 0 && wt > 0.f) inf.push_back({ji, wt});
+                    }
+                    std::sort(inf.begin(), inf.end(),
+                              [](const Influence& a, const Influence& b) { return a.weight > b.weight; });
+                    if (inf.size() > 4) inf.resize(4);
+                    float sum = 0.f;
+                    for (const auto& i : inf) sum += i.weight;
+                    for (int k = 0; k < 4; ++k) {
+                        if (k < int(inf.size())) {
+                            jointVals.push_back(float(inf[k].joint));
+                            weightVals.push_back(sum > 0.f ? inf[k].weight / sum : (k == 0 ? 1.f : 0.f));
+                        } else {
+                            jointVals.push_back(0.f);
+                            weightVals.push_back(k == 0 && inf.empty() ? 1.f : 0.f);
+                        }
+                    }
                 }
             }
         }
@@ -130,6 +229,23 @@ Mesh* buildMesh(const RenderMesh& src) {
     }
 
     if (geo.positions.empty()) return nullptr;
+
+    if (isSkinned) {
+        // a_joints is declared `u32vec4` in the glsl4 (Vulkan) variant of the
+        // builtin effects, so the vertex data must be a true integer format —
+        // RGBA32UI. writeBuffer() casts the float-typed CustomAttribute
+        // payload to uint32 per component. a_weights stays float RGBA32F.
+        geo.customAttributes.emplace();
+        CustomAttribute joints;
+        joints.attr = gfx::Attribute{gfx::ATTR_NAME_JOINTS, gfx::Format::RGBA32UI};
+        joints.values = std::move(jointVals);
+        CustomAttribute weights;
+        weights.attr = gfx::Attribute{gfx::ATTR_NAME_WEIGHTS, gfx::Format::RGBA32F};
+        weights.values = std::move(weightVals);
+        geo.customAttributes->push_back(std::move(joints));
+        geo.customAttributes->push_back(std::move(weights));
+    }
+
     ICreateMeshOptions opts;
     opts.calculateBounds = true;
     return MeshUtils::createMesh(geo, nullptr, opts);
@@ -184,6 +300,210 @@ Material* buildMaterial(const RenderMaterial& mat,
     return m;
 }
 
+// ─── UsdSkel: joints / skeleton / animation ──────────────────────────────────
+
+// Joint tokens look like "Base/Upper" (path segments relative to the
+// Skeleton prim). Occasionally they are authored absolute ("/Base/Upper");
+// normalize by dropping the leading slash so Node::getChildByPath works.
+inline std::string normalizeJointPath(const std::string& jointPath) {
+    if (!jointPath.empty() && jointPath.front() == '/') return jointPath.substr(1);
+    return jointPath;
+}
+
+inline std::string jointLeafName(const std::string& jointPath) {
+    auto pos = jointPath.find_last_of('/');
+    return pos == std::string::npos ? jointPath : jointPath.substr(pos + 1);
+}
+
+// Recursively mirror the SkelHierarchy as engine Nodes under `parent`.
+// Node names are the joint-path leaf segments, so the full joint path is
+// resolvable from the skinning root via Node::getChildByPath. Local rest
+// transforms come from SkelNode::rest_transform.
+void buildJointNodes(const tydra::SkelNode& sn, cc::Node* parent, USDLoadResult& result) {
+    std::string leaf = jointLeafName(normalizeJointPath(sn.joint_path));
+    auto* jn = ccnew cc::Node(leaf.empty() ? "joint" : leaf);
+    jn->setParent(parent);
+    result.nodes.push_back(jn);
+    applyLocalMatrix(jn, sn.rest_transform);
+    for (const auto& child : sn.children) {
+        buildJointNodes(child, jn, result);
+    }
+}
+
+// Flatten the SkelHierarchy into (path, inverse-bind) arrays indexed by
+// joint_id — a_joints vertex data indexes the same UsdSkel joint order.
+// SkelNode::bind_transform is the joint's WORLD bind matrix (skeleton
+// space); the Skeleton asset stores its inverse.
+void collectJoints(const tydra::SkelNode& sn,
+                   ccstd::vector<ccstd::string>& paths,
+                   ccstd::vector<Mat4>& bindposes) {
+    if (sn.joint_id >= 0) {
+        size_t idx = size_t(sn.joint_id);
+        if (paths.size() <= idx) {
+            paths.resize(idx + 1);
+            bindposes.resize(idx + 1);
+        }
+        paths[idx]     = normalizeJointPath(sn.joint_path).c_str();
+        bindposes[idx] = mat4FromUSD(sn.bind_transform).getInversed();
+    }
+    for (const auto& child : sn.children) {
+        collectJoints(child, paths, bindposes);
+    }
+}
+
+Skeleton* buildSkeletonAsset(const tydra::SkelHierarchy& skel) {
+    ccstd::vector<ccstd::string> paths;
+    ccstd::vector<Mat4> bindposes;
+    collectJoints(skel.root_node, paths, bindposes);
+    if (paths.empty()) return nullptr;
+    auto* asset = ccnew Skeleton();
+    asset->setJoints(paths);
+    asset->setBindposes(bindposes);
+    return asset;  // hash is computed lazily from the bindposes
+}
+
+// Convert one tydra::Animation (USD SkelAnimation) into an AnimationClip.
+// Channel sample times are USD timecodes; divide by timeCodesPerSecond to
+// get seconds and rebase so the earliest key sits at t = 0. tydra quats are
+// (x, y, z, w) memory order — identical to engine Quaternion.
+AnimationClip* convertSkelAnimation(const tydra::Animation& anim, double timeCodesPerSecond) {
+    const float fps = timeCodesPerSecond > 0.0 ? float(timeCodesPerSecond) : 24.f;
+
+    // Rebase: find the earliest sample time across all channels.
+    float t0 = std::numeric_limits<float>::max();
+    for (const auto& jointIt : anim.channels_map) {
+        for (const auto& chanIt : jointIt.second) {
+            const AnimationChannel& ch = chanIt.second;
+            for (const auto& s : ch.translations.samples) t0 = std::min(t0, s.t);
+            for (const auto& s : ch.rotations.samples)    t0 = std::min(t0, s.t);
+            for (const auto& s : ch.scales.samples)       t0 = std::min(t0, s.t);
+        }
+    }
+    if (t0 == std::numeric_limits<float>::max()) t0 = 0.f;
+
+    auto* clip = ccnew AnimationClip(anim.prim_name.empty() ? "usd_skel_anim" : anim.prim_name);
+
+    auto toSeconds = [fps, t0](float t) { return (t - t0) / fps; };
+
+    for (const auto& jointIt : anim.channels_map) {
+        const std::string relPath = normalizeJointPath(jointIt.first);
+        auto& track = clip->track(relPath.c_str());
+
+        for (const auto& chanIt : jointIt.second) {
+            const AnimationChannel& ch = chanIt.second;
+            switch (chanIt.first) {
+                case AnimationChannel::ChannelType::Translation: {
+                    track.position.interpolation =
+                        ch.translations.interpolation == AnimationSampler<vec3>::Interpolation::Step
+                            ? anim::Interpolation::STEP : anim::Interpolation::LINEAR;
+                    for (const auto& s : ch.translations.samples) {
+                        track.position.addKey(toSeconds(s.t), Vec3(s.value[0], s.value[1], s.value[2]));
+                    }
+                    if (ch.translations.samples.empty() && ch.translations.static_value.has_value()) {
+                        const auto& v = ch.translations.static_value.value();
+                        track.position.addKey(0.f, Vec3(v[0], v[1], v[2]));
+                    }
+                    break;
+                }
+                case AnimationChannel::ChannelType::Rotation: {
+                    track.rotation.interpolation =
+                        ch.rotations.interpolation == AnimationSampler<quat>::Interpolation::Step
+                            ? anim::Interpolation::STEP : anim::Interpolation::LINEAR;
+                    for (const auto& s : ch.rotations.samples) {
+                        track.rotation.addKey(toSeconds(s.t),
+                                              Quaternion(s.value[0], s.value[1], s.value[2], s.value[3]));
+                    }
+                    if (ch.rotations.samples.empty() && ch.rotations.static_value.has_value()) {
+                        const auto& v = ch.rotations.static_value.value();
+                        track.rotation.addKey(0.f, Quaternion(v[0], v[1], v[2], v[3]));
+                    }
+                    break;
+                }
+                case AnimationChannel::ChannelType::Scale: {
+                    track.scale.interpolation =
+                        ch.scales.interpolation == AnimationSampler<vec3>::Interpolation::Step
+                            ? anim::Interpolation::STEP : anim::Interpolation::LINEAR;
+                    for (const auto& s : ch.scales.samples) {
+                        track.scale.addKey(toSeconds(s.t), Vec3(s.value[0], s.value[1], s.value[2]));
+                    }
+                    if (ch.scales.samples.empty() && ch.scales.static_value.has_value()) {
+                        const auto& v = ch.scales.static_value.value();
+                        track.scale.addKey(0.f, Vec3(v[0], v[1], v[2]));
+                    }
+                    break;
+                }
+                case AnimationChannel::ChannelType::Transform:
+                    CC_LOG_WARNING("[USDLoader] matrix (Transform) animation channels are not supported "
+                                   "(joint '%s') — decompose to TRS on export", jointIt.first.c_str());
+                    break;
+                default:
+                    break;
+            }
+        }
+    }
+    return clip;
+}
+
+// Wire one skinned RenderMesh: joint node tree + Skeleton asset +
+// SkinnedMeshRendererComponent on `node` (which doubles as skinning root),
+// plus an AnimationComponent when the skeleton carries a SkelAnimation.
+// Skeleton assets and clips are cached per skel/anim id so meshes sharing a
+// UsdSkel Skeleton share them (each mesh still gets its own joint tree).
+struct SkelCache {
+    std::map<int, IntrusivePtr<Skeleton>>      skeletons;
+    std::map<int, IntrusivePtr<AnimationClip>> clips;
+};
+
+void setupSkinnedMesh(cc::Node* node, Mesh* mesh, Material* mat,
+                      const RenderMesh& rm, const RenderScene& rs,
+                      SkelCache& cache, USDLoadResult& result) {
+    if (rm.skel_id < 0 || rm.skel_id >= int(rs.skeletons.size())) return;
+    const tydra::SkelHierarchy& skel = rs.skeletons[size_t(rm.skel_id)];
+
+    // Skeleton asset (shared per skel_id)
+    auto skIt = cache.skeletons.find(rm.skel_id);
+    if (skIt == cache.skeletons.end()) {
+        Skeleton* asset = buildSkeletonAsset(skel);
+        if (!asset) {
+            CC_LOG_ERROR("[USDLoader] failed to build Skeleton asset for '%s'", skel.abs_path.c_str());
+            return;
+        }
+        skIt = cache.skeletons.emplace(rm.skel_id, asset).first;
+        result.skeletons.emplace_back(asset);
+    }
+    Skeleton* skeletonAsset = skIt->second.get();
+
+    // Joint node tree under the mesh node (= skinning root)
+    buildJointNodes(skel.root_node, node, result);
+
+    // Renderer component — SkinningModel is created inside once mesh,
+    // skeleton and material are all present.
+    auto* renderer = node->addComponent<SkinnedMeshRendererComponent>();
+    renderer->setSkinningRoot(node);
+    renderer->setSkeleton(skeletonAsset);
+    renderer->setMaterial(mat);
+    renderer->setMesh(mesh);
+    result.skinnedRenderers.push_back(renderer);
+
+    // Animation clip + component (clip shared per anim_id)
+    if (skel.anim_id >= 0 && skel.anim_id < int(rs.animations.size())) {
+        auto clIt = cache.clips.find(skel.anim_id);
+        if (clIt == cache.clips.end()) {
+            AnimationClip* clip = convertSkelAnimation(rs.animations[size_t(skel.anim_id)],
+                                                       rs.meta.timeCodesPerSecond);
+            clIt = cache.clips.emplace(skel.anim_id, clip).first;
+            result.animationClips.emplace_back(clip);
+        }
+        auto* animComp = node->addComponent<AnimationComponent>();
+        animComp->addClip(clIt->second.get());
+        result.animationComponents.push_back(animComp);
+    }
+
+    CC_LOG_INFO("[USDLoader] skinned mesh '%s': %zu joint(s), anim %s",
+                rm.prim_name.c_str(), skeletonAsset->getJoints().size(),
+                skel.anim_id >= 0 ? "yes" : "no");
+}
+
 // ─── Node tree ───────────────────────────────────────────────────────────────
 
 void buildNodeTree(const tydra::Node& usdNode,
@@ -191,6 +511,7 @@ void buildNodeTree(const tydra::Node& usdNode,
                     const RenderScene& rs,
                     const std::vector<Mesh*>& builtMeshes,
                     std::vector<Material*>& outMats,
+                    SkelCache& skelCache,
                     USDLoadResult& result) {
     const std::string& primName = usdNode.prim_name;
     auto* node = ccnew cc::Node(primName.empty() ? "usd_node" : primName);
@@ -217,15 +538,20 @@ void buildNodeTree(const tydra::Node& usdNode,
                 mat = MaterialFactory::createStandard(p);
                 outMats.push_back(mat);
             }
-            auto* renderer = ccnew MeshRenderer(node);
-            renderer->setMesh(mesh);
-            renderer->setMaterial(mat);
-            result.renderers.push_back(renderer);
+            if (rm.skel_id >= 0) {
+                // GPU-skinned path: SkinnedMeshRendererComponent + joint tree
+                setupSkinnedMesh(node, mesh, mat, rm, rs, skelCache, result);
+            } else {
+                auto* renderer = ccnew MeshRenderer(node);
+                renderer->setMesh(mesh);
+                renderer->setMaterial(mat);
+                result.renderers.push_back(renderer);
+            }
         }
     }
 
     for (const auto& child : usdNode.children) {
-        buildNodeTree(child, node, rs, builtMeshes, outMats, result);
+        buildNodeTree(child, node, rs, builtMeshes, outMats, skelCache, result);
     }
 }
 
@@ -260,15 +586,18 @@ USDLoadResult USDLoader::load(const std::string& filePath, Node* parent) {
         result.meshes[i] = buildMesh(rs.meshes[i]);
     }
 
-    // Scene root node
+    // Scene root node. The result owns exactly one reference to the root;
+    // all other nodes are owned by their parents (see USDLoadResult::nodes).
     auto* root = ccnew cc::Node(filePath.empty() ? "usd_root" : filePath);
+    root->addRef();
     root->setParent(parent);
     result.nodes.push_back(root);
     result.rootNode = root;
 
     // rs.nodes = flat list of root-level USD nodes; children are nested.
+    SkelCache skelCache;
     for (const auto& usdNode : rs.nodes) {
-        buildNodeTree(usdNode, root, rs, result.meshes, result.materials, result);
+        buildNodeTree(usdNode, root, rs, result.meshes, result.materials, skelCache, result);
     }
 
     result.success = true;

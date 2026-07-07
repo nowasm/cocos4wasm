@@ -41,6 +41,7 @@ set(DEMO_SOURCES
 
 if(USE_TINYUSDZ)
     list(APPEND DEMO_SOURCES ${CMAKE_CURRENT_LIST_DIR}/scenes/USDScene.cpp)
+    list(APPEND DEMO_SOURCES ${CMAKE_CURRENT_LIST_DIR}/scenes/USDSkelScene.cpp)
 endif()
 
 add_executable(CocosDemo ${DEMO_SOURCES})

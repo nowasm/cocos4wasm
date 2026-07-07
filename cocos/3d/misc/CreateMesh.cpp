@@ -185,7 +185,9 @@ Mesh::ICreateInfo MeshUtils::createMeshInfo(const IGeometry &geometry, const ccs
 
     if (geometry.customAttributes.has_value()) {
         for (const auto &ca : geometry.customAttributes.value()) {
-            const auto &info = gfx::GFX_FORMAT_INFOS[static_cast<uint32_t>(attr->format)];
+            // NOTE: must use the custom attribute's own format here — using the
+            // last standard attribute's format desyncs stride vs written bytes.
+            const auto &info = gfx::GFX_FORMAT_INFOS[static_cast<uint32_t>(ca.attr.format)];
             attributes.emplace_back(ca.attr);
             vertCount = std::max(vertCount, static_cast<uint32_t>(std::floor(ca.values.size() / info.count)));
             channels.emplace_back(Channel{stride, ca.values, ca.attr});

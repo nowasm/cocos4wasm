@@ -2278,6 +2278,8 @@ cocos_source_files(
     # 3d authoring components (P6)
     cocos/3d/framework/MeshRendererComponent.h
     cocos/3d/framework/MeshRendererComponent.cpp
+    cocos/3d/framework/SkinnedMeshRendererComponent.h
+    cocos/3d/framework/SkinnedMeshRendererComponent.cpp
     cocos/3d/framework/DirectionalLightComponent.h
     cocos/3d/framework/DirectionalLightComponent.cpp
 
