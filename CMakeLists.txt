@@ -2275,6 +2275,15 @@ cocos_source_files(
     cocos/core/component/NodeActivator.h
     cocos/core/component/NodeActivator.cpp
 
+    # animation (P6)
+    cocos/animation/AnimationCurve.h
+    cocos/animation/AnimationClip.h
+    cocos/animation/AnimationClip.cpp
+    cocos/animation/AnimationState.h
+    cocos/animation/AnimationState.cpp
+    cocos/animation/AnimationComponent.h
+    cocos/animation/AnimationComponent.cpp
+
     # serialization
     cocos/serialization/JsonDeserializer.h
     cocos/serialization/JsonDeserializer.cpp

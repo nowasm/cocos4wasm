@@ -36,6 +36,7 @@ set(DEMO_SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/scenes/ScrollViewScene.cpp
     ${CMAKE_CURRENT_LIST_DIR}/scenes/EditBoxScene.cpp
     ${CMAKE_CURRENT_LIST_DIR}/scenes/PrefabLoadScene.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/scenes/AnimationScene.cpp
 )
 
 if(USE_TINYUSDZ)
