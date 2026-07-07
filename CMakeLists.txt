@@ -2275,6 +2275,12 @@ cocos_source_files(
     cocos/core/component/NodeActivator.h
     cocos/core/component/NodeActivator.cpp
 
+    # 3d authoring components (P6)
+    cocos/3d/framework/MeshRendererComponent.h
+    cocos/3d/framework/MeshRendererComponent.cpp
+    cocos/3d/framework/DirectionalLightComponent.h
+    cocos/3d/framework/DirectionalLightComponent.cpp
+
     # animation (P6)
     cocos/animation/AnimationCurve.h
     cocos/animation/AnimationClip.h
